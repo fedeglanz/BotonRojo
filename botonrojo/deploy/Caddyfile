@@ -1,0 +1,21 @@
+{
+  email admin@example.com
+}
+
+# Replace example.com with your real domain on the VPS.
+example.com {
+  encode zstd gzip
+
+  @track path /api/track*
+  header @track {
+    Access-Control-Allow-Origin "*"
+    Access-Control-Allow-Methods "POST, OPTIONS"
+    Access-Control-Allow-Headers "Content-Type"
+  }
+
+  reverse_proxy app:3000 {
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+  }
+}
