@@ -10,7 +10,7 @@ type Props = {
   promise: string | null;
   painPoints: string[];
   benefits: string[];
-  updateAction: (formData: FormData) => Promise<void>;
+  updateAction: (launchId: string, formData: FormData) => Promise<void>;
 };
 
 export function MarcoCopyEditor({ launchId, avatar, promise, painPoints, benefits, updateAction }: Props) {

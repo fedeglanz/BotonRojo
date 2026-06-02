@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -26,7 +26,8 @@ import {
   isActiveCampaignConfigured,
 } from "@/integrations/activecampaign";
 
-import type { LaunchType, AvatarBrief } from "@/db/schema/launches";
+import type { AvatarBrief } from "@/db/schema/launches";
+import type { LaunchType } from "@/lib/launch-types";
 
 async function requireAdmin() {
   const session = await auth();
