@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { launches, assets, products } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { isTelegramConfigured } from "@/integrations/telegram";
+import { organizations } from "@/db/schema/organizations";
 import { requireOrgAdmin } from "@/lib/org";
 
 import {
@@ -20,6 +22,9 @@ import {
   refineLandingSectionAction,
   updateSectionRawAction,
   setSectionImageAction,
+  connectTelegramGroupAction,
+  disconnectTelegramGroupAction,
+  sendTelegramTestAction,
 } from "@/server/launches";
 
 import { WizardStep } from "@/components/admin/wizard-step";
@@ -29,6 +34,7 @@ import { LandingEditor } from "@/components/admin/landing-editor";
 import { EmailSequence } from "@/components/admin/email-sequence";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
+import { TelegramPanel } from "@/components/admin/telegram-panel";
 import type { LandingBody } from "@/components/public/landing-types";
 
 export const dynamic = "force-dynamic";
@@ -68,11 +74,20 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
     .where(eq(products.launchId, launch.id))
     .limit(1);
 
+  const [org] = await db
+    .select({ telegramBotToken: organizations.telegramBotToken })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  const orgBotToken = org?.telegramBotToken ?? null;
+  const telegramConfigured = isTelegramConfigured(orgBotToken);
+
   const hasMarco = Boolean(launch.promise);
   const hasLanding = Boolean(landingAsset);
   const hasEmails = Boolean(emailAsset);
   const hasProduct = Boolean(product);
   const hasAc = Boolean(launch.activeCampaignListId);
+  const hasTelegram = Boolean(launch.telegramChatId);
 
   return (
     <div className="space-y-8">
@@ -240,6 +255,26 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           emailAssetId={emailAsset?.id ?? null}
           provisionAction={provisionActiveCampaignAction}
           pushEmailsAction={pushEmailsToActiveCampaignAction}
+        />
+      </WizardStep>
+
+      {/* Step 7 — Telegram */}
+      <WizardStep
+        index={7}
+        title="Telegram"
+        subtitle="Conectá un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
+        status={!telegramConfigured ? "needs-prev" : hasTelegram ? "ready" : "empty"}
+      >
+        <TelegramPanel
+          launchId={launch.id}
+          launchSlug={launch.slug}
+          configured={telegramConfigured}
+          chatId={launch.telegramChatId ?? null}
+          inviteLink={launch.telegramInviteLink ?? null}
+          botAdded={launch.telegramBotAdded}
+          connectAction={connectTelegramGroupAction}
+          disconnectAction={disconnectTelegramGroupAction}
+          testAction={sendTelegramTestAction}
         />
       </WizardStep>
     </div>

@@ -38,6 +38,11 @@ export const launches = pgTable("launches", {
   activeCampaignListId: integer("active_campaign_list_id"),
   activeCampaignTagIds: jsonb("active_campaign_tag_ids").$type<Record<string, number>>().default({}),
 
+  // Telegram provisioning
+  telegramChatId: text("telegram_chat_id"),
+  telegramInviteLink: text("telegram_invite_link"),
+  telegramBotAdded: boolean("telegram_bot_added").notNull().default(false),
+
   // Raw brief used to generate the marco copy (kept for re-generations)
   brief: text("brief"),
 

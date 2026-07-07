@@ -26,6 +26,13 @@ import {
   isActiveCampaignConfigured,
 } from "@/integrations/activecampaign";
 
+import {
+  isTelegramConfigured,
+  connectTelegramGroup,
+  sendMessage as sendTelegramMessage,
+} from "@/integrations/telegram";
+
+import { organizations } from "@/db/schema";
 import type { AvatarBrief } from "@/db/schema/launches";
 import type { LaunchType } from "@/lib/launch-types";
 
@@ -470,4 +477,72 @@ function wrapEmailHtml(body: string, preheader: string): string {
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
 ${body}
 </body></html>`;
+}
+
+// ---- Telegram ----
+
+async function getOrgBotToken(organizationId: string): Promise<string | null> {
+  const [org] = await db.select({ token: organizations.telegramBotToken }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  return org?.token ?? null;
+}
+
+export async function connectTelegramGroupAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const orgBotToken = await getOrgBotToken(organizationId);
+
+  if (!isTelegramConfigured(orgBotToken)) {
+    throw new Error("telegram_not_configured");
+  }
+
+  const launch = await loadOrgLaunch(launchId, organizationId);
+  const chatId = String(formData.get("chatId") ?? "").trim();
+  if (!chatId) throw new Error("chat_id_required");
+
+  const result = await connectTelegramGroup(chatId, orgBotToken);
+
+  await db
+    .update(launches)
+    .set({
+      telegramChatId: result.chatId,
+      telegramInviteLink: result.inviteLink,
+      telegramBotAdded: true,
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function disconnectTelegramGroupAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  await db
+    .update(launches)
+    .set({
+      telegramChatId: null,
+      telegramInviteLink: null,
+      telegramBotAdded: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function sendTelegramTestAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const orgBotToken = await getOrgBotToken(organizationId);
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  if (!launch.telegramChatId) throw new Error("telegram_not_connected");
+
+  await sendTelegramMessage(
+    launch.telegramChatId,
+    `✅ <b>Conexión de prueba</b>\n\nEl bot está conectado al lanzamiento <b>${launch.name}</b>.`,
+    { parseMode: "HTML" },
+    orgBotToken,
+  );
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }

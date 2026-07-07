@@ -10,6 +10,7 @@ export const organizations = pgTable("organizations", {
   plan: orgPlan("plan").notNull().default("free"),
   ownerId: text("owner_id").notNull(), // user who created the org
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
+  telegramBotToken: text("telegram_bot_token"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
