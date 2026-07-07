@@ -32,6 +32,7 @@ const envSchema = z.object({
   ACTIVECAMPAIGN_FROM_EMAIL: z.string().default("hola@escuelanomadadigital.com"),
 
   TELEGRAM_BOT_TOKEN: z.string().default(""),
+  TELEGRAM_WEBHOOK_SECRET: z.string().default(""),
   NOTION_TOKEN: z.string().default(""),
   YOUTUBE_API_KEY: z.string().default(""),
   META_ACCESS_TOKEN: z.string().default(""),
