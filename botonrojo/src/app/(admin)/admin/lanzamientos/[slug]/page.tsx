@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { launches, assets, products } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { requireOrgAdmin } from "@/lib/org";
 
 import {
   generateMarcoCopyAction,
@@ -34,7 +35,8 @@ export const dynamic = "force-dynamic";
 
 export default async function LaunchHubPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params;
-  const [launch] = await db.select().from(launches).where(eq(launches.slug, slug)).limit(1);
+  const { organizationId } = await requireOrgAdmin();
+  const [launch] = await db.select().from(launches).where(and(eq(launches.slug, slug), eq(launches.organizationId, organizationId))).limit(1);
   if (!launch) notFound();
 
   const meta = LAUNCH_TYPES[launch.type as LaunchType];

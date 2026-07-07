@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, pgEnum, primaryKey, integer } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
+import { organizations } from "./organizations";
 
 export const userRole = pgEnum("user_role", ["admin", "affiliate", "customer"]);
 
@@ -13,6 +14,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   affiliateCode: text("affiliate_code").unique(),
   affiliateCommissionRate: integer("affiliate_commission_rate_bps").default(3000),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

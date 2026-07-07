@@ -15,6 +15,7 @@ declare module "next-auth" {
       id: string;
       role: "admin" | "affiliate" | "customer";
       affiliateCode?: string | null;
+      organizationId?: string | null;
     };
   }
 }
@@ -63,6 +64,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name ?? undefined,
             role: user.role,
             affiliateCode: user.affiliateCode,
+            organizationId: user.organizationId,
           };
         } catch (err) {
           console.error("[auth] authorize threw:", err);
@@ -77,6 +79,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = (user as { id: string }).id;
         token.role = (user as { role: string }).role;
         token.affiliateCode = (user as { affiliateCode?: string | null }).affiliateCode;
+        token.organizationId = (user as { organizationId?: string | null }).organizationId;
       }
       return token;
     },
@@ -85,6 +88,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         session.user.role = token.role as "admin" | "affiliate" | "customer";
         session.user.affiliateCode = (token.affiliateCode as string | null | undefined) ?? null;
+        session.user.organizationId = (token.organizationId as string | null | undefined) ?? null;
       }
       return session;
     },
