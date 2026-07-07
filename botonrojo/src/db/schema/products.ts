@@ -1,9 +1,11 @@
 import { pgTable, text, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const products = pgTable("products", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
@@ -20,6 +22,7 @@ export const products = pgTable("products", {
 
 export const orders = pgTable("orders", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   stripeSessionId: text("stripe_session_id").unique(),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   email: text("email"),

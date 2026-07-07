@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
 import { launches } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import { requireOrgAdmin } from "@/lib/org";
 
 import {
   getAffiliateOverview,
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AffiliateDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
+  const { organizationId } = await requireOrgAdmin();
 
   const overview = await getAffiliateOverview(id);
   if (!overview) notFound();
@@ -28,6 +30,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
   const availableLaunches = await db
     .select({ id: launches.id, name: launches.name })
     .from(launches)
+    .where(eq(launches.organizationId, organizationId))
     .orderBy(desc(launches.createdAt));
 
   const rate = ((overview.user.affiliateCommissionRate ?? 0) / 100).toFixed(0);

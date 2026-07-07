@@ -7,8 +7,8 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { launches, assets, products } from "@/db/schema";
-import { auth } from "@/lib/auth";
 import { createSlug } from "@/lib/ids";
+import { requireOrgAdmin } from "@/lib/org";
 import { env } from "@/lib/env";
 import { complete } from "@/lib/ai";
 import { stripe } from "@/lib/stripe";
@@ -29,12 +29,15 @@ import {
 import type { AvatarBrief } from "@/db/schema/launches";
 import type { LaunchType } from "@/lib/launch-types";
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") {
-    throw new Error("unauthorized");
-  }
-  return session.user;
+/** Load a launch scoped to the current org. Throws if not found or wrong org. */
+async function loadOrgLaunch(launchId: string, organizationId: string) {
+  const [launch] = await db
+    .select()
+    .from(launches)
+    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+  return launch;
 }
 
 function extractJson(text: string): unknown {
@@ -51,7 +54,7 @@ const createSchema = z.object({
 });
 
 export async function createLaunchAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
 
   const parsed = createSchema.parse({
     name: formData.get("name"),
@@ -68,6 +71,7 @@ export async function createLaunchAction(formData: FormData) {
   if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
   await db.insert(launches).values({
+    organizationId,
     slug,
     name: parsed.name,
     type: parsed.type as LaunchType,
@@ -81,9 +85,8 @@ export async function createLaunchAction(formData: FormData) {
 }
 
 export async function generateMarcoCopyAction(launchId: string) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
   if (!launch.brief) throw new Error("brief_missing");
 
   const { text } = await complete({
@@ -114,9 +117,8 @@ export async function generateMarcoCopyAction(launchId: string) {
 }
 
 export async function updateMarcoCopyAction(launchId: string, formData: FormData) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
 
   const promise = String(formData.get("promise") ?? "");
   const painPoints = String(formData.get("painPoints") ?? "")
@@ -145,9 +147,8 @@ export async function updateMarcoCopyAction(launchId: string, formData: FormData
 }
 
 export async function generateLandingAction(launchId: string) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
 
   const { text } = await complete({
@@ -169,6 +170,7 @@ export async function generateLandingAction(launchId: string) {
     .insert(assets)
     .values({
       launchId,
+      organizationId,
       kind: "landing",
       title: `Landing · ${launch.name}`,
       body,
@@ -179,9 +181,8 @@ export async function generateLandingAction(launchId: string) {
 }
 
 export async function generateEmailsAction(launchId: string) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
   if (!launch.promise) throw new Error("marco_copy_missing");
 
   const ctaUrl = `${env.APP_URL}/${launch.slug}`;
@@ -196,6 +197,7 @@ export async function generateEmailsAction(launchId: string) {
   const body = extractJson(text) as { emails: Array<{ subject: string; preheader: string; body: string; ctaText: string; ctaUrl: string }> };
 
   await db.insert(assets).values({
+    organizationId,
     launchId,
     kind: "email",
     title: `Secuencia · ${launch.name}`,
@@ -207,9 +209,8 @@ export async function generateEmailsAction(launchId: string) {
 }
 
 export async function generateAdsAction(launchId: string) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
   if (!launch.promise) throw new Error("marco_copy_missing");
 
   const ctaUrl = `${env.APP_URL}/${launch.slug}`;
@@ -223,6 +224,7 @@ export async function generateAdsAction(launchId: string) {
   const body = extractJson(text) as Record<string, unknown>;
 
   await db.insert(assets).values({
+    organizationId,
     launchId,
     kind: "ad_copy",
     title: `Anuncios · ${launch.name}`,
@@ -234,9 +236,8 @@ export async function generateAdsAction(launchId: string) {
 }
 
 export async function createStripeProductAction(launchId: string, formData: FormData) {
-  await requireAdmin();
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
 
   const priceCents = Number(formData.get("priceCents"));
   const currency = String(formData.get("currency") ?? "EUR").toLowerCase();
@@ -263,6 +264,7 @@ export async function createStripeProductAction(launchId: string, formData: Form
   });
 
   await db.insert(products).values({
+    organizationId,
     slug: launch.slug,
     name,
     description: description || null,
@@ -283,13 +285,12 @@ export async function createStripeProductAction(launchId: string, formData: Form
 }
 
 export async function provisionActiveCampaignAction(launchId: string) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   if (!isActiveCampaignConfigured()) {
     throw new Error("activecampaign_not_configured");
   }
 
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const launch = await loadOrgLaunch(launchId, organizationId);
 
   const publicUrl = `${env.APP_URL}/${launch.slug}`;
   const { listId, tagIds } = await provisionLaunchInAc({
@@ -311,11 +312,10 @@ export async function provisionActiveCampaignAction(launchId: string) {
 }
 
 export async function pushEmailsToActiveCampaignAction(launchId: string, assetId: string) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   if (!isActiveCampaignConfigured()) throw new Error("activecampaign_not_configured");
 
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+  const launch = await loadOrgLaunch(launchId, organizationId);
 
   const [asset] = await db.select().from(assets).where(eq(assets.id, assetId)).limit(1);
   if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
@@ -337,9 +337,8 @@ export async function pushEmailsToActiveCampaignAction(launchId: string, assetId
 
 // ---- Landing per-section edits ----
 
-async function loadLandingAsset(launchId: string) {
-  const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
-  if (!launch) throw new Error("launch_not_found");
+async function loadLandingAsset(launchId: string, organizationId: string) {
+  const launch = await loadOrgLaunch(launchId, organizationId);
 
   const [asset] = await db
     .select()
@@ -374,11 +373,11 @@ export async function refineLandingSectionAction(
   section: LandingSectionKey,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const instruction = String(formData.get("instruction") ?? "").trim();
   if (!instruction) throw new Error("instruction_required");
 
-  const { launch, asset } = await loadLandingAsset(launchId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
   const body = (asset?.body ?? {}) as LandingBody;
   const currentSection = (body as Record<string, unknown>)[section] ?? null;
 
@@ -415,13 +414,13 @@ export async function setSectionImageAction(
   slotPath: string,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   if (!ALLOWED_IMAGE_SLOTS.has(slotPath) && !slotPath.startsWith("includes.")) {
     throw new Error("invalid_slot");
   }
   const imageUrl = String(formData.get("imageUrl") ?? "").trim() || null;
 
-  const { launch, asset } = await loadLandingAsset(launchId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
   const body = (asset?.body ?? {}) as LandingBody;
 
   const newBody: LandingBody = JSON.parse(JSON.stringify(body));
@@ -450,7 +449,7 @@ export async function updateSectionRawAction(
   section: LandingSectionKey,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const raw = String(formData.get("json") ?? "").trim();
   let parsed: unknown;
   try {
@@ -459,7 +458,7 @@ export async function updateSectionRawAction(
     throw new Error("invalid_json");
   }
 
-  const { launch, asset } = await loadLandingAsset(launchId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
   const body = (asset?.body ?? {}) as LandingBody;
   const newBody: LandingBody = { ...body, [section]: parsed };
 

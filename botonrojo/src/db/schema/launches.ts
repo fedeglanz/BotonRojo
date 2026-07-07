@@ -1,11 +1,13 @@
-import { pgTable, text, timestamp, pgEnum, jsonb, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, jsonb, integer, boolean, index } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
+import { organizations } from "./organizations";
 
 export const launchType = pgEnum("launch_type", ["venta_directa", "semilla", "plf"]);
 export const launchStatus = pgEnum("launch_status", ["draft", "scheduled", "live", "closed", "archived"]);
 
 export const launches = pgTable("launches", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   type: launchType("type").notNull(),

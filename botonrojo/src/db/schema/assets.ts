@@ -2,6 +2,7 @@ import { pgTable, text, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { launches } from "./launches";
 import { users } from "./users";
+import { organizations } from "./organizations";
 
 export const assetKind = pgEnum("asset_kind", [
   "landing",
@@ -19,6 +20,7 @@ export const assetKind = pgEnum("asset_kind", [
 
 export const assets = pgTable("assets", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   launchId: text("launch_id").references(() => launches.id, { onDelete: "cascade" }),
   kind: assetKind("kind").notNull(),
   title: text("title").notNull(),

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getAllAffiliatesOverview } from "@/server/affiliates";
 import { formatPrice } from "@/lib/utils";
+import { requireOrgAdmin } from "@/lib/org";
 
 export const dynamic = "force-dynamic";
 
 export default async function AfiliadosPage() {
-  const list = await getAllAffiliatesOverview();
+  const { organizationId } = await requireOrgAdmin();
+  const list = await getAllAffiliatesOverview(organizationId);
 
   const totals = list.reduce(
     (acc, o) => ({

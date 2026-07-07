@@ -9,21 +9,7 @@ import { db } from "@/db";
 import { users, trackingEvents, affiliateLinks, affiliatePayouts, launches } from "@/db/schema";
 import { auth, hashPassword, signIn } from "@/lib/auth";
 import { createAffiliateCode, createId } from "@/lib/ids";
-
-// ---------- Helpers ----------
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") throw new Error("unauthorized");
-  return session.user;
-}
-
-async function requireAffiliateOrAdmin() {
-  const session = await auth();
-  if (!session?.user) throw new Error("unauthorized");
-  if (!["affiliate", "admin"].includes(session.user.role)) throw new Error("forbidden");
-  return session.user;
-}
+import { requireOrgAdmin, requireOrgAccess } from "@/lib/org";
 
 // ---------- Stats ----------
 
@@ -141,8 +127,8 @@ export async function getAffiliateLaunchBreakdown(userId: string): Promise<Launc
   return Array.from(byLaunch.values()).sort((a, b) => b.salesAmountCents - a.salesAmountCents);
 }
 
-export async function getAllAffiliatesOverview(): Promise<AffiliateOverview[]> {
-  const list = await db.select().from(users).where(eq(users.role, "affiliate"));
+export async function getAllAffiliatesOverview(organizationId: string): Promise<AffiliateOverview[]> {
+  const list = await db.select().from(users).where(and(eq(users.role, "affiliate"), eq(users.organizationId, organizationId)));
   const out: AffiliateOverview[] = [];
   for (const u of list) {
     const o = await getAffiliateOverview(u.id);
@@ -206,7 +192,7 @@ const adminCreateSchema = z.object({
 });
 
 export async function adminCreateAffiliateAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
 
   const parsed = adminCreateSchema.parse({
     name: formData.get("name"),
@@ -230,6 +216,7 @@ export async function adminCreateAffiliateAction(formData: FormData) {
       role: "affiliate",
       affiliateCode,
       affiliateCommissionRate: Math.round(parsed.commissionPercent * 100),
+      organizationId,
     })
     .returning({ id: users.id });
 
@@ -243,7 +230,7 @@ const setRateSchema = z.object({
 });
 
 export async function setCommissionRateAction(formData: FormData) {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = setRateSchema.parse({
     userId: formData.get("userId"),
     commissionPercent: formData.get("commissionPercent"),
@@ -266,7 +253,7 @@ const payoutSchema = z.object({
 });
 
 export async function recordPayoutAction(formData: FormData) {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = payoutSchema.parse({
     userId: formData.get("userId"),
     amountCents: formData.get("amountCents"),
@@ -296,7 +283,8 @@ const linkSchema = z.object({
 });
 
 export async function createAffiliateLinkAction(formData: FormData) {
-  const user = await requireAffiliateOrAdmin();
+  const { userId, session } = await requireOrgAccess();
+  const user = session.user;
   const parsed = linkSchema.parse({
     launchSlug: formData.get("launchSlug"),
     utmSource: formData.get("utmSource") || undefined,
