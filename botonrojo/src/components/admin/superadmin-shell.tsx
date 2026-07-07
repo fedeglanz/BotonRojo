@@ -5,29 +5,25 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/admin", label: "Lanzamientos" },
-  { href: "/admin/afiliados", label: "Afiliados" },
-  { href: "/admin/estadisticas", label: "Estadísticas" },
-  { href: "/admin/emails", label: "Emails" },
-  { href: "/admin/anuncios", label: "Anuncios" },
-  { href: "/admin/ajustes", label: "Ajustes" },
+  { href: "/superadmin", label: "Organizaciones" },
+  { href: "/superadmin/usuarios", label: "Usuarios" },
 ];
 
-export function AdminShell({ children, isSuperAdmin }: { children: React.ReactNode; isSuperAdmin?: boolean }) {
+export function SuperAdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
     <div className="relative mx-auto flex min-h-screen w-full max-w-7xl gap-8 px-6 py-8">
       <aside className="hidden w-56 shrink-0 md:block">
         <div className="sticky top-8 space-y-6">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="inline-block h-3 w-3 rounded-full bg-[--color-red] shadow-[0_0_18px_var(--color-red-glow)]" />
+          <Link href="/superadmin" className="flex items-center gap-3">
+            <span className="inline-block h-3 w-3 rounded-full bg-amber-500 shadow-[0_0_18px_rgba(245,158,11,0.55)]" />
             <span className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.2em]">
-              Botón Rojo
+              Super Admin
             </span>
           </Link>
           <nav className="space-y-1">
             {NAV.map((n) => {
-              const active = pathname === n.href || (n.href !== "/admin" && pathname.startsWith(n.href));
+              const active = pathname === n.href || (n.href !== "/superadmin" && pathname.startsWith(n.href));
               return (
                 <Link
                   key={n.href}
@@ -44,16 +40,14 @@ export function AdminShell({ children, isSuperAdmin }: { children: React.ReactNo
               );
             })}
           </nav>
-          {isSuperAdmin && (
-            <div className="border-t border-white/10 pt-4">
-              <Link
-                href="/superadmin"
-                className="block rounded-lg px-3 py-2 text-sm text-amber-400 transition hover:bg-amber-500/10"
-              >
-                Super Admin Panel
-              </Link>
-            </div>
-          )}
+          <div className="border-t border-white/10 pt-4">
+            <Link
+              href="/admin"
+              className="block rounded-lg px-3 py-2 text-sm text-zinc-500 transition hover:bg-white/[0.03] hover:text-white"
+            >
+              Ir al panel admin →
+            </Link>
+          </div>
         </div>
       </aside>
 
