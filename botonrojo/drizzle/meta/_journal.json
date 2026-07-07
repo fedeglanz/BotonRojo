@@ -15,6 +15,13 @@
       "when": 1783425951990,
       "tag": "0001_greedy_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783429253848,
+      "tag": "0002_wild_randall",
+      "breakpoints": true
     }
   ]
 }

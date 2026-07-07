@@ -86,6 +86,28 @@ async function main() {
     .onConflictDoNothing();
 
   console.log("✓ Sample launches inserted");
+
+  // 4. Create superadmin (platform owner)
+  const superEmail = (process.env.SEED_SUPERADMIN_EMAIL ?? "super@botonrojo.local").toLowerCase();
+  const superPassword = process.env.SEED_SUPERADMIN_PASSWORD ?? "super-rojo-1234";
+  const superHash = await hashPassword(superPassword);
+
+  await db
+    .insert(users)
+    .values({
+      email: superEmail,
+      name: "Super Admin",
+      role: "superadmin",
+      passwordHash: superHash,
+      organizationId: org.id,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: { passwordHash: superHash, role: "superadmin", organizationId: org.id, updatedAt: new Date() },
+    });
+
+  console.log(`✓ Superadmin ready: ${superEmail} / ${superPassword}`);
+
   console.log("\nReady. Login at http://localhost:3000/login");
   process.exit(0);
 }

@@ -23,10 +23,26 @@ export async function requireOrgAccess() {
 }
 
 /**
- * Like requireOrgAccess but also checks for admin role.
+ * Like requireOrgAccess but also checks for admin (or superadmin) role.
  */
 export async function requireOrgAdmin() {
   const ctx = await requireOrgAccess();
-  if (ctx.role !== "admin") throw new Error("unauthorized");
+  if (ctx.role !== "admin" && ctx.role !== "superadmin") throw new Error("unauthorized");
   return ctx;
+}
+
+/**
+ * Requires the superadmin role (platform owner).
+ * Does NOT require organizationId — superadmin sees everything.
+ */
+export async function requireSuperAdmin() {
+  const session = await auth();
+  if (!session?.user) throw new Error("unauthorized");
+  if (session.user.role !== "superadmin") throw new Error("unauthorized");
+
+  return {
+    userId: session.user.id,
+    role: session.user.role as "superadmin",
+    session,
+  };
 }

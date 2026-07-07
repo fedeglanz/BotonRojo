@@ -13,7 +13,7 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: DefaultSession["user"] & {
       id: string;
-      role: "admin" | "affiliate" | "customer";
+      role: "superadmin" | "admin" | "affiliate" | "customer";
       affiliateCode?: string | null;
       organizationId?: string | null;
     };
@@ -86,7 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "admin" | "affiliate" | "customer";
+        session.user.role = token.role as "superadmin" | "admin" | "affiliate" | "customer";
         session.user.affiliateCode = (token.affiliateCode as string | null | undefined) ?? null;
         session.user.organizationId = (token.organizationId as string | null | undefined) ?? null;
       }

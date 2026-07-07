@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, pgEnum, primaryKey, integer } from "drizzle-o
 import { createId } from "@/lib/ids";
 import { organizations } from "./organizations";
 
-export const userRole = pgEnum("user_role", ["admin", "affiliate", "customer"]);
+export const userRole = pgEnum("user_role", ["superadmin", "admin", "affiliate", "customer"]);
 
 export const users = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
