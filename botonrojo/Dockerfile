@@ -13,8 +13,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 # Bundle migrate + seed scripts so they run with plain node (no tsx needed)
-RUN npx esbuild src/db/migrate.ts --bundle --platform=node --format=esm --outfile=scripts/migrate.mjs "--alias:@=./src" --external:postgres \
- && npx esbuild src/db/seed.ts --bundle --platform=node --format=esm --outfile=scripts/seed.mjs "--alias:@=./src" --external:postgres
+RUN npx esbuild src/db/migrate.ts --bundle --platform=node --format=esm --outfile=scripts/migrate.mjs "--alias:@=./src" \
+ && npx esbuild src/db/seed.ts --bundle --platform=node --format=esm --outfile=scripts/seed.mjs "--alias:@=./src"
 
 FROM base AS runner
 ENV NODE_ENV=production
