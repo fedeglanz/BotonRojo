@@ -8,6 +8,8 @@ import { products, trackingEvents, launches, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { stripe, createCheckoutSession } from "@/lib/stripe";
 import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { isTelegramConfigured } from "@/integrations/telegram";
+import { sendAutomatedTelegramMessage } from "@/server/launches";
 
 export async function startCheckoutAction(formData: FormData) {
   const productSlug = String(formData.get("productSlug") ?? "");
@@ -68,6 +70,18 @@ export async function captureLeadAction(formData: FormData) {
       launchTagIds: (launch.activeCampaignTagIds ?? {}) as Record<string, number>,
       intent: "registro",
     }).catch((err) => console.error("AC sync (landing lead) failed", err));
+  }
+
+  // Telegram on_lead automation
+  if (launch?.telegramChatId && launch.organizationId && isTelegramConfigured()) {
+    sendAutomatedTelegramMessage({
+      chatId: launch.telegramChatId,
+      launchId: launch.id,
+      organizationId: launch.organizationId,
+      event: "on_lead",
+      leadName: name,
+      email,
+    }).catch((err) => console.error("Telegram on_lead (landing) failed", err));
   }
 
   redirect(`/gracias?lead=1&launch=${launchSlug}`);

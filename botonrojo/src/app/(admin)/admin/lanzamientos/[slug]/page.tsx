@@ -29,6 +29,8 @@ import {
   generateTelegramMessagesAction,
   sendTelegramAssetMessageAction,
   triggerTelegramCartAction,
+  editTelegramMessageAction,
+  refineTelegramMessageAction,
 } from "@/server/launches";
 
 import { WizardStep } from "@/components/admin/wizard-step";
@@ -312,6 +314,8 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           discoverAction={discoverTelegramGroupsAction}
           sendMessageAction={sendTelegramAssetMessageAction}
           triggerCartAction={triggerTelegramCartAction}
+          editMessageAction={editTelegramMessageAction}
+          refineMessageAction={refineTelegramMessageAction}
         />
       </WizardStep>
     </div>

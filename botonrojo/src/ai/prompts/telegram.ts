@@ -39,6 +39,38 @@ Cada mensaje incluye variables que se sustituyen al enviar:
 
 Devuelve JSON. Tono directo, cercano, con emojis moderados. Español neutro latinoamericano.`;
 
+export const TELEGRAM_REFINE_SYSTEM = `Eres editor de mensajes de Telegram para lanzamientos digitales.
+Recibes un mensaje existente en HTML de Telegram y una instrucción del admin.
+Devuelves SOLO el JSON del mensaje mejorado, manteniendo la misma estructura.
+Formato HTML de Telegram: <b>, <i>, <a href="">, <code>.
+Variables disponibles: {{name}}, {{launchName}}, {{ctaUrl}}, {{email}}.
+Tono directo, cercano, emojis moderados. Español neutro latinoamericano.`;
+
+export function telegramRefinePrompt(opts: {
+  currentMessage: { title: string; body: string; timing: string; triggerEvent: string };
+  instruction: string;
+  launchName: string;
+  promise: string;
+}) {
+  return `Mensaje actual:
+${JSON.stringify(opts.currentMessage, null, 2)}
+
+Lanzamiento: ${opts.launchName}
+Promesa: ${opts.promise}
+
+Instrucción del admin: ${opts.instruction}
+
+Devuelve JSON con la misma estructura:
+{
+  "title": "...",
+  "body": "...",
+  "timing": "...",
+  "triggerEvent": "${opts.currentMessage.triggerEvent}"
+}
+
+IMPORTANTE: No cambies el triggerEvent. Solo mejora title, body y timing según la instrucción.`;
+}
+
 export function telegramPrompt(launchName: string, type: string, promise: string, ctaUrl: string) {
   return `Lanzamiento: ${launchName}
 Tipo: ${type}

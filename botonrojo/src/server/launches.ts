@@ -18,7 +18,7 @@ import { LANDING_SYSTEM, landingPrompt } from "@/ai/prompts/landing";
 import { REFINE_SYSTEM, refineSectionPrompt } from "@/ai/prompts/landing-refine";
 import { EMAILS_SYSTEM, emailsPrompt } from "@/ai/prompts/emails";
 import { ADS_SYSTEM, adsPrompt } from "@/ai/prompts/ads";
-import { TELEGRAM_SYSTEM, telegramPrompt } from "@/ai/prompts/telegram";
+import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefinePrompt } from "@/ai/prompts/telegram";
 import type { LandingBody, LandingSectionKey } from "@/components/public/landing-types";
 
 import {
@@ -31,6 +31,7 @@ import {
   isTelegramConfigured,
   connectTelegramGroup,
   sendMessage as sendTelegramMessage,
+  registerWebhook,
 } from "@/integrations/telegram";
 
 import { organizations } from "@/db/schema";
@@ -511,6 +512,13 @@ export async function connectTelegramGroupAction(launchId: string, formData: For
     })
     .where(eq(launches.id, launchId));
 
+  // Auto-register webhook so Telegram pushes updates
+  if (env.TELEGRAM_WEBHOOK_SECRET) {
+    registerWebhook(env.APP_URL, env.TELEGRAM_WEBHOOK_SECRET, orgBotToken).catch((err) =>
+      console.error("Webhook registration failed", err),
+    );
+  }
+
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
@@ -674,6 +682,95 @@ export async function triggerTelegramCartAction(launchId: string, event: "on_car
     organizationId,
     event,
   });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+// ---- Telegram message editing ----
+
+async function loadTelegramAsset(launchId: string) {
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  return asset;
+}
+
+export async function editTelegramMessageAction(
+  launchId: string,
+  messageIndex: number,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  const asset = await loadTelegramAsset(launchId);
+  if (!asset) throw new Error("no_telegram_messages");
+
+  const body = asset.body as { messages: TelegramMessageItem[] };
+  const msg = body.messages[messageIndex];
+  if (!msg) throw new Error("message_not_found");
+
+  const newBody = String(formData.get("body") ?? "").trim();
+  const newTitle = String(formData.get("title") ?? "").trim();
+  if (!newBody) throw new Error("body_required");
+
+  body.messages[messageIndex] = {
+    ...msg,
+    body: newBody,
+    title: newTitle || msg.title,
+  };
+
+  await db
+    .update(assets)
+    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .where(eq(assets.id, asset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function refineTelegramMessageAction(
+  launchId: string,
+  messageIndex: number,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!instruction) throw new Error("instruction_required");
+
+  const asset = await loadTelegramAsset(launchId);
+  if (!asset) throw new Error("no_telegram_messages");
+
+  const body = asset.body as { messages: TelegramMessageItem[] };
+  const msg = body.messages[messageIndex];
+  if (!msg) throw new Error("message_not_found");
+
+  const { text } = await complete({
+    system: TELEGRAM_REFINE_SYSTEM,
+    prompt: telegramRefinePrompt({
+      currentMessage: msg,
+      instruction,
+      launchName: launch.name,
+      promise: launch.promise ?? "",
+    }),
+    maxTokens: 2000,
+    temperature: 0.6,
+  });
+
+  const refined = extractJson(text) as TelegramMessageItem;
+  body.messages[messageIndex] = {
+    ...refined,
+    triggerEvent: msg.triggerEvent, // never change trigger
+  };
+
+  await db
+    .update(assets)
+    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .where(eq(assets.id, asset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
