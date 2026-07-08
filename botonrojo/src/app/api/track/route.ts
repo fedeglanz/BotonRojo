@@ -5,6 +5,8 @@ import { trackPayloadSchema, getClientIp, classifySource } from "@/lib/tracking"
 import { isBot, isSuspiciousUa } from "@/lib/bots";
 import { lookupGeoIp } from "@/lib/geoip";
 import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { isTelegramConfigured } from "@/integrations/telegram";
+import { sendAutomatedTelegramMessage } from "@/server/launches";
 import { eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
   let launchAcListId: number | null = null;
   let launchAcTagIds: Record<string, number> = {};
   let launchSlug: string | null = null;
+  let launchTelegramChatId: string | null = null;
+  let launchOrganizationId: string | null = null;
   if (data.launchSlug) {
     const [launch] = await db.select().from(launches).where(eq(launches.slug, data.launchSlug)).limit(1);
     if (launch) {
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
       launchAcListId = launch.activeCampaignListId ?? null;
       launchAcTagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
       launchSlug = launch.slug;
+      launchTelegramChatId = launch.telegramChatId ?? null;
+      launchOrganizationId = launch.organizationId ?? null;
     }
   }
 
@@ -74,6 +80,24 @@ export async function POST(req: NextRequest) {
       launchTagIds: launchAcTagIds,
       intent,
     }).catch((err) => console.error("AC sync failed", err));
+  }
+
+  // Telegram automation: fire-and-forget
+  if (
+    launchTelegramChatId &&
+    launchId &&
+    launchOrganizationId &&
+    (data.type === "lead" || data.type === "sale")
+  ) {
+    const tgEvent = data.type === "sale" ? "on_sale" as const : "on_lead" as const;
+    sendAutomatedTelegramMessage({
+      chatId: launchTelegramChatId,
+      launchId,
+      organizationId: launchOrganizationId,
+      event: tgEvent,
+      leadName: data.name ?? undefined,
+      email: data.email ?? undefined,
+    }).catch((err) => console.error("Telegram auto-message failed", err));
   }
 
   await db.insert(trackingEvents).values({

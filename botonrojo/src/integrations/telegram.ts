@@ -216,3 +216,26 @@ export async function connectTelegramGroup(
     inviteLink: link.invite_link,
   };
 }
+
+/**
+ * Register a webhook URL so Telegram pushes updates instead of polling.
+ */
+export async function registerWebhook(
+  appUrl: string,
+  secretToken: string,
+  orgBotToken?: string | null,
+): Promise<boolean> {
+  return tg<boolean>(
+    "setWebhook",
+    {
+      url: `${appUrl}/api/telegram/webhook`,
+      secret_token: secretToken,
+      allowed_updates: ["message", "my_chat_member"],
+    },
+    orgBotToken,
+  );
+}
+
+export async function deleteWebhook(orgBotToken?: string | null): Promise<boolean> {
+  return tg<boolean>("deleteWebhook", {}, orgBotToken);
+}

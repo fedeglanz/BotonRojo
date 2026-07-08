@@ -26,6 +26,9 @@ import {
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
   discoverTelegramGroupsAction,
+  generateTelegramMessagesAction,
+  sendTelegramAssetMessageAction,
+  triggerTelegramCartAction,
 } from "@/server/launches";
 
 import { WizardStep } from "@/components/admin/wizard-step";
@@ -82,6 +85,13 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
     .limit(1);
   const orgBotToken = org?.telegramBotToken ?? null;
   const telegramConfigured = isTelegramConfigured(orgBotToken);
+
+  const [telegramAsset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "telegram_message")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
 
   let botUsername: string | null = null;
   if (telegramConfigured) {
@@ -273,6 +283,18 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         title="Telegram"
         subtitle="Conectá un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
         status={!telegramConfigured ? "needs-prev" : hasTelegram ? "ready" : "empty"}
+        action={
+          hasTelegram && hasMarco ? (
+            <form action={generateTelegramMessagesAction.bind(null, launch.id)}>
+              <SubmitButton
+                variant={telegramAsset ? "outline" : "primary"}
+                pendingLabel="Generando…"
+              >
+                {telegramAsset ? "Regenerar mensajes" : "Generar mensajes con Claude"}
+              </SubmitButton>
+            </form>
+          ) : undefined
+        }
       >
         <TelegramPanel
           launchId={launch.id}
@@ -283,10 +305,13 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           botAdded={launch.telegramBotAdded}
           botUsername={botUsername}
           launchName={launch.name}
+          messages={(telegramAsset?.body as { messages: Array<{ title: string; body: string; timing: string; triggerEvent: string }> } | null)?.messages ?? null}
           connectAction={connectTelegramGroupAction}
           disconnectAction={disconnectTelegramGroupAction}
           testAction={sendTelegramTestAction}
           discoverAction={discoverTelegramGroupsAction}
+          sendMessageAction={sendTelegramAssetMessageAction}
+          triggerCartAction={triggerTelegramCartAction}
         />
       </WizardStep>
     </div>

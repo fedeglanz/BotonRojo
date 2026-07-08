@@ -17,6 +17,13 @@ const ADMIN_RIGHTS = [
   "promote_members",
 ].join("+");
 
+type TelegramMessage = {
+  title: string;
+  body: string;
+  timing: string;
+  triggerEvent: string;
+};
+
 type Props = {
   launchId: string;
   launchSlug: string;
@@ -26,10 +33,13 @@ type Props = {
   botAdded: boolean;
   botUsername: string | null;
   launchName: string;
+  messages: TelegramMessage[] | null;
   connectAction: (launchId: string, formData: FormData) => Promise<void>;
   disconnectAction: (launchId: string) => Promise<void>;
   testAction: (launchId: string) => Promise<void>;
   discoverAction: () => Promise<DiscoveredGroup[]>;
+  sendMessageAction: (launchId: string, messageIndex: number) => Promise<void>;
+  triggerCartAction: (launchId: string, event: "on_cart_open" | "on_cart_close") => Promise<void>;
 };
 
 export function TelegramPanel({
@@ -41,10 +51,13 @@ export function TelegramPanel({
   botAdded,
   botUsername,
   launchName,
+  messages,
   connectAction,
   disconnectAction,
   testAction,
   discoverAction,
+  sendMessageAction,
+  triggerCartAction,
 }: Props) {
   const [groups, setGroups] = useState<DiscoveredGroup[]>([]);
   const [discovered, setDiscovered] = useState(false);
@@ -113,10 +126,79 @@ export function TelegramPanel({
           </div>
 
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-            El bot está conectado al grupo. Los mensajes automáticos (cuando se generen
-            en futuros pasos) se enviarán a este chat cuando ocurran eventos como registros
-            o ventas.
+            El bot está conectado al grupo.
+            {messages ? " Los mensajes están listos para enviar." : " Generá mensajes con Claude usando el botón de arriba."}
           </div>
+
+          {/* Messages list */}
+          {messages && messages.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+                Mensajes ({messages.length})
+              </p>
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-white/5 bg-black/30 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white">{msg.title}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                          msg.triggerEvent === "manual"
+                            ? "bg-zinc-800 text-zinc-400"
+                            : msg.triggerEvent === "on_lead"
+                            ? "bg-blue-500/10 text-blue-300"
+                            : msg.triggerEvent === "on_sale"
+                            ? "bg-emerald-500/10 text-emerald-300"
+                            : "bg-amber-500/10 text-amber-300"
+                        }`}>
+                          {msg.triggerEvent === "manual" ? "manual" :
+                           msg.triggerEvent === "on_lead" ? "al registrarse" :
+                           msg.triggerEvent === "on_sale" ? "al comprar" :
+                           msg.triggerEvent === "on_cart_open" ? "apertura" :
+                           "cierre"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500">{msg.timing}</p>
+                      <p className="mt-1 text-xs text-zinc-400 line-clamp-2" dangerouslySetInnerHTML={{ __html: msg.body }} />
+                    </div>
+                    <form action={sendMessageAction.bind(null, launchId, i)}>
+                      <SubmitButton variant="outline" pendingLabel="Enviando…">
+                        Enviar
+                      </SubmitButton>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cart triggers */}
+          {messages && messages.some((m) => m.triggerEvent === "on_cart_open" || m.triggerEvent === "on_cart_close") && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+                Triggers manuales
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {messages.some((m) => m.triggerEvent === "on_cart_open") && (
+                  <form action={triggerCartAction.bind(null, launchId, "on_cart_open")}>
+                    <SubmitButton variant="outline" pendingLabel="Enviando…">
+                      Abrir carrito
+                    </SubmitButton>
+                  </form>
+                )}
+                {messages.some((m) => m.triggerEvent === "on_cart_close") && (
+                  <form action={triggerCartAction.bind(null, launchId, "on_cart_close")}>
+                    <SubmitButton variant="outline" pendingLabel="Enviando…">
+                      Cerrar carrito
+                    </SubmitButton>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <div className="space-y-4">

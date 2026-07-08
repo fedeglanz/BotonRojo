@@ -18,6 +18,7 @@ import { LANDING_SYSTEM, landingPrompt } from "@/ai/prompts/landing";
 import { REFINE_SYSTEM, refineSectionPrompt } from "@/ai/prompts/landing-refine";
 import { EMAILS_SYSTEM, emailsPrompt } from "@/ai/prompts/emails";
 import { ADS_SYSTEM, adsPrompt } from "@/ai/prompts/ads";
+import { TELEGRAM_SYSTEM, telegramPrompt } from "@/ai/prompts/telegram";
 import type { LandingBody, LandingSectionKey } from "@/components/public/landing-types";
 
 import {
@@ -543,6 +544,136 @@ export async function sendTelegramTestAction(launchId: string) {
     { parseMode: "HTML" },
     orgBotToken,
   );
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+// ---- Telegram AI Messages (Ticket 3) ----
+
+export type TelegramMessageItem = {
+  title: string;
+  body: string;
+  timing: string;
+  triggerEvent: "on_lead" | "on_sale" | "on_cart_open" | "on_cart_close" | "manual";
+};
+
+export async function generateTelegramMessagesAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+  if (!launch.promise) throw new Error("marco_copy_missing");
+
+  const ctaUrl = `${env.APP_URL}/${launch.slug}`;
+
+  const { text } = await complete({
+    system: TELEGRAM_SYSTEM,
+    prompt: telegramPrompt(launch.name, launch.type, launch.promise, ctaUrl),
+    maxTokens: 6000,
+    temperature: 0.75,
+  });
+
+  const body = extractJson(text) as { messages: TelegramMessageItem[] };
+
+  // Delete previous telegram_message asset for this launch
+  await db
+    .delete(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")));
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "telegram_message",
+    title: `Telegram · ${launch.name}`,
+    body: body as unknown as Record<string, unknown>,
+    generatedByAi: env.ANTHROPIC_MODEL,
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function sendTelegramAssetMessageAction(launchId: string, messageIndex: number) {
+  const { organizationId } = await requireOrgAdmin();
+  const orgBotToken = await getOrgBotToken(organizationId);
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  if (!launch.telegramChatId) throw new Error("telegram_not_connected");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  if (!asset) throw new Error("no_telegram_messages");
+
+  const messages = (asset.body as { messages: TelegramMessageItem[] }).messages;
+  const msg = messages[messageIndex];
+  if (!msg) throw new Error("message_not_found");
+
+  // Substitute variables
+  const text = msg.body
+    .replace(/\{\{launchName\}\}/g, launch.name)
+    .replace(/\{\{ctaUrl\}\}/g, `${env.APP_URL}/${launch.slug}`)
+    .replace(/\{\{name\}\}/g, "");
+
+  await sendTelegramMessage(launch.telegramChatId, text, { parseMode: "HTML" }, orgBotToken);
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+// ---- Telegram Automation (Ticket 4) ----
+
+export async function sendAutomatedTelegramMessage(opts: {
+  chatId: string;
+  launchId: string;
+  organizationId: string;
+  event: "on_lead" | "on_sale" | "on_cart_open" | "on_cart_close";
+  leadName?: string;
+  email?: string;
+}) {
+  const orgBotToken = await getOrgBotToken(opts.organizationId);
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, opts.launchId), eq(assets.kind, "telegram_message")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  if (!asset) return;
+
+  const messages = (asset.body as { messages: TelegramMessageItem[] }).messages;
+  const matching = messages.filter((m) => m.triggerEvent === opts.event);
+
+  const [launch] = await db
+    .select({ name: launches.name, slug: launches.slug })
+    .from(launches)
+    .where(eq(launches.id, opts.launchId))
+    .limit(1);
+
+  for (const msg of matching) {
+    const text = msg.body
+      .replace(/\{\{launchName\}\}/g, launch?.name ?? "")
+      .replace(/\{\{ctaUrl\}\}/g, `${env.APP_URL}/${launch?.slug ?? ""}`)
+      .replace(/\{\{name\}\}/g, opts.leadName ?? "")
+      .replace(/\{\{email\}\}/g, opts.email ?? "");
+
+    await sendTelegramMessage(opts.chatId, text, { parseMode: "HTML" }, orgBotToken);
+  }
+}
+
+export async function triggerTelegramCartAction(launchId: string, event: "on_cart_open" | "on_cart_close") {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  if (!launch.telegramChatId) throw new Error("telegram_not_connected");
+
+  await sendAutomatedTelegramMessage({
+    chatId: launch.telegramChatId,
+    launchId,
+    organizationId,
+    event,
+  });
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
