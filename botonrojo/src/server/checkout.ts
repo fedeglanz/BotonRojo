@@ -8,7 +8,6 @@ import { products, trackingEvents, launches, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { stripe, createCheckoutSession } from "@/lib/stripe";
 import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
-import { isTelegramConfigured } from "@/integrations/telegram";
 import { sendAutomatedTelegramMessage } from "@/server/launches";
 
 export async function startCheckoutAction(formData: FormData) {
@@ -72,8 +71,8 @@ export async function captureLeadAction(formData: FormData) {
     }).catch((err) => console.error("AC sync (landing lead) failed", err));
   }
 
-  // Telegram on_lead automation
-  if (launch?.telegramChatId && launch.organizationId && isTelegramConfigured()) {
+  // Telegram on_lead automation (token resolved inside via org)
+  if (launch?.telegramChatId && launch.organizationId) {
     sendAutomatedTelegramMessage({
       chatId: launch.telegramChatId,
       launchId: launch.id,
