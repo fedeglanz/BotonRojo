@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, count } from "drizzle-orm";
 
 import { db } from "@/db";
-import { launches, assets, products } from "@/db/schema";
+import { launches, assets, products, trackingEvents } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
 import { isTelegramConfigured, getMe as getTelegramBot } from "@/integrations/telegram";
@@ -102,6 +102,38 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
       botUsername = bot.username;
     } catch { /* token might be invalid */ }
   }
+
+  // Event stats + recent events
+  const eventStats = await db
+    .select({
+      type: trackingEvents.type,
+      total: count(),
+    })
+    .from(trackingEvents)
+    .where(eq(trackingEvents.launchId, launch.id))
+    .groupBy(trackingEvents.type);
+
+  const statsMap: Record<string, number> = {};
+  for (const s of eventStats) {
+    statsMap[s.type] = s.total;
+  }
+
+  const recentEvents = await db
+    .select({
+      id: trackingEvents.id,
+      type: trackingEvents.type,
+      email: trackingEvents.email,
+      name: trackingEvents.name,
+      occurredAt: trackingEvents.occurredAt,
+      utmSource: trackingEvents.utmSource,
+      country: trackingEvents.country,
+      amountCents: trackingEvents.amountCents,
+      currency: trackingEvents.currency,
+    })
+    .from(trackingEvents)
+    .where(eq(trackingEvents.launchId, launch.id))
+    .orderBy(desc(trackingEvents.occurredAt))
+    .limit(50);
 
   const hasMarco = Boolean(launch.promise);
   const hasLanding = Boolean(landingAsset);
@@ -317,6 +349,76 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           editMessageAction={editTelegramMessageAction}
           refineMessageAction={refineTelegramMessageAction}
         />
+      </WizardStep>
+
+      {/* Step 8 — Registros */}
+      <WizardStep
+        index={8}
+        title="Registros"
+        subtitle="Leads, ventas y eventos registrados en este lanzamiento."
+        status={recentEvents.length > 0 ? "ready" : "empty"}
+      >
+        {/* Counters */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: "Visitas", key: "visit", color: "text-zinc-300" },
+            { label: "Leads", key: "lead", color: "text-blue-300" },
+            { label: "Ventas", key: "sale", color: "text-emerald-300" },
+            { label: "Seminarios", key: "seminar", color: "text-amber-300" },
+          ].map(({ label, key, color }) => (
+            <div key={key} className="rounded-lg border border-white/5 bg-black/30 p-4 text-center">
+              <div className={`text-2xl font-bold ${color}`}>{statsMap[key] ?? 0}</div>
+              <div className="mt-1 text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent events table */}
+        {recentEvents.length > 0 ? (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-white/5">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-white/5 bg-black/40 text-[10px] uppercase tracking-widest text-zinc-500">
+                  <th className="px-3 py-2">Tipo</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">Nombre</th>
+                  <th className="px-3 py-2">Fuente</th>
+                  <th className="px-3 py-2">Pais</th>
+                  <th className="px-3 py-2">Monto</th>
+                  <th className="px-3 py-2">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentEvents.map((ev) => (
+                  <tr key={ev.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                        ev.type === "lead" ? "bg-blue-500/10 text-blue-300" :
+                        ev.type === "sale" ? "bg-emerald-500/10 text-emerald-300" :
+                        ev.type === "visit" ? "bg-zinc-800 text-zinc-400" :
+                        "bg-amber-500/10 text-amber-300"
+                      }`}>
+                        {ev.type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-zinc-300">{ev.email ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-400">{ev.name ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-500">{ev.utmSource ?? "directo"}</td>
+                    <td className="px-3 py-2 text-zinc-500">{ev.country ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-300">
+                      {ev.amountCents ? `${(ev.amountCents / 100).toFixed(2)} ${ev.currency ?? ""}` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-500">
+                      {ev.occurredAt.toLocaleDateString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">Aun no hay eventos registrados para este lanzamiento.</p>
+        )}
       </WizardStep>
     </div>
   );
