@@ -62,8 +62,8 @@ export function TelegramPanel({
 
   const connected = Boolean(chatId && botAdded);
 
-  // Deep link: opens Telegram's "create/select group" dialog with the bot pre-added as admin
-  const deepLink = botUsername
+  // Deep link: opens Telegram's "add bot to group" dialog requesting admin rights
+  const addBotLink = botUsername
     ? `https://t.me/${botUsername}?startgroup=${launchSlug}&admin=${ADMIN_RIGHTS}`
     : null;
 
@@ -120,24 +120,34 @@ export function TelegramPanel({
         </>
       ) : (
         <div className="space-y-4">
-          {/* Step-by-step with deep link */}
-          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-sm text-zinc-300 space-y-3">
-            <p className="font-medium text-white">Conectar un grupo en 2 pasos:</p>
+          {/* Step-by-step guide */}
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-sm text-zinc-300 space-y-4">
+            <p className="font-medium text-white">Conectar un grupo de Telegram:</p>
 
-            <div className="space-y-2">
+            <div className="space-y-4">
+              {/* Step 1: Create group */}
               <div className="flex items-start gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--color-red]/20 text-xs font-bold text-[--color-red-bright]">1</span>
+                <div>
+                  <p className="text-zinc-300">
+                    Abrí Telegram y creá un grupo nuevo.
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Nombre sugerido: <strong className="text-zinc-300">{suggestedGroupName}</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2: Add bot as admin */}
+              <div className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--color-red]/20 text-xs font-bold text-[--color-red-bright]">2</span>
                 <div className="space-y-2">
                   <p className="text-zinc-300">
-                    Hacé click en el botón de abajo. Telegram te va a pedir crear un grupo nuevo
-                    (o elegir uno existente) con el bot ya como admin.
+                    Agregá el bot como administrador del grupo.
                   </p>
-                  <p className="text-xs text-zinc-500">
-                    Nombre sugerido para el grupo: <strong className="text-zinc-300">{suggestedGroupName}</strong>
-                  </p>
-                  {deepLink ? (
+                  {addBotLink ? (
                     <a
-                      href={deepLink}
+                      href={addBotLink}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg bg-[--color-red] px-4 py-2 text-sm font-medium text-white transition hover:bg-[--color-red]/80"
@@ -145,23 +155,25 @@ export function TelegramPanel({
                       <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
                       </svg>
-                      Crear grupo en Telegram
+                      Agregar bot al grupo
                     </a>
                   ) : (
-                    <p className="text-xs text-amber-300">
-                      No se pudo obtener el username del bot. Creá el grupo manualmente y agregá el bot como admin.
+                    <p className="text-xs text-zinc-400">
+                      Buscá <strong className="text-zinc-200">@{botUsername ?? "tu_bot"}</strong> en Telegram y agregalo como admin del grupo.
                     </p>
                   )}
+                  <p className="text-xs text-zinc-500">
+                    Telegram te muestra tus grupos — elegí el que acabás de crear y confirmá los permisos de admin.
+                  </p>
                 </div>
               </div>
 
+              {/* Step 3: Detect */}
               <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--color-red]/20 text-xs font-bold text-[--color-red-bright]">2</span>
-                <div className="space-y-2">
-                  <p className="text-zinc-300">
-                    Una vez creado el grupo, volvé acá y detectamos el grupo automáticamente.
-                  </p>
-                </div>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--color-red]/20 text-xs font-bold text-[--color-red-bright]">3</span>
+                <p className="text-zinc-300">
+                  Volvé acá y hacé click en <strong className="text-white">"Detectar grupos"</strong>.
+                </p>
               </div>
             </div>
           </div>
@@ -216,8 +228,8 @@ export function TelegramPanel({
 
           {discovered && groups.length === 0 && (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-200">
-              No se encontraron grupos. Asegurate de haber creado el grupo con el botón de arriba
-              y enviado un mensaje en el grupo (puede tardar unos segundos en aparecer).
+              No se encontraron grupos. Asegurate de haber agregado el bot al grupo
+              y enviado al menos un mensaje (puede tardar unos segundos).
             </div>
           )}
 
