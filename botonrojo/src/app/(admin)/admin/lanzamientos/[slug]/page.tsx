@@ -25,6 +25,7 @@ import {
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
+  discoverTelegramGroupsAction,
 } from "@/server/launches";
 
 import { WizardStep } from "@/components/admin/wizard-step";
@@ -275,6 +276,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           connectAction={connectTelegramGroupAction}
           disconnectAction={disconnectTelegramGroupAction}
           testAction={sendTelegramTestAction}
+          discoverAction={discoverTelegramGroupsAction}
         />
       </WizardStep>
     </div>

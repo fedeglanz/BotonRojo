@@ -546,3 +546,15 @@ export async function sendTelegramTestAction(launchId: string) {
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
+
+export async function discoverTelegramGroupsAction() {
+  const { organizationId } = await requireOrgAdmin();
+  const orgBotToken = await getOrgBotToken(organizationId);
+
+  if (!isTelegramConfigured(orgBotToken)) {
+    return [];
+  }
+
+  const { discoverGroups } = await import("@/integrations/telegram");
+  return discoverGroups(orgBotToken);
+}

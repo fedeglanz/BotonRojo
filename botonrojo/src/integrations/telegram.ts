@@ -135,6 +135,54 @@ export async function getMe(orgBotToken?: string | null) {
   );
 }
 
+export type TGUpdate = {
+  update_id: number;
+  message?: TGMessage & { from?: { id: number; first_name: string } };
+  my_chat_member?: {
+    chat: TGChat;
+    new_chat_member: TGChatMember;
+  };
+};
+
+export async function getUpdates(
+  opts: { offset?: number; limit?: number; allowedUpdates?: string[] } = {},
+  orgBotToken?: string | null,
+): Promise<TGUpdate[]> {
+  return tg<TGUpdate[]>(
+    "getUpdates",
+    {
+      offset: opts.offset,
+      limit: opts.limit ?? 100,
+      allowed_updates: opts.allowedUpdates,
+    },
+    orgBotToken,
+  );
+}
+
+/**
+ * Discover groups/channels where the bot has been added recently.
+ * Scans getUpdates for unique group chats.
+ */
+export async function discoverGroups(
+  orgBotToken?: string | null,
+): Promise<{ chatId: string; title: string; type: string }[]> {
+  const updates = await getUpdates({}, orgBotToken);
+  const seen = new Map<number, { chatId: string; title: string; type: string }>();
+
+  for (const u of updates) {
+    const chat = u.message?.chat ?? u.my_chat_member?.chat;
+    if (!chat || chat.type === "private") continue;
+    if (seen.has(chat.id)) continue;
+    seen.set(chat.id, {
+      chatId: String(chat.id),
+      title: chat.title ?? `Chat ${chat.id}`,
+      type: chat.type,
+    });
+  }
+
+  return Array.from(seen.values());
+}
+
 // ---- High-level helpers ----
 
 /**
