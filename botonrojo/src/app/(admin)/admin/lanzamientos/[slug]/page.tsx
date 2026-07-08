@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { launches, assets, products } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
-import { isTelegramConfigured } from "@/integrations/telegram";
+import { isTelegramConfigured, getMe as getTelegramBot } from "@/integrations/telegram";
 import { organizations } from "@/db/schema/organizations";
 import { requireOrgAdmin } from "@/lib/org";
 
@@ -82,6 +82,14 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
     .limit(1);
   const orgBotToken = org?.telegramBotToken ?? null;
   const telegramConfigured = isTelegramConfigured(orgBotToken);
+
+  let botUsername: string | null = null;
+  if (telegramConfigured) {
+    try {
+      const bot = await getTelegramBot(orgBotToken);
+      botUsername = bot.username;
+    } catch { /* token might be invalid */ }
+  }
 
   const hasMarco = Boolean(launch.promise);
   const hasLanding = Boolean(landingAsset);
@@ -273,6 +281,8 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           chatId={launch.telegramChatId ?? null}
           inviteLink={launch.telegramInviteLink ?? null}
           botAdded={launch.telegramBotAdded}
+          botUsername={botUsername}
+          launchName={launch.name}
           connectAction={connectTelegramGroupAction}
           disconnectAction={disconnectTelegramGroupAction}
           testAction={sendTelegramTestAction}
