@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq, desc, and, count } from "drizzle-orm";
 
 import { db } from "@/db";
-import { launches, assets, products, trackingEvents } from "@/db/schema";
+import { launches, assets, products, trackingEvents, milestones } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
 import { isTelegramConfigured, getMe as getTelegramBot } from "@/integrations/telegram";
@@ -31,6 +31,10 @@ import {
   triggerTelegramCartAction,
   editTelegramMessageAction,
   refineTelegramMessageAction,
+  updateLaunchCountryAction,
+  generateMilestonesAction,
+  updateMilestoneAction,
+  analyzeCalendarAction,
 } from "@/server/launches";
 
 import { WizardStep } from "@/components/admin/wizard-step";
@@ -41,6 +45,7 @@ import { EmailSequence } from "@/components/admin/email-sequence";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
+import { CalendarPanel } from "@/components/admin/calendar-panel";
 import type { LandingBody } from "@/components/public/landing-types";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +100,13 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
+  // Milestones for calendar
+  const launchMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.launchId, launch.id))
+    .orderBy(milestones.sortOrder);
+
   let botUsername: string | null = null;
   if (telegramConfigured) {
     try {
@@ -141,6 +153,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
   const hasProduct = Boolean(product);
   const hasAc = Boolean(launch.activeCampaignListId);
   const hasTelegram = Boolean(launch.telegramChatId);
+  const hasMilestones = launchMilestones.length > 0;
 
   return (
     <div className="space-y-8">
@@ -197,9 +210,39 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 2 — Landing */}
+      {/* Step 2 — Calendario */}
       <WizardStep
         index={2}
+        title="Calendario"
+        subtitle="Define fechas del lanzamiento, pais objetivo y analiza conflictos con IA."
+        status={hasMilestones ? "ready" : "empty"}
+      >
+        <CalendarPanel
+          launchId={launch.id}
+          launchSlug={launch.slug}
+          launchType={launch.type}
+          primaryCountry={launch.primaryCountry ?? null}
+          targetRegions={(launch.targetRegions as string[]) ?? []}
+          anchorDate={launch.anchorDate ? launch.anchorDate.toISOString().split("T")[0]! : null}
+          milestones={launchMilestones.map((m) => ({
+            id: m.id,
+            phase: m.phase,
+            label: m.label,
+            startsAt: m.startsAt.toISOString().split("T")[0]!,
+            endsAt: m.endsAt.toISOString().split("T")[0]!,
+            sortOrder: m.sortOrder,
+            aiWarnings: (m.aiWarnings ?? []) as Array<{ date: string; severity: "info" | "warning" | "critical"; message: string; country?: string }>,
+          }))}
+          updateCountryAction={updateLaunchCountryAction}
+          generateMilestonesAction={generateMilestonesAction}
+          updateMilestoneAction={updateMilestoneAction}
+          analyzeCalendarAction={analyzeCalendarAction}
+        />
+      </WizardStep>
+
+      {/* Step 3 — Landing */}
+      <WizardStep
+        index={3}
         title="Landing"
         subtitle="Estructura completa: hero, dolor→solución, qué incluye, FAQ, garantía y CTA."
         status={!hasMarco ? "needs-prev" : hasLanding ? "ready" : "empty"}
@@ -225,9 +268,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 3 — Emails */}
+      {/* Step 4 — Emails */}
       <WizardStep
-        index={3}
+        index={4}
         title="Secuencia de emails"
         subtitle={`Plan específico para tipo ${meta?.label ?? launch.type}.`}
         status={!hasMarco ? "needs-prev" : hasEmails ? "ready" : "empty"}
@@ -246,9 +289,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         <EmailSequence body={(emailAsset?.body ?? null) as Parameters<typeof EmailSequence>[0]["body"]} />
       </WizardStep>
 
-      {/* Step 4 — Anuncios */}
+      {/* Step 5 — Anuncios */}
       <WizardStep
-        index={4}
+        index={5}
         title="Anuncios Meta + Google"
         subtitle="UGC, voz en off y clips de YouTube + CTA overlay. Copy listo para subir."
         status={!hasMarco ? "needs-prev" : adsAsset ? "ready" : "empty"}
@@ -273,9 +316,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         )}
       </WizardStep>
 
-      {/* Step 5 — Producto Stripe */}
+      {/* Step 6 — Producto Stripe */}
       <WizardStep
-        index={5}
+        index={6}
         title="Producto en Stripe"
         subtitle="Crea el producto y el price ID. La landing pública usará este checkout."
         status={hasProduct ? "ready" : "empty"}
@@ -291,9 +334,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 6 — ActiveCampaign */}
+      {/* Step 7 — ActiveCampaign */}
       <WizardStep
-        index={6}
+        index={7}
         title="ActiveCampaign"
         subtitle="Crea lista + tags para este lanzamiento y sube los emails como plantillas."
         status={!isActiveCampaignConfigured() ? "needs-prev" : hasAc ? "ready" : "empty"}
@@ -311,9 +354,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 7 — Telegram */}
+      {/* Step 8 — Telegram */}
       <WizardStep
-        index={7}
+        index={8}
         title="Telegram"
         subtitle="Conectá un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
         status={!telegramConfigured ? "needs-prev" : hasTelegram ? "ready" : "empty"}
@@ -351,9 +394,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 8 — Registros */}
+      {/* Step 9 — Registros */}
       <WizardStep
-        index={8}
+        index={9}
         title="Registros"
         subtitle="Leads, ventas y eventos registrados en este lanzamiento."
         status={recentEvents.length > 0 ? "ready" : "empty"}

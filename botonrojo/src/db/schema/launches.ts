@@ -23,7 +23,12 @@ export const launches = pgTable("launches", {
   defaultPriceCents: integer("default_price_cents"),
   currency: text("currency").default("EUR"),
 
+  // Target market
+  primaryCountry: text("primary_country"),  // ISO 3166-1 alpha-2, e.g. "AR"
+  targetRegions: jsonb("target_regions").$type<string[]>().default([]),  // ["AR","CL","MX"] or ["LATAM","ES"]
+
   // Schedule
+  anchorDate: timestamp("anchor_date", { mode: "date" }),  // event / cart-open date
   cartOpensAt: timestamp("cart_opens_at", { mode: "date" }),
   cartClosesAt: timestamp("cart_closes_at", { mode: "date" }),
 

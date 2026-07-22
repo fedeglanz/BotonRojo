@@ -775,6 +775,147 @@ export async function refineTelegramMessageAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
+// ---- Calendar / Milestones ----
+
+import { milestones } from "@/db/schema";
+import { generateMilestones as buildMilestones } from "@/lib/milestone-templates";
+import { CALENDAR_ANALYSIS_SYSTEM, calendarAnalysisPrompt } from "@/ai/prompts/calendar";
+import { COUNTRIES } from "@/lib/milestone-templates";
+import type { AiWarning } from "@/db/schema/milestones";
+
+export async function updateLaunchCountryAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  const primaryCountry = String(formData.get("primaryCountry") ?? "").trim() || null;
+  const regionsRaw = String(formData.get("targetRegions") ?? "").trim();
+  const targetRegions = regionsRaw ? regionsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+  await db
+    .update(launches)
+    .set({ primaryCountry, targetRegions, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function generateMilestonesAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  const anchorDateStr = String(formData.get("anchorDate") ?? "").trim();
+  if (!anchorDateStr) throw new Error("anchor_date_required");
+  const anchorDate = new Date(anchorDateStr);
+
+  const rows = buildMilestones(anchorDate, launch.type as LaunchType);
+
+  // Save anchor date on launch
+  await db
+    .update(launches)
+    .set({ anchorDate, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  // Delete existing milestones
+  await db.delete(milestones).where(eq(milestones.launchId, launchId));
+
+  // Insert new milestones
+  await db.insert(milestones).values(
+    rows.map((r) => ({
+      launchId,
+      phase: r.phase as typeof milestones.$inferInsert.phase,
+      label: r.label,
+      startsAt: r.startsAt,
+      endsAt: r.endsAt,
+      sortOrder: r.sortOrder,
+    })),
+  );
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function updateMilestoneAction(milestoneId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+
+  const [milestone] = await db.select().from(milestones).where(eq(milestones.id, milestoneId)).limit(1);
+  if (!milestone) throw new Error("milestone_not_found");
+
+  const launch = await loadOrgLaunch(milestone.launchId, organizationId);
+
+  const startsAt = formData.get("startsAt") ? new Date(String(formData.get("startsAt"))) : undefined;
+  const endsAt = formData.get("endsAt") ? new Date(String(formData.get("endsAt"))) : undefined;
+  const label = formData.get("label") ? String(formData.get("label")).trim() : undefined;
+
+  await db
+    .update(milestones)
+    .set({
+      ...(startsAt && { startsAt }),
+      ...(endsAt && { endsAt }),
+      ...(label && { label }),
+      updatedAt: new Date(),
+    })
+    .where(eq(milestones.id, milestoneId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function analyzeCalendarAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await loadOrgLaunch(launchId, organizationId);
+
+  const launchMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.launchId, launchId))
+    .orderBy(milestones.sortOrder);
+
+  if (launchMilestones.length === 0) throw new Error("no_milestones");
+
+  const primaryCountry = launch.primaryCountry ?? "AR";
+  const secondaryCountries = ((launch.targetRegions as string[]) ?? []).filter((c) => c !== primaryCountry);
+
+  const fmt = (d: Date) => d.toISOString().split("T")[0]!;
+  const year = launchMilestones[0]!.startsAt.getFullYear();
+
+  const { text } = await complete({
+    system: CALENDAR_ANALYSIS_SYSTEM,
+    prompt: calendarAnalysisPrompt({
+      primaryCountry: `${primaryCountry} (${COUNTRIES[primaryCountry] ?? primaryCountry})`,
+      secondaryCountries: secondaryCountries.map((c) => `${c} (${COUNTRIES[c] ?? c})`),
+      milestones: launchMilestones.map((m) => ({
+        phase: m.phase,
+        label: m.label,
+        startsAt: fmt(m.startsAt),
+        endsAt: fmt(m.endsAt),
+      })),
+      year,
+      launchType: launch.type,
+      launchName: launch.name,
+    }),
+    maxTokens: 4000,
+    temperature: 0.4,
+  });
+
+  const analysis = extractJson(text) as {
+    summary: string;
+    score: number;
+    warnings: AiWarning[];
+    suggestions: string[];
+  };
+
+  // Save warnings on each milestone
+  for (const milestone of launchMilestones) {
+    const phaseWarnings = analysis.warnings.filter((w) => w.phase === milestone.phase || w.phase === milestone.label);
+    await db
+      .update(milestones)
+      .set({ aiWarnings: phaseWarnings, updatedAt: new Date() })
+      .where(eq(milestones.id, milestone.id));
+  }
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+
+  return analysis;
+}
+
 export async function discoverTelegramGroupsAction() {
   const { organizationId } = await requireOrgAdmin();
   const orgBotToken = await getOrgBotToken(organizationId);

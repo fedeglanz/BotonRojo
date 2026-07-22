@@ -5,3 +5,4 @@ export * from "./affiliates";
 export * from "./events";
 export * from "./products";
 export * from "./assets";
+export * from "./milestones";
