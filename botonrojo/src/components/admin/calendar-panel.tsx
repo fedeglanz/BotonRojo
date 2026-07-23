@@ -40,6 +40,7 @@ type Props = {
   generateMilestonesAction: (launchId: string, formData: FormData) => Promise<void>;
   updateMilestoneAction: (milestoneId: string, formData: FormData) => Promise<void>;
   analyzeCalendarAction: (launchId: string) => Promise<AnalysisResult>;
+  savedAnalysis: AnalysisResult | null;
 };
 
 const SEVERITY_STYLES = {
@@ -65,8 +66,9 @@ export function CalendarPanel({
   generateMilestonesAction,
   updateMilestoneAction,
   analyzeCalendarAction,
+  savedAnalysis,
 }: Props) {
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(savedAnalysis);
   const [analyzing, startAnalyze] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showRegionPicker, setShowRegionPicker] = useState(false);

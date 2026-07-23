@@ -237,6 +237,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           generateMilestonesAction={generateMilestonesAction}
           updateMilestoneAction={updateMilestoneAction}
           analyzeCalendarAction={analyzeCalendarAction}
+          savedAnalysis={((launch.assetsCache as Record<string, unknown>)?.calendarAnalysis as { summary: string; score: number; warnings: Array<{ date: string; severity: "info" | "warning" | "critical"; message: string; country?: string }>; suggestions: string[] }) ?? null}
         />
       </WizardStep>
 

@@ -911,6 +911,16 @@ export async function analyzeCalendarAction(launchId: string) {
       .where(eq(milestones.id, milestone.id));
   }
 
+  // Persist full analysis in assetsCache so it survives page refresh
+  const existingCache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  await db
+    .update(launches)
+    .set({
+      assetsCache: { ...existingCache, calendarAnalysis: analysis },
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 
   return analysis;
