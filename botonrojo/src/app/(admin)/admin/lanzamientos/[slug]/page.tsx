@@ -19,6 +19,7 @@ import {
   createStripeProductAction,
   provisionActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
+  scheduleAcCampaignsAction,
   refineLandingSectionAction,
   updateSectionRawAction,
   setSectionImageAction,
@@ -339,7 +340,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
       <WizardStep
         index={7}
         title="ActiveCampaign"
-        subtitle="Crea lista + tags para este lanzamiento y sube los emails como plantillas."
+        subtitle="Crea lista, sube plantillas y programa campanas automaticamente."
         status={!isActiveCampaignConfigured() ? "needs-prev" : hasAc ? "ready" : "empty"}
       >
         <ActiveCampaignPanel
@@ -350,8 +351,12 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           tagIds={(launch.activeCampaignTagIds ?? {}) as Record<string, number>}
           hasEmails={hasEmails}
           emailAssetId={emailAsset?.id ?? null}
+          hasTemplates={Boolean((launch.assetsCache as Record<string, unknown>)?.acTemplateIds)}
+          hasCampaigns={Boolean((launch.assetsCache as Record<string, unknown>)?.acCampaignIds)}
+          hasMilestones={hasMilestones}
           provisionAction={provisionActiveCampaignAction}
           pushEmailsAction={pushEmailsToActiveCampaignAction}
+          scheduleCampaignsAction={scheduleAcCampaignsAction}
         />
       </WizardStep>
 

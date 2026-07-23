@@ -162,6 +162,92 @@ export async function createEmailTemplate(input: {
   return res.template;
 }
 
+// ---- Campaigns (one-time email sends) ----
+
+export type ACCampaign = {
+  id: string;
+  name: string;
+  type: string;
+  status: number;
+  sdate?: string;
+};
+
+/**
+ * Create a campaign (email send) tied to a list.
+ * type "single" = one-time broadcast.
+ * status: 0 = draft, 1 = scheduled/sending, 2 = sent.
+ */
+export async function createCampaign(input: {
+  name: string;
+  listId: string | number;
+  templateId: string | number;
+  subject: string;
+  preheaderText?: string;
+  scheduledDate?: string; // ISO 8601, e.g. "2026-08-15T10:00:00-03:00"
+}): Promise<ACCampaign> {
+  const res = await ac<{ campaign: ACCampaign }>("/campaigns", {
+    method: "POST",
+    body: JSON.stringify({
+      campaign: {
+        type: "single",
+        name: input.name,
+        sdate: input.scheduledDate ?? null,
+        status: input.scheduledDate ? 1 : 0, // 1 = scheduled, 0 = draft
+        public: 0,
+        tracklinks: "all",
+        trackopens: 1,
+        trackreads: 0,
+        // Segment: send to the full list
+        segmentid: 0,
+        list: String(input.listId),
+      },
+    }),
+  });
+
+  // Link the message (template) to the campaign
+  await ac("/campaignMessages", {
+    method: "POST",
+    body: JSON.stringify({
+      campaignMessage: {
+        campaign: res.campaign.id,
+        message: String(input.templateId),
+        // AC requires setting subject at campaign-message level too
+        subject: input.subject,
+        preheader_text: input.preheaderText ?? "",
+        fromemail: env.ACTIVECAMPAIGN_FROM_EMAIL,
+        fromname: env.ACTIVECAMPAIGN_FROM_NAME,
+        // reply-to same as from
+        reply2: env.ACTIVECAMPAIGN_FROM_EMAIL,
+      },
+    }),
+  });
+
+  return res.campaign;
+}
+
+/** List campaigns for a specific name prefix (to check for duplicates). */
+export async function findCampaignsByPrefix(prefix: string): Promise<ACCampaign[]> {
+  const res = await ac<{ campaigns: ACCampaign[] }>(`/campaigns?search=${encodeURIComponent(prefix)}&orders[sdate]=ASC`);
+  return res.campaigns ?? [];
+}
+
+/** Delete a campaign (draft only, AC won't let you delete sent ones). */
+export async function deleteCampaign(campaignId: string): Promise<void> {
+  await ac(`/campaigns/${campaignId}`, { method: "DELETE" });
+}
+
+// ---- Contact automations ----
+
+/** Add a contact to an existing automation by automation ID. */
+export async function addContactToAutomation(contactId: string, automationId: string): Promise<void> {
+  await ac("/contactAutomations", {
+    method: "POST",
+    body: JSON.stringify({
+      contactAutomation: { contact: contactId, automation: automationId },
+    }),
+  });
+}
+
 // ---- High-level helpers ----
 
 export async function provisionLaunchInAc(input: {

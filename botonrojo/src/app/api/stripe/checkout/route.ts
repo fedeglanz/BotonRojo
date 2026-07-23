@@ -3,8 +3,9 @@ import { z } from "zod";
 import { createCheckoutSession } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { db } from "@/db";
-import { products } from "@/db/schema";
+import { products, launches } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { syncLeadToAc, applyTag, isActiveCampaignConfigured } from "@/integrations/activecampaign";
 
 const schema = z.object({
   productSlug: z.string(),
@@ -34,6 +35,28 @@ export async function POST(req: NextRequest) {
     launchId: parsed.data.launchId,
     utm: parsed.data.utm,
   });
+
+  // Apply "abandono" tag when checkout starts (fire-and-forget)
+  if (isActiveCampaignConfigured() && parsed.data.email && parsed.data.launchId) {
+    const [launch] = await db.select().from(launches).where(eq(launches.id, parsed.data.launchId)).limit(1);
+    if (launch) {
+      const tagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
+      const abandonoTagId = tagIds.abandono;
+      if (abandonoTagId) {
+        syncLeadToAc({
+          email: parsed.data.email,
+          launchSlug: launch.slug,
+          launchListId: launch.activeCampaignListId ?? null,
+          launchTagIds: tagIds,
+          intent: "registro",
+        })
+          .then((contact) => {
+            if (contact) applyTag(contact.id, String(abandonoTagId));
+          })
+          .catch((err) => console.error("AC abandono tag failed", err));
+      }
+    }
+  }
 
   return NextResponse.json({ url: session.url });
 }

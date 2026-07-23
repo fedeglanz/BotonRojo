@@ -24,6 +24,9 @@ import type { LandingBody, LandingSectionKey } from "@/components/public/landing
 import {
   provisionLaunchInAc,
   createEmailTemplate,
+  createCampaign,
+  findCampaignsByPrefix,
+  deleteCampaign,
   isActiveCampaignConfigured,
 } from "@/integrations/activecampaign";
 
@@ -196,14 +199,44 @@ export async function generateEmailsAction(launchId: string) {
 
   const ctaUrl = `${env.APP_URL}/${launch.slug}`;
 
+  // Fetch milestones to align emails with calendar phases
+  const launchMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.launchId, launchId))
+    .orderBy(milestones.sortOrder);
+
   const { text } = await complete({
     system: EMAILS_SYSTEM,
-    prompt: emailsPrompt(launch.name, launch.type, launch.promise, ctaUrl),
+    prompt: emailsPrompt({
+      launchName: launch.name,
+      type: launch.type,
+      promise: launch.promise,
+      ctaUrl,
+      primaryCountry: launch.primaryCountry,
+      milestones: launchMilestones.map((m) => ({
+        phase: m.phase,
+        label: m.label,
+        startsAt: m.startsAt.toISOString().slice(0, 10),
+        endsAt: m.endsAt.toISOString().slice(0, 10),
+      })),
+    }),
     maxTokens: 8000,
     temperature: 0.75,
   });
 
-  const body = extractJson(text) as { emails: Array<{ subject: string; preheader: string; body: string; ctaText: string; ctaUrl: string }> };
+  type EmailItem = {
+    subject: string;
+    preheader: string;
+    body: string;
+    ctaText: string;
+    ctaUrl: string;
+    phase?: string;
+    timing?: string;
+    sendOffsetDays?: number;
+  };
+
+  const body = extractJson(text) as { emails: EmailItem[] };
 
   await db.insert(assets).values({
     organizationId,
@@ -331,15 +364,118 @@ export async function pushEmailsToActiveCampaignAction(launchId: string, assetId
 
   const sequence = asset.body as { emails: Array<{ subject: string; preheader?: string; body: string }> };
 
+  const templateIds: string[] = [];
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     if (!email) continue;
-    await createEmailTemplate({
+    const tpl = await createEmailTemplate({
       name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
       subject: email.subject,
       html: wrapEmailHtml(email.body, email.preheader ?? ""),
     });
+    templateIds.push(tpl.id);
   }
+
+  // Store template IDs in assetsCache for campaign creation
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  cache.acTemplateIds = templateIds;
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Create AC campaigns for each email in the sequence, scheduled based on milestones.
+ * Requires: list provisioned + templates pushed + milestones generated.
+ */
+export async function scheduleAcCampaignsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!isActiveCampaignConfigured()) throw new Error("activecampaign_not_configured");
+
+  const launch = await loadOrgLaunch(launchId, organizationId);
+  if (!launch.activeCampaignListId) throw new Error("ac_list_not_provisioned");
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const templateIds = cache.acTemplateIds as string[] | undefined;
+  if (!templateIds?.length) throw new Error("ac_templates_not_pushed");
+
+  // Get email sequence
+  const [emailAsset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  if (!emailAsset) throw new Error("email_asset_not_found");
+
+  type EmailItem = {
+    subject: string;
+    preheader?: string;
+    phase?: string;
+    timing?: string;
+    sendOffsetDays?: number;
+  };
+  const sequence = emailAsset.body as { emails: EmailItem[] };
+
+  // Get milestones to compute send dates
+  const launchMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.launchId, launchId))
+    .orderBy(milestones.sortOrder);
+
+  const milestoneByPhase = new Map<string, (typeof launchMilestones)[number]>(launchMilestones.map((m) => [m.phase, m]));
+
+  // Delete existing campaigns for this launch (drafts only)
+  const existing = await findCampaignsByPrefix(launch.slug);
+  for (const c of existing) {
+    if (c.status === 0) {
+      await deleteCampaign(c.id).catch(() => {});
+    }
+  }
+
+  const campaignIds: string[] = [];
+
+  for (let i = 0; i < sequence.emails.length; i++) {
+    const email = sequence.emails[i];
+    const tplId = templateIds[i];
+    if (!email || !tplId) continue;
+
+    // Compute scheduled date from milestone + offset
+    let scheduledDate: string | undefined;
+    if (email.phase) {
+      const milestone = milestoneByPhase.get(email.phase);
+      if (milestone) {
+        const base = new Date(milestone.startsAt);
+        const offset = email.sendOffsetDays ?? 0;
+        base.setDate(base.getDate() + offset);
+        // Schedule at 10:00 AM (reasonable default)
+        base.setHours(10, 0, 0, 0);
+        scheduledDate = base.toISOString();
+      }
+    }
+
+    const campaign = await createCampaign({
+      name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 40)}`,
+      listId: launch.activeCampaignListId,
+      templateId: tplId,
+      subject: email.subject,
+      preheaderText: email.preheader,
+      scheduledDate,
+    });
+
+    campaignIds.push(campaign.id);
+  }
+
+  // Store campaign IDs
+  cache.acCampaignIds = campaignIds;
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }

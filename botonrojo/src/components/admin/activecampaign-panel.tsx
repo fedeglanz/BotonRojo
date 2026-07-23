@@ -9,8 +9,12 @@ type Props = {
   tagIds: Record<string, number>;
   hasEmails: boolean;
   emailAssetId: string | null;
+  hasTemplates: boolean;
+  hasCampaigns: boolean;
+  hasMilestones: boolean;
   provisionAction: (launchId: string) => Promise<void>;
   pushEmailsAction: (launchId: string, assetId: string) => Promise<void>;
+  scheduleCampaignsAction: (launchId: string) => Promise<void>;
 };
 
 export function ActiveCampaignPanel({
@@ -21,19 +25,24 @@ export function ActiveCampaignPanel({
   tagIds,
   hasEmails,
   emailAssetId,
+  hasTemplates,
+  hasCampaigns,
+  hasMilestones,
   provisionAction,
   pushEmailsAction,
+  scheduleCampaignsAction,
 }: Props) {
   if (!configured) {
     return (
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
-        ActiveCampaign no está configurado. Añade <code>ACTIVECAMPAIGN_API_URL</code> y{" "}
+        ActiveCampaign no esta configurado. Agrega <code>ACTIVECAMPAIGN_API_URL</code> y{" "}
         <code>ACTIVECAMPAIGN_API_KEY</code> en <code>.env</code> y reinicia la app.
       </div>
     );
   }
 
   const provisioned = Boolean(listId);
+  const canSchedule = provisioned && hasTemplates && hasMilestones;
 
   return (
     <div className="space-y-4">
@@ -59,32 +68,56 @@ export function ActiveCampaignPanel({
         </div>
       </div>
 
+      {/* Step 1: Provision list + tags */}
       <div className="flex flex-wrap items-center gap-3">
         <form action={provisionAction.bind(null, launchId)}>
           <SubmitButton variant={provisioned ? "outline" : "primary"} pendingLabel="Conectando…">
-            {provisioned ? "Re-sincronizar lista y tags" : "Crear lista y tags en AC"}
+            {provisioned ? "Re-sincronizar lista y tags" : "1. Crear lista y tags en AC"}
           </SubmitButton>
         </form>
+      </div>
 
-        {hasEmails && emailAssetId && (
+      {/* Step 2: Push email templates */}
+      <div className="flex flex-wrap items-center gap-3">
+        {hasEmails && emailAssetId ? (
           <form action={pushEmailsAction.bind(null, launchId, emailAssetId)}>
-            <SubmitButton variant="outline" pendingLabel="Subiendo plantillas…">
-              Subir emails como plantillas AC
+            <SubmitButton variant={hasTemplates ? "outline" : "primary"} pendingLabel="Subiendo plantillas…">
+              {hasTemplates ? "Re-subir plantillas de email" : "2. Subir emails como plantillas AC"}
             </SubmitButton>
           </form>
-        )}
-
-        {!hasEmails && (
+        ) : (
           <Button variant="ghost" disabled>
-            Genera la secuencia de emails antes
+            2. Genera la secuencia de emails antes
           </Button>
         )}
       </div>
 
+      {/* Step 3: Schedule campaigns */}
+      <div className="flex flex-wrap items-center gap-3">
+        {canSchedule ? (
+          <form action={scheduleCampaignsAction.bind(null, launchId)}>
+            <SubmitButton variant={hasCampaigns ? "outline" : "primary"} pendingLabel="Creando campanas…">
+              {hasCampaigns ? "Re-crear campanas programadas" : "3. Crear campanas programadas en AC"}
+            </SubmitButton>
+          </form>
+        ) : (
+          <Button variant="ghost" disabled>
+            3. {!provisioned ? "Provisiona lista primero" : !hasTemplates ? "Sube plantillas primero" : "Genera el calendario primero"}
+          </Button>
+        )}
+      </div>
+
+      {hasCampaigns && (
+        <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-200">
+          Las campanas fueron creadas y programadas en ActiveCampaign segun las fechas del calendario.
+          Revisa en tu panel de AC que los horarios y contenido sean correctos antes de activarlas.
+        </div>
+      )}
+
       {provisioned && (
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-          Cuando un lead entre con <code>?launch={launchSlug}</code> y deje email, se sincronizará
-          automáticamente en AC con la lista y el tag correspondiente (<code>{launchSlug}-registro</code>{" "}
+          Cuando un lead entre con <code>?launch={launchSlug}</code> y deje email, se sincronizara
+          automaticamente en AC con la lista y el tag correspondiente (<code>{launchSlug}-registro</code>{" "}
           para leads, <code>{launchSlug}-comprador</code> tras checkout Stripe).
         </div>
       )}

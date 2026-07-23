@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { products, trackingEvents, launches, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { stripe, createCheckoutSession } from "@/lib/stripe";
-import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { syncLeadToAc, applyTag, isActiveCampaignConfigured } from "@/integrations/activecampaign";
 import { sendAutomatedTelegramMessage } from "@/server/launches";
 
 export async function startCheckoutAction(formData: FormData) {
@@ -29,6 +29,28 @@ export async function startCheckoutAction(formData: FormData) {
     affiliateRef: ref,
     launchId: product.launchId ?? undefined,
   });
+
+  // Apply "abandono" tag — will be overridden by "comprador" if purchase completes
+  if (isActiveCampaignConfigured() && email && product.launchId) {
+    const [launch] = await db.select().from(launches).where(eq(launches.id, product.launchId)).limit(1);
+    if (launch) {
+      const tagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
+      const abandonoTagId = tagIds.abandono;
+      if (abandonoTagId) {
+        syncLeadToAc({
+          email,
+          launchSlug: launch.slug,
+          launchListId: launch.activeCampaignListId ?? null,
+          launchTagIds: tagIds,
+          intent: "registro",
+        })
+          .then((contact) => {
+            if (contact) applyTag(contact.id, String(abandonoTagId));
+          })
+          .catch((err) => console.error("AC abandono tag failed", err));
+      }
+    }
+  }
 
   if (!session.url) throw new Error("stripe_session_failed");
   redirect(session.url);
