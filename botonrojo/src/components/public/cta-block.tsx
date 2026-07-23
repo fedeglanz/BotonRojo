@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { SubmitButton } from "@/components/admin/submit-button";
+import { LeadForm } from "@/components/public/lead-form";
 
 type Props = {
   launchSlug: string;
@@ -37,28 +38,12 @@ export function CtaBlock({
           <p className="text-xs text-zinc-500">Pago seguro con Stripe</p>
         </form>
       ) : (
-        <form action={captureLeadAction} className="mx-auto max-w-md space-y-3 text-left">
-          <input type="hidden" name="launchSlug" value={launchSlug} />
+        <div className="space-y-3">
           <p className="text-center text-sm text-zinc-400">
             Apúntate para enterarte cuando se abra el carrito
           </p>
-          <input
-            type="text"
-            name="name"
-            placeholder="Tu nombre"
-            className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
-          />
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="tu@email.com"
-            className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
-          />
-          <SubmitButton className="big-red-button w-full" pendingLabel="Apuntándote…">
-            {buttonLabel}
-          </SubmitButton>
-        </form>
+          <LeadForm launchSlug={launchSlug} buttonLabel={buttonLabel} action={captureLeadAction} />
+        </div>
       )}
     </motion.div>
   );

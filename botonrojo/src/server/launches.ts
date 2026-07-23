@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -144,7 +144,7 @@ export async function updateMarcoCopyAction(launchId: string, formData: FormData
 }
 
 export async function generateLandingAction(launchId: string) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
   if (!launch) throw new Error("launch_not_found");
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
@@ -172,6 +172,7 @@ export async function generateLandingAction(launchId: string) {
       title: `Landing · ${launch.name}`,
       body,
       generatedByAi: env.ANTHROPIC_MODEL,
+      authorId: user.id,
     });
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -350,20 +351,19 @@ async function loadLandingAsset(launchId: string) {
   return { launch, asset };
 }
 
-async function saveLandingBody(launchId: string, slug: string, assetId: string | undefined, body: LandingBody) {
-  if (assetId) {
-    await db
-      .update(assets)
-      .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
-      .where(eq(assets.id, assetId));
-  } else {
-    await db.insert(assets).values({
-      launchId,
-      kind: "landing",
-      title: `Landing`,
-      body: body as unknown as Record<string, unknown>,
-    });
-  }
+async function saveLandingBody(
+  launchId: string,
+  slug: string,
+  body: LandingBody,
+  authorId: string | null,
+) {
+  await db.insert(assets).values({
+    launchId,
+    kind: "landing",
+    title: `Landing`,
+    body: body as unknown as Record<string, unknown>,
+    authorId: authorId ?? undefined,
+  });
   revalidatePath(`/admin/lanzamientos/${slug}`);
   revalidatePath(`/${slug}`);
 }
@@ -373,7 +373,7 @@ export async function refineLandingSectionAction(
   section: LandingSectionKey,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const instruction = String(formData.get("instruction") ?? "").trim();
   if (!instruction) throw new Error("instruction_required");
 
@@ -401,7 +401,7 @@ export async function refineLandingSectionAction(
   const updated = extractJson(text);
   const newBody: LandingBody = { ...body, [section]: updated };
 
-  await saveLandingBody(launchId, launch.slug, asset?.id, newBody);
+  await saveLandingBody(launchId, launch.slug, newBody, user.id);
 }
 
 const ALLOWED_IMAGE_SLOTS = new Set([
@@ -414,7 +414,7 @@ export async function setSectionImageAction(
   slotPath: string,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const user = await requireAdmin();
   if (!ALLOWED_IMAGE_SLOTS.has(slotPath) && !slotPath.startsWith("includes.")) {
     throw new Error("invalid_slot");
   }
@@ -441,7 +441,7 @@ export async function setSectionImageAction(
     }
   }
 
-  await saveLandingBody(launchId, launch.slug, asset?.id, newBody);
+  await saveLandingBody(launchId, launch.slug, newBody, user.id);
 }
 
 export async function updateSectionRawAction(
@@ -449,7 +449,7 @@ export async function updateSectionRawAction(
   section: LandingSectionKey,
   formData: FormData,
 ) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const raw = String(formData.get("json") ?? "").trim();
   let parsed: unknown;
   try {
@@ -462,7 +462,7 @@ export async function updateSectionRawAction(
   const body = (asset?.body ?? {}) as LandingBody;
   const newBody: LandingBody = { ...body, [section]: parsed };
 
-  await saveLandingBody(launchId, launch.slug, asset?.id, newBody);
+  await saveLandingBody(launchId, launch.slug, newBody, user.id);
 }
 
 function wrapEmailHtml(body: string, preheader: string): string {

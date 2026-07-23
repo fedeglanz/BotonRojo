@@ -19,10 +19,19 @@ export default async function LoginPage(props: { searchParams: SearchParams }) {
   const errorMessage = sp.error ? ERROR_MESSAGES[sp.error] ?? ERROR_MESSAGES.Default : null;
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <div className="glass p-8">
+    <main className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6">
+      <div className="mb-8 flex items-center gap-3">
+        <span className="pulse-dot" />
+        <span className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.2em]">
+          Botón Rojo
+        </span>
+      </div>
+
+      <div className="glass glow-ring hud-corners w-full p-8">
         <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">Acceder</h1>
-        <p className="mt-1 text-sm text-zinc-400">Panel interno · Botón Rojo</p>
+        <p className="mt-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.2em] text-zinc-500">
+          Panel interno
+        </p>
 
         {errorMessage && (
           <div className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
@@ -54,7 +63,7 @@ export default async function LoginPage(props: { searchParams: SearchParams }) {
               type="email"
               name="email"
               required
-              className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
+              className="field-input mt-2 w-full px-4 py-3 text-white"
             />
           </label>
           <label className="block">
@@ -63,7 +72,7 @@ export default async function LoginPage(props: { searchParams: SearchParams }) {
               type="password"
               name="password"
               required
-              className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
+              className="field-input mt-2 w-full px-4 py-3 text-white"
             />
           </label>
           <SubmitButton className="w-full" pendingLabel="Entrando…">Entrar</SubmitButton>

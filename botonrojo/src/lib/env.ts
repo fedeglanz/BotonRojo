@@ -38,6 +38,12 @@ const envSchema = z.object({
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().default(""),
 
   GEOIP_PROVIDER_URL: z.string().default("https://ip.guide"),
+
+  UNSPLASH_ACCESS_KEY: z.string().default(""),
+  REPLICATE_API_TOKEN: z.string().default(""),
+
+  // Custom domains: the IPv4 clients point an A record at for apex domains.
+  SERVER_IPV4: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);

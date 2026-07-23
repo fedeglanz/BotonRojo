@@ -52,5 +52,6 @@ export type AvatarBrief = {
   context?: string;
 };
 
+export type LaunchType = (typeof launchType.enumValues)[number];
 export type Launch = typeof launches.$inferSelect;
 export type NewLaunch = typeof launches.$inferInsert;

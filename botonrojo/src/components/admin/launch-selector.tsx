@@ -28,14 +28,20 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
-                className="glass group relative overflow-hidden p-6"
+                className="glass glass-hover group relative overflow-hidden p-6"
               >
                 <div
                   className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${t.color}`}
                   aria-hidden
                 />
+                <div
+                  className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-[--color-red] opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-20"
+                  aria-hidden
+                />
                 <div className="flex items-center gap-3">
-                  <div className="text-3xl">{t.icon}</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-2xl">
+                    {t.icon}
+                  </div>
                   <div>
                     <div className="font-[family-name:var(--font-display)] text-lg font-bold">
                       {t.label}
@@ -62,9 +68,9 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
         <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
           2. Lanzamientos existentes
         </h2>
-        <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <div className="glass mt-4 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-white/5 text-left text-xs uppercase tracking-widest text-zinc-400">
+            <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-widest text-zinc-400">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Tipo</th>
@@ -81,7 +87,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                 </tr>
               )}
               {launches.map((l) => (
-                <tr key={l.id} className="border-t border-white/5 transition hover:bg-white/[0.02]">
+                <tr key={l.id} className="border-t border-white/5 transition hover:bg-white/[0.03]">
                   <td className="px-4 py-3 font-medium text-white">{l.name}</td>
                   <td className="px-4 py-3 text-zinc-400">{LAUNCH_TYPES[l.type]?.label ?? l.type}</td>
                   <td className="px-4 py-3">

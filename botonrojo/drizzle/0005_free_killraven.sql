@@ -1,0 +1,1 @@
+ALTER TABLE "external_sales_sources" ADD COLUMN "extra_filter_sql" text;
