@@ -6,3 +6,6 @@ export * from "./events";
 export * from "./products";
 export * from "./assets";
 export * from "./milestones";
+export * from "./domains";
+export * from "./ad-spend";
+export * from "./external-sales";

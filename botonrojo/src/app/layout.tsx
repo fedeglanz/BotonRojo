@@ -20,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="grain antialiased">
         <div className="mesh-bg" aria-hidden />
-        {children}
+        <div className="circuit-grid" aria-hidden />
+        <div className="vignette" aria-hidden />
+        <div className="relative z-10">{children}</div>
       </body>
     </html>
   );

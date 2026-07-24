@@ -13,10 +13,19 @@ type ImageSlot = {
   imagePrompt?: string | null;
 };
 
+type VersionMeta = {
+  id: string;
+  createdAt: Date;
+  generatedByAi: string | null;
+  authorEmail: string | null;
+  authorName: string | null;
+};
+
 type Props = {
   launchId: string;
   launchSlug: string;
   body: LandingBody | null;
+  versions?: VersionMeta[];
   refineAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   rawUpdateAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   imageSaveAction: (launchId: string, slotPath: string, formData: FormData) => Promise<void>;
@@ -26,6 +35,7 @@ export function LandingEditor({
   launchId,
   launchSlug,
   body,
+  versions = [],
   refineAction,
   rawUpdateAction,
   imageSaveAction,
@@ -52,6 +62,42 @@ export function LandingEditor({
           Ver landing pública ↗
         </Link>
       </div>
+
+      {versions.length > 0 && (
+        <details className="rounded-lg border border-white/10 bg-black/30 text-xs">
+          <summary className="cursor-pointer px-4 py-2.5 text-zinc-400 hover:text-zinc-200 [&::-webkit-details-marker]:hidden flex items-center gap-2">
+            <span className="text-zinc-600">🕐</span>
+            Historial · {versions.length} {versions.length === 1 ? "versión" : "versiones"}
+          </summary>
+          <ul className="divide-y divide-white/5 px-4 pb-3">
+            {versions.map((v, i) => {
+              const who = v.generatedByAi
+                ? `Claude (${v.generatedByAi})`
+                : v.authorName ?? v.authorEmail ?? "Sistema";
+              const when = new Date(v.createdAt).toLocaleString("es", {
+                dateStyle: "short",
+                timeStyle: "short",
+              });
+              return (
+                <li key={v.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-[family-name:var(--font-mono)] text-zinc-600">
+                      v{versions.length - i}
+                    </span>
+                    <span className="text-zinc-300">{who}</span>
+                    {i === 0 && (
+                      <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-emerald-400">
+                        actual
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-zinc-600">{when}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
 
       {LANDING_SECTIONS.map((section) => {
         const sectionJson = (body as Record<string, unknown>)[section];

@@ -61,8 +61,14 @@ export async function captureLeadAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").toLowerCase().trim();
   const name = String(formData.get("name") ?? "").trim() || undefined;
   const ref = (formData.get("ref") ? String(formData.get("ref")) : "").trim() || undefined;
+  const privacyAccepted = formData.get("privacyAccepted") === "on";
+  const marketingConsent = formData.get("marketingConsent") === "on";
 
-  if (!email || !launchSlug) return;
+  // Name, email and both consent checkboxes are mandatory — the checkbox
+  // `required` attribute blocks this client-side, this is the server-side backstop.
+  if (!email || !name || !launchSlug || !privacyAccepted || !marketingConsent) {
+    throw new Error("missing_required_fields");
+  }
 
   const [launch] = await db.select().from(launches).where(eq(launches.slug, launchSlug)).limit(1);
 
@@ -79,7 +85,12 @@ export async function captureLeadAction(formData: FormData) {
     affiliateRef: ref,
     affiliateUserId,
     launchId: launch?.id ?? null,
-    payload: { source: "landing_form" },
+    payload: {
+      source: "landing_form",
+      privacyAccepted,
+      marketingConsent,
+      consentedAt: new Date().toISOString(),
+    },
   });
 
   if (isActiveCampaignConfigured() && launch) {

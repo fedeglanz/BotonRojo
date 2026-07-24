@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq, desc, and, count } from "drizzle-orm";
 
 import { db } from "@/db";
-import { launches, assets, products, trackingEvents, milestones } from "@/db/schema";
+import { launches, assets, products, trackingEvents, milestones, users } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
 import { isTelegramConfigured, getMe as getTelegramBot } from "@/integrations/telegram";
@@ -47,7 +47,10 @@ import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
 import { CalendarPanel } from "@/components/admin/calendar-panel";
+import { DomainPanel } from "@/components/admin/domain-panel";
 import type { LandingBody } from "@/components/public/landing-types";
+import { listDomainsForLaunch, addDomainAction, verifyDomainAction, removeDomainAction } from "@/server/domains";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +62,21 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
 
   const meta = LAUNCH_TYPES[launch.type as LaunchType];
 
+  // Load all landing versions with author info (no body to keep it light)
+  const landingVersions = await db
+    .select({
+      id: assets.id,
+      createdAt: assets.createdAt,
+      generatedByAi: assets.generatedByAi,
+      authorEmail: users.email,
+      authorName: users.name,
+    })
+    .from(assets)
+    .leftJoin(users, eq(assets.authorId, users.id))
+    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing")))
+    .orderBy(desc(assets.createdAt));
+
+  // Load the latest landing body for editing
   const [landingAsset] = await db
     .select()
     .from(assets)
@@ -155,6 +173,8 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
   const hasAc = Boolean(launch.activeCampaignListId);
   const hasTelegram = Boolean(launch.telegramChatId);
   const hasMilestones = launchMilestones.length > 0;
+  const launchDomains = await listDomainsForLaunch(launch.id);
+  const hasActiveDomain = launchDomains.some((d) => d.status === "active");
 
   return (
     <div className="space-y-8">
@@ -264,6 +284,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           launchId={launch.id}
           launchSlug={launch.slug}
           body={(landingAsset?.body ?? null) as LandingBody | null}
+          versions={landingVersions}
           refineAction={refineLandingSectionAction}
           rawUpdateAction={updateSectionRawAction}
           imageSaveAction={setSectionImageAction}
@@ -360,11 +381,30 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 8 — Telegram */}
+      {/* Step 8 — Dominio propio */}
       <WizardStep
         index={8}
+        title="Dominio propio"
+        subtitle="Conecta el dominio o subdominio del cliente para servir esta landing directamente."
+        status={hasActiveDomain ? "ready" : "empty"}
+      >
+        <DomainPanel
+          launchId={launch.id}
+          launchSlug={launch.slug}
+          domains={launchDomains}
+          appHostname={new URL(env.APP_URL).hostname}
+          serverIpv4={env.SERVER_IPV4}
+          addAction={addDomainAction}
+          verifyAction={verifyDomainAction}
+          removeAction={removeDomainAction}
+        />
+      </WizardStep>
+
+      {/* Step 9 — Telegram */}
+      <WizardStep
+        index={9}
         title="Telegram"
-        subtitle="Conectá un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
+        subtitle="Conecta un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
         status={!telegramConfigured ? "needs-prev" : hasTelegram ? "ready" : "empty"}
         action={
           hasTelegram && hasMarco ? (
@@ -400,9 +440,9 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
-      {/* Step 9 — Registros */}
+      {/* Step 10 — Registros */}
       <WizardStep
-        index={9}
+        index={10}
         title="Registros"
         subtitle="Leads, ventas y eventos registrados en este lanzamiento."
         status={recentEvents.length > 0 ? "ready" : "empty"}

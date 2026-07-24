@@ -6,7 +6,7 @@ type SearchParams = Promise<{
   launch?: string;
 }>;
 
-export default async function GraciasPage(props: { searchParams: SearchParams }) {
+export default async function CustomDomainGraciasPage(props: { searchParams: SearchParams }) {
   const sp = await props.searchParams;
   return <GraciasContent isLead={sp.lead === "1"} launchSlug={sp.launch} />;
 }

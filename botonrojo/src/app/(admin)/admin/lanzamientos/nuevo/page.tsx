@@ -91,14 +91,20 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
           <span className="mt-1 block text-xs text-zinc-500">En céntimos. Lo podrás cambiar luego.</span>
         </label>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-col items-center gap-4 pt-6">
+          <SubmitButton
+            variant="ghost"
+            className="big-red-button w-full text-xl md:text-2xl"
+            pendingLabel="Creando lanzamiento…"
+          >
+            🚀 Crear lanzamiento
+          </SubmitButton>
           <Link
             href="/admin"
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-zinc-400 transition hover:text-white"
+            className="text-xs uppercase tracking-widest text-zinc-500 transition hover:text-white"
           >
             Cancelar
           </Link>
-          <SubmitButton pendingLabel="Creando…">Crear lanzamiento →</SubmitButton>
         </div>
       </form>
     </div>

@@ -15,9 +15,9 @@ export function AffiliateShell({ affiliateCode, children }: { affiliateCode: str
   return (
     <div className="relative mx-auto flex min-h-screen w-full max-w-7xl gap-8 px-6 py-8">
       <aside className="hidden w-60 shrink-0 md:block">
-        <div className="sticky top-8 space-y-6">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="inline-block h-3 w-3 rounded-full bg-[--color-red] shadow-[0_0_18px_var(--color-red-glow)]" />
+        <div className="glass sticky top-8 space-y-6 p-4">
+          <Link href="/" className="flex items-center gap-3 px-2 pt-1">
+            <span className="pulse-dot" />
             <span className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.2em]">
               Botón Rojo
             </span>
@@ -38,10 +38,18 @@ export function AffiliateShell({ affiliateCode, children }: { affiliateCode: str
                   key={n.href}
                   href={n.href}
                   className={cn(
-                    "block rounded-lg px-3 py-2 text-sm transition",
-                    active ? "bg-white/5 text-white" : "text-zinc-400 hover:bg-white/[0.03] hover:text-white",
+                    "relative block rounded-lg px-3 py-2 text-sm transition",
+                    active
+                      ? "bg-white/[0.06] text-white shadow-[inset_0_0_0_1px_rgba(239,43,61,0.35)]"
+                      : "text-zinc-400 hover:bg-white/[0.03] hover:text-white",
                   )}
                 >
+                  {active && (
+                    <span
+                      className="absolute -left-4 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[--color-red-bright] shadow-[0_0_10px_var(--color-red-glow)]"
+                      aria-hidden
+                    />
+                  )}
                   {n.label}
                 </Link>
               );
@@ -56,7 +64,7 @@ export function AffiliateShell({ affiliateCode, children }: { affiliateCode: str
         </div>
       </aside>
 
-      <main className="flex-1 pb-24">{children}</main>
+      <main className="min-w-0 flex-1 pb-24">{children}</main>
     </div>
   );
 }
