@@ -10,7 +10,7 @@ import { queryExternalSalesSummary } from "@/server/external-sales";
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session?.user || session.user.role !== "admin") throw new Error("unauthorized");
+  if (!session?.user || (session.user.role !== "admin" && session.user.role !== "superadmin")) throw new Error("unauthorized");
   return session.user;
 }
 
