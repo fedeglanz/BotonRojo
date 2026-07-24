@@ -18,11 +18,10 @@ import { ExternalSalesPanel } from "@/components/admin/external-sales-panel";
 
 export const dynamic = "force-dynamic";
 
-const INTEGRATIONS = [
+const ENV_INTEGRATIONS = [
   { name: "ActiveCampaign", configured: Boolean(env.ACTIVECAMPAIGN_API_URL && env.ACTIVECAMPAIGN_API_KEY), envVars: "ACTIVECAMPAIGN_API_URL, ACTIVECAMPAIGN_API_KEY" },
   { name: "Stripe", configured: Boolean(env.STRIPE_SECRET_KEY), envVars: "STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET" },
   { name: "Resend (email)", configured: Boolean(env.RESEND_API_KEY), envVars: "RESEND_API_KEY" },
-  { name: "Telegram", configured: Boolean(env.TELEGRAM_BOT_TOKEN), envVars: "TELEGRAM_BOT_TOKEN" },
   { name: "Notion", configured: Boolean(env.NOTION_TOKEN), envVars: "NOTION_TOKEN" },
   { name: "YouTube", configured: Boolean(env.YOUTUBE_API_KEY), envVars: "YOUTUBE_API_KEY" },
   { name: "Meta Ads", configured: Boolean(env.META_ACCESS_TOKEN), envVars: "META_ACCESS_TOKEN" },
@@ -77,7 +76,10 @@ export default async function AjustesPage() {
           guardar secretos en la base de datos. Reinicia el contenedor <code>app</code> tras cambiarlas.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {INTEGRATIONS.map((i) => (
+          {[
+            ...ENV_INTEGRATIONS,
+            { name: "Telegram", configured: Boolean(org?.telegramBotToken), envVars: "Bot token (por org)" },
+          ].map((i) => (
             <div key={i.name} className="glass flex items-start justify-between gap-3 p-4">
               <div>
                 <div className="text-sm font-medium text-white">{i.name}</div>
