@@ -96,10 +96,16 @@ export type SectionWidth = "normal" | "wide" | "full";
 export type SectionOrbitItem = { label: string; href?: string };
 
 export type SectionDesign = {
+  /** Schema version, so an older stored row can be migrated on read. */
+  version?: number;
   background?: SectionBackground;
   effect?: SectionEffect;
   height?: SectionHeight;
   width?: SectionWidth;
+  align?: "start" | "center" | "end";
+  density?: "compact" | "normal" | "spacious";
+  style?: "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+  divider?: "none" | "line" | "fade" | "angle" | "curve" | "dots";
   /** Only meaningful with `background: "photo"`. */
   imageUrl?: string;
   imagePrompt?: string;
@@ -113,56 +119,13 @@ export const SECTION_HEIGHTS: SectionHeight[] = ["auto", "full"];
 export const SECTION_WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 
 /**
- * Keeps only recognised keys and values. Silently discarding is the point:
- * "make it parallax with a background video" should degrade to a design the
- * renderer can actually draw, never to a stored field nobody reads.
- * Returns null when nothing survives, so callers can skip storing anything.
+ * The validator lives in `./section-design` — a single implementation, on
+ * purpose. Two normalisers with the same name (one here, one there) meant the
+ * server persisted through the weaker one, so the capability and compatibility
+ * rules never reached the stored row.
+ *
+ * Import it from `@/components/public/section-design`, not from here.
  */
-export function normalizeSectionDesign(raw: unknown): SectionDesign | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const input = raw as Record<string, unknown>;
-  const design: SectionDesign = {};
-
-  const pick = <T extends string>(value: unknown, allowed: T[]): T | undefined =>
-    typeof value === "string" && (allowed as string[]).includes(value) ? (value as T) : undefined;
-
-  const background = pick(input.background, SECTION_BACKGROUNDS);
-  const effect = pick(input.effect, SECTION_EFFECTS);
-  const height = pick(input.height, SECTION_HEIGHTS);
-  const width = pick(input.width, SECTION_WIDTHS);
-
-  if (background) design.background = background;
-  if (effect) design.effect = effect;
-  if (height) design.height = height;
-  if (width) design.width = width;
-
-  // Image fields only make sense for a photo background.
-  if (background === "photo") {
-    if (typeof input.imageUrl === "string" && input.imageUrl.trim()) design.imageUrl = input.imageUrl.trim();
-    if (typeof input.imagePrompt === "string" && input.imagePrompt.trim()) {
-      design.imagePrompt = input.imagePrompt.trim();
-    }
-  }
-
-  // Orbit items only for the orbit effect, and only well-formed entries.
-  if (effect === "orbit" && Array.isArray(input.orbitItems)) {
-    const items = input.orbitItems
-      .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
-      .map((i) => ({
-        label: typeof i.label === "string" ? i.label.trim() : "",
-        // Only same-origin/relative or http(s) links — no javascript: URLs.
-        href:
-          typeof i.href === "string" && /^(https?:\/\/|\/|#)/.test(i.href.trim())
-            ? i.href.trim()
-            : undefined,
-      }))
-      .filter((i) => i.label.length > 0)
-      .slice(0, 8);
-    if (items.length > 0) design.orbitItems = items;
-  }
-
-  return Object.keys(design).length > 0 ? design : null;
-}
 
 export type LandingBody = {
   hero?: LandingHero;

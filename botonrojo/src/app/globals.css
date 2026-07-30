@@ -22,7 +22,136 @@
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ---------------------------------------------------------------------
+     SEMANTIC COLOURS
+     Components reference these, never a raw hex. <BrandStyle> overwrites
+     them per launch from the approved palette (see lib/design/theme.ts);
+     the values here are the fallback so a page renders correctly before
+     BrandStyle loads, or without a palette at all.
+     --------------------------------------------------------------------- */
+  --color-surface: #0b0b0d;
+  --color-surface-raised: #131316;
+  --color-text: #f4f4f5;
+  --color-text-muted: rgba(244, 244, 245, 0.82);
+  --color-text-subtle: rgba(244, 244, 245, 0.58);
+  --color-text-on-accent: #ffffff;
+  --color-primary: #ef2b3d;
+  --color-primary-hover: #f4485a;
+  --color-accent-soft: rgba(255, 56, 73, 0.14);
+  --color-border: rgba(244, 244, 245, 0.12);
+  --color-border-strong: rgba(244, 244, 245, 0.28);
+  --color-focus: #ff3849;
+  /* Status hues stay conventional: a brand-red "success" stops communicating. */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  /* ---------------------------------------------------------------------
+     SEMANTIC SCALES
+     Deliberately semantic (--radius-card) instead of numeric
+     (--radius-2xl): overriding Tailwind's own scale would silently resize
+     every `rounded-2xl` / `shadow-lg` already used across the app. The
+     numeric primitives live in lib/design/tokens.ts, which is the single
+     source of truth for TypeScript.
+     --------------------------------------------------------------------- */
+  --radius-card: 1.5rem;
+  --radius-field: 0.75rem;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 28px 60px -30px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 40px -6px var(--color-accent-glow);
+
+  /* Vertical rhythm between page sections, by density. */
+  --space-section-compact: 3rem;
+  --space-section-normal: 5rem;
+  --space-section-spacious: 8rem;
+  --space-gutter: 1.5rem;
+
+  /* Content measures. `prose` is capped for line length, not for looks. */
+  --container-prose: 42rem;
+  --container-narrow: 36rem;
+  --container-wide: 80rem;
+
+  /* Motion. Ambient loops are long on purpose. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-expo: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 600ms;
+  --duration-ambient: 22s;
+
+  /* Named animations — usable as `animate-fade-up`, `animate-shimmer`… */
+  --animate-fade-in: fade-in var(--duration-slow) var(--ease-out-expo) both;
+  --animate-fade-up: fade-up var(--duration-slow) var(--ease-out-expo) both;
+  --animate-fade-down: fade-down var(--duration-slow) var(--ease-out-expo) both;
+  --animate-scale-in: scale-in var(--duration-normal) var(--ease-spring) both;
+  --animate-slide-up: slide-up var(--duration-slow) var(--ease-out-expo) both;
+  --animate-slide-right: slide-right var(--duration-slow) var(--ease-out-expo) both;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-pulse-soft: pulse-soft 2.8s var(--ease-standard) infinite;
+  --animate-float: float 7s var(--ease-standard) infinite;
+  --animate-spotlight-pan: spotlight-pan var(--duration-ambient) var(--ease-standard) infinite;
+  --animate-gradient-shift-slow: gradient-shift-slow 28s var(--ease-standard) infinite;
+  --animate-marquee-x: marquee-x 30s linear infinite;
+  --animate-accordion-down: accordion-down var(--duration-normal) var(--ease-out-expo);
+  --animate-accordion-up: accordion-up var(--duration-normal) var(--ease-out-expo);
+  --animate-progress-indeterminate: progress-indeterminate 1.4s var(--ease-standard) infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   Z-INDEX SCALE
+   Centralised because "what covers what" is a recurring source of invisible
+   bugs: a decorative layer eating clicks, a modal behind a sticky bar.
+   Mirrors Z_INDEX in lib/design/tokens.ts.
+   --------------------------------------------------------------------------- */
+:root {
+  --z-behind: -1;
+  --z-base: 0;
+  --z-decor: 1;
+  --z-content: 10;
+  --z-raised: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+}
+
+/* ---------------------------------------------------------------------------
+   LIGHT THEME
+   Theme mode is DERIVED from the launch's approved palette, not from the
+   visitor's OS: a brand that approved a white page must not flip to dark
+   because someone's phone is in dark mode. So `data-theme` (set from the
+   palette) is authoritative, and `prefers-color-scheme` only applies when no
+   palette has decided — hence `:not([data-theme])`.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-bg-soft: #f6f6f7;
+  --color-fg: #111113;
+  --color-surface: #f6f6f7;
+  --color-surface-raised: #ededf0;
+  --color-text: #111113;
+  --color-text-muted: rgba(17, 17, 19, 0.78);
+  --color-text-subtle: rgba(17, 17, 19, 0.55);
+  --color-border: rgba(17, 17, 19, 0.12);
+  --color-border-strong: rgba(17, 17, 19, 0.28);
+  --color-muted-1: rgba(17, 17, 19, 0.78);
+  --color-muted-2: rgba(17, 17, 19, 0.55);
+  --color-muted-3: rgba(17, 17, 19, 0.4);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* No `prefers-color-scheme` override on purpose: with no palette the app's own
+   admin surface is dark by design, and honouring the OS there would leave dark
+   utility classes (`bg-black/40`, `text-zinc-300`) on a white page. Light mode
+   is opted into by a palette, via `data-theme="light"` above. */
 
 html, body {
   background: var(--color-bg);
@@ -544,6 +673,450 @@ a.fx-orbit__label:focus-visible {
 }
 
 /* ==========================================================================
+   BASE LAYER
+   Inside `@layer base` on purpose: Tailwind emits utilities in a later layer,
+   so `text-4xl` still beats the default `h1` size here. Unlayered rules would
+   win over every utility and silently break the existing pages.
+   ========================================================================== */
+@layer base {
+  /* Focus is visible on every surface. Removing it is never an option — it is
+     the only affordance a keyboard user has. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Fluid headings: no breakpoint jumps, and no heading left at body size
+     because whoever wrote the markup forgot a size class. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    /* Avoids a lone word on the last line of a headline. */
+    text-wrap: balance;
+  }
+
+  h1 { font-size: clamp(2.25rem, 6vw, 4.5rem); }
+  h2 { font-size: clamp(1.75rem, 4vw, 3rem); }
+  h3 { font-size: clamp(1.25rem, 2.5vw, 1.875rem); }
+  h4 { font-size: 1.25rem; }
+
+  p, li {
+    line-height: 1.65;
+    /* Stops a single trailing word on a paragraph's last line. */
+    text-wrap: pretty;
+  }
+
+  strong, b { font-weight: 700; }
+  code, kbd, samp, pre { font-family: var(--font-mono); }
+
+  /* Forms inherit the page's type instead of the browser's. */
+  input, textarea, select, button {
+    font: inherit;
+    color: inherit;
+  }
+
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+  ::placeholder { color: var(--color-text-subtle); }
+
+  /* Media never overflows its column, and keeps its aspect ratio. */
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Anchored scrolling clears a sticky header instead of hiding under it. */
+  :target { scroll-margin-top: 6rem; }
+}
+
+/* ==========================================================================
+   BASE UTILITIES
+   Opt-in helpers rather than base rules, on purpose:
+   - `min-height: 44px` on every button/input would beat an `h-8` utility
+     (min-height wins over height) and inflate the existing admin controls, so
+     the touch floor is applied here and by the CTA presets, which already
+     exceed it.
+   - `max-width: 75ch` on every `<p>` would left-align centred copy inside a
+     wider container, because the cap shrinks the box without recentring it.
+     `.u-measure` pairs the cap with `margin-inline: auto`.
+   ========================================================================== */
+
+/* Legibility cap: past ~75 characters the eye loses the line it was on. */
+.u-measure {
+  max-width: 75ch;
+  margin-inline: auto;
+}
+
+.u-touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Screen-reader-only, for labels an icon-only control still needs. */
+.u-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Page gutter and section rhythm, matching the density tokens. */
+.u-gutter { padding-inline: var(--space-gutter); }
+.u-section-compact { padding-block: var(--space-section-compact); }
+.u-section { padding-block: var(--space-section-normal); }
+.u-section-spacious { padding-block: var(--space-section-spacious); }
+
+/* ==========================================================================
+   EFFECT CLASSES
+   The closed vocabulary the generator is allowed to paint (see
+   components/public/section-design.ts). Every one reads brand variables, never
+   a fixed colour, so it looks right on any approved palette.
+   ========================================================================== */
+
+/* --- decorative layers (absolute, behind content, never clickable) ------- */
+
+/* Film grain scoped to one section, unlike the page-wide `.grain`. */
+.fx-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A single light source above the fold — cheap depth without a photo. */
+.fx-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 0%,
+    color-mix(in srgb, var(--color-accent) 22%, transparent),
+    transparent 70%
+  );
+}
+
+.fx-gradient-animated {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0.35;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--color-accent) 40%, transparent),
+    transparent 35%,
+    color-mix(in srgb, var(--color-primary) 35%, transparent) 60%,
+    transparent 85%
+  );
+  filter: blur(70px);
+  animation: gradient-shift-slow 28s var(--ease-standard) infinite;
+}
+
+/* Dot lattice — the quieter sibling of `.fx-grid`, for content-heavy bands. */
+.fx-dot-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-fg) 45%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+/* Legibility scrim for text over an arbitrary photo. Without it, contrast is
+   whatever the photo happens to be — i.e. unknown. */
+.fx-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-bg) 88%, transparent),
+    color-mix(in srgb, var(--color-bg) 55%, transparent)
+  );
+}
+
+/* --- masks --------------------------------------------------------------- */
+
+.fx-mask-fade-b {
+  mask-image: linear-gradient(to bottom, black 60%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent);
+}
+
+.fx-mask-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+}
+
+/* --- surfaces and glow --------------------------------------------------- */
+
+.fx-glass-blur {
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+.fx-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.fx-glow-hover {
+  transition: box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.fx-glow-hover:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+/* A conic brand border, drawn as a ring so the fill stays readable. */
+.fx-conic-border {
+  position: relative;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.fx-conic-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 180deg,
+    color-mix(in srgb, var(--color-accent) 70%, transparent),
+    transparent 40%,
+    color-mix(in srgb, var(--color-accent) 45%, transparent)
+  );
+  /* Ring, not fill: mask out the interior so only the 1px edge paints. */
+  mask: linear-gradient(black, black) content-box exclude, linear-gradient(black, black);
+  -webkit-mask: linear-gradient(black, black) content-box exclude, linear-gradient(black, black);
+  pointer-events: none;
+}
+
+/* --- text treatments ---------------------------------------------------- */
+
+.fx-text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-fg) 20%,
+    var(--color-accent) 55%,
+    var(--color-fg) 90%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Outlined display type — the strong shape contrast the client asked for. */
+.fx-text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--color-fg);
+}
+
+.fx-underline-grow {
+  position: relative;
+  text-decoration: none;
+}
+
+.fx-underline-grow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.15em;
+  height: 1.5px;
+  width: 0;
+  background: var(--color-accent);
+  transition: width var(--duration-normal) var(--ease-out-expo);
+}
+
+.fx-underline-grow:hover::after,
+.fx-underline-grow:focus-visible::after {
+  width: 100%;
+}
+
+/* --- interaction -------------------------------------------------------- */
+
+.fx-lift {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+
+.fx-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+.fx-press:active {
+  transform: scale(0.99);
+}
+
+/* --- motion helpers ----------------------------------------------------- */
+
+.fx-float {
+  animation: float 7s var(--ease-standard) infinite;
+}
+
+.fx-ring-pulse {
+  position: relative;
+}
+
+.fx-ring-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--color-accent);
+  animation: pulse-soft 2.8s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+
+/* Loading placeholder: a sweep, not a spinner, so layout doesn't shift when
+   the real content arrives. */
+.fx-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-fg) 12%, transparent),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+.fx-skeleton {
+  border-radius: var(--radius-field);
+  background: color-mix(in srgb, var(--color-fg) 8%, transparent);
+  animation: pulse-soft 2.8s var(--ease-standard) infinite;
+}
+
+/* Indeterminate progress, for work with no known duration (AI generation). */
+.fx-progress {
+  position: relative;
+  overflow: hidden;
+  height: 2px;
+  background: color-mix(in srgb, var(--color-fg) 10%, transparent);
+}
+
+.fx-progress::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  background: var(--color-accent);
+  animation: progress-indeterminate 1.4s var(--ease-standard) infinite;
+}
+
+.fx-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.fx-marquee__track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 30s linear infinite;
+}
+
+.fx-marquee:hover .fx-marquee__track {
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   KEYFRAMES
+   Referenced by the `--animate-*` tokens in @theme (so `animate-fade-up`
+   works) and by the effect classes above.
+   ========================================================================== */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spotlight-pan {
+  0%, 100% { transform: translateX(-6%); }
+  50% { transform: translateX(6%); }
+}
+
+@keyframes gradient-shift-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  /* -50% because the track renders its children twice, so the loop is seamless. */
+  to { transform: translateX(-50%); }
+}
+
+@keyframes accordion-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-accordion-content-height, auto); opacity: 1; }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height, auto); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+@keyframes progress-indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(350%); }
+}
+
+/* ==========================================================================
    Reduced motion. Every animation above (and the pre-existing ambient ones)
    runs `infinite`; honouring this preference is an accessibility requirement,
    not a nicety. Layout and colour are unaffected — only movement stops.
@@ -563,8 +1136,26 @@ a.fx-orbit__label:focus-visible {
   .mesh-bg::before,
   .mesh-bg::after,
   .fx-aurora,
+  .fx-gradient-animated,
+  .fx-shimmer,
+  .fx-ring-pulse::after,
+  .fx-progress::after,
   .pulse-dot::after,
   .big-red-button::after {
     display: none !important;
+  }
+
+  /* These would freeze mid-travel and read as broken layout rather than as a
+     stopped animation, so reset them to their resting state. */
+  .fx-float,
+  .fx-marquee__track {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* An indeterminate bar with no motion says nothing; show it as a full track
+     so it still reads as "working". */
+  .fx-progress {
+    background: color-mix(in srgb, var(--color-accent) 40%, transparent);
   }
 }

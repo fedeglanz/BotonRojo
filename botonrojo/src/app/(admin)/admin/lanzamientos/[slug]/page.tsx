@@ -295,12 +295,11 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         }
       >
         <MarcoCopyEditor
-          launchId={launch.id}
           avatar={launch.avatar}
           promise={launch.promise}
           painPoints={launch.painPoints ?? []}
           benefits={launch.benefits ?? []}
-          updateAction={updateMarcoCopyAction}
+          updateAction={updateMarcoCopyAction.bind(null, launch.id)}
         />
       </WizardStep>
 

@@ -22,7 +22,12 @@ import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefine
 import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
 import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
-import { normalizeSectionValue, normalizeSectionDesign } from "@/components/public/landing-types";
+import { normalizeSectionValue } from "@/components/public/landing-types";
+import {
+  normalizeSectionDesign,
+  resolveSectionDesign,
+  SECTION_KIND_BY_KEY,
+} from "@/components/public/section-design";
 import type { LandingBody, LandingSectionKey, LandingCardStyle } from "@/components/public/landing-types";
 
 import { generateImage, isImageGenConfigured } from "@/integrations/image-gen";
@@ -1166,7 +1171,12 @@ export async function refineLandingSectionAction(
   const newBody: LandingBody = { ...body, [section]: updated };
 
   // Anything outside the closed design vocabulary is dropped here, not stored.
-  const design = normalizeSectionDesign(rawDesign);
+  // Passing the section's kind is what enforces the per-kind rules (no photo
+  // behind a form, no orbit around a long text block).
+  const { design } = normalizeSectionDesign(rawDesign, {
+    kind: SECTION_KIND_BY_KEY[section],
+    contentLength: JSON.stringify(updated ?? "").length,
+  });
   if (design) {
     // A photo background is useless without an actual image, so resolve it now
     // with the same Magnific → Unsplash path the rest of the generator uses.
@@ -1193,16 +1203,19 @@ export async function updateSectionDesignAction(
   const { launch, asset } = await loadLandingAsset(launchId, organizationId);
   const body = (asset?.body ?? {}) as LandingBody;
 
-  const design = normalizeSectionDesign({
-    background: formData.get("background"),
-    effect: formData.get("effect"),
-    height: formData.get("height"),
-    width: formData.get("width"),
-    // Keep whatever image/orbit data the section already had.
-    imageUrl: body.sectionDesign?.[section]?.imageUrl,
-    imagePrompt: body.sectionDesign?.[section]?.imagePrompt,
-    orbitItems: body.sectionDesign?.[section]?.orbitItems,
-  });
+  const { design } = normalizeSectionDesign(
+    {
+      background: formData.get("background"),
+      effect: formData.get("effect"),
+      height: formData.get("height"),
+      width: formData.get("width"),
+      // Keep whatever image/orbit data the section already had.
+      imageUrl: body.sectionDesign?.[section]?.imageUrl,
+      imagePrompt: body.sectionDesign?.[section]?.imagePrompt,
+      orbitItems: body.sectionDesign?.[section]?.orbitItems,
+    },
+    { kind: SECTION_KIND_BY_KEY[section] },
+  );
 
   const nextDesign = { ...(body.sectionDesign ?? {}) };
   if (design) {
@@ -1218,7 +1231,11 @@ export async function updateSectionDesignAction(
       if (seeds.length >= 3) design.orbitItems = seeds;
       else design.effect = "aurora";
     }
-    nextDesign[section] = design;
+    // Picking every default in the dropdowns means "no design": store nothing,
+    // so resetting a section actually clears it instead of leaving a row that
+    // resolves to the same thing anyway.
+    if (resolveSectionDesign(design).isDefault) delete nextDesign[section];
+    else nextDesign[section] = design;
   } else {
     delete nextDesign[section];
   }
