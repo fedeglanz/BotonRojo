@@ -1,11 +1,17 @@
 import { pgTable, text, timestamp, pgEnum, jsonb, integer, boolean } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
+import { organizations } from "./organizations";
+import type { PageConfig } from "@/lib/launch-pages";
 
 export const launchType = pgEnum("launch_type", ["venta_directa", "semilla", "plf"]);
 export const launchStatus = pgEnum("launch_status", ["draft", "scheduled", "live", "closed", "archived"]);
+export const brandKitStatus = pgEnum("brand_kit_status", ["pending", "draft", "approved"]);
 
 export const launches = pgTable("launches", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   type: launchType("type").notNull(),
@@ -24,6 +30,9 @@ export const launches = pgTable("launches", {
   // Schedule
   cartOpensAt: timestamp("cart_opens_at", { mode: "date" }),
   cartClosesAt: timestamp("cart_closes_at", { mode: "date" }),
+  // PLF only — day "contenido-1" unlocks; contenido-2/3/4 unlock one day
+  // later each. Null = no gating, every content page is visible immediately.
+  contentDripStartsAt: timestamp("content_drip_starts_at", { mode: "date" }),
 
   // Affiliate
   affiliateCommissionRate: integer("affiliate_commission_rate_bps").default(3000),
@@ -39,6 +48,29 @@ export const launches = pgTable("launches", {
   // Raw brief used to generate the marco copy (kept for re-generations)
   brief: text("brief"),
 
+  // Brand kit — mandatory before any landing can be generated (see launch wizard step 1)
+  brandKitStatus: brandKitStatus("brand_kit_status").notNull().default("pending"),
+  brandPalette: jsonb("brand_palette").$type<BrandPalette | null>(),
+  brandFonts: jsonb("brand_fonts").$type<BrandFonts | null>(),
+  brandLogoUrl: text("brand_logo_url"),
+  brandMoodImageUrl: text("brand_mood_image_url"),
+  brandMoodNotes: text("brand_mood_notes"),
+  designSystemProjectId: text("design_system_project_id"),
+
+  // Free-text steer for the landing generator: change of angle, structure,
+  // background treatment, whatever doesn't fit the fixed brief/avatar fields.
+  landingGeneralInstructions: text("landing_general_instructions"),
+
+  // Optional URL of a page the client likes — analyzed (structure + visual,
+  // never colors) to steer the generated structure/tone. Best-effort only.
+  referenceUrl: text("reference_url"),
+
+  // Decisions made at creation time about which pages this launch gets
+  // (registro channels, content-page count, legal pages, affiliate signup) —
+  // see src/lib/launch-pages.ts. Null on launches created before this existed,
+  // which keeps resolving to the single legacy page.
+  pageConfig: jsonb("page_config").$type<PageConfig | null>(),
+
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
@@ -52,6 +84,19 @@ export type AvatarBrief = {
   context?: string;
 };
 
+export type BrandPalette = {
+  primary: string;
+  accent: string;
+  background: string;
+  foreground: string;
+};
+
+export type BrandFonts = {
+  display: string;
+  body: string;
+};
+
 export type LaunchType = (typeof launchType.enumValues)[number];
+export type BrandKitStatus = (typeof brandKitStatus.enumValues)[number];
 export type Launch = typeof launches.$inferSelect;
 export type NewLaunch = typeof launches.$inferInsert;

@@ -4,10 +4,34 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { products, trackingEvents, launches, users } from "@/db/schema";
+import { products, trackingEvents, launches, users, orders } from "@/db/schema";
 import { env } from "@/lib/env";
-import { stripe, createCheckoutSession } from "@/lib/stripe";
-import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { createCheckoutSession } from "@/lib/stripe";
+import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
+
+/**
+ * Resolves which launch a /gracias visit belongs to, so that page can be
+ * themed with the right brand kit instead of showing Botón Rojo's own look.
+ * Leads carry the slug directly in the redirect URL; purchases only carry
+ * the Stripe session id, so we look up the order our webhook wrote (falls
+ * back to the generic, unbranded thank-you if that hasn't landed yet).
+ */
+export async function resolveGraciasLaunch(params: { launchSlug?: string; sessionId?: string }) {
+  if (params.launchSlug) {
+    const [launch] = await db.select().from(launches).where(eq(launches.slug, params.launchSlug)).limit(1);
+    return launch ?? null;
+  }
+
+  if (params.sessionId) {
+    const [order] = await db.select().from(orders).where(eq(orders.stripeSessionId, params.sessionId)).limit(1);
+    if (order?.launchId) {
+      const [launch] = await db.select().from(launches).where(eq(launches.id, order.launchId)).limit(1);
+      return launch ?? null;
+    }
+  }
+
+  return null;
+}
 
 export async function startCheckoutAction(formData: FormData) {
   const productSlug = String(formData.get("productSlug") ?? "");
@@ -16,11 +40,9 @@ export async function startCheckoutAction(formData: FormData) {
 
   const [product] = await db.select().from(products).where(eq(products.slug, productSlug)).limit(1);
   if (!product?.stripePriceId) throw new Error("product_not_configured");
-  if (!env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY.startsWith("sk_test_xxx")) {
-    throw new Error("stripe_not_configured");
-  }
+  if (!product.organizationId) throw new Error("product_not_configured");
 
-  const session = await createCheckoutSession({
+  const session = await createCheckoutSession(product.organizationId, {
     priceId: product.stripePriceId,
     successUrl: `${env.APP_URL}/gracias?session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${env.APP_URL}/${productSlug}`,
@@ -56,6 +78,7 @@ export async function captureLeadAction(formData: FormData) {
   }
 
   await db.insert(trackingEvents).values({
+    organizationId: launch?.organizationId ?? null,
     type: "lead",
     email,
     name,
@@ -70,8 +93,9 @@ export async function captureLeadAction(formData: FormData) {
     },
   });
 
-  if (isActiveCampaignConfigured() && launch) {
-    syncLeadToAc({
+  if (launch) {
+    const ac = await getActiveCampaignClientForOrg(launch.organizationId);
+    ac?.syncLeadToAc({
       email,
       name,
       launchSlug: launch.slug,

@@ -5,14 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { trackingEvents, launches, adSpend, users, externalSalesSources } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { queryExternalSalesSummary } from "@/server/external-sales";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") throw new Error("unauthorized");
-  return session.user;
-}
 
 export type StatsFilters = {
   launchId?: string;
@@ -20,17 +14,22 @@ export type StatsFilters = {
   to: Date;
 };
 
-function filterConditions(f: StatsFilters) {
-  const conds = [gte(trackingEvents.occurredAt, f.from), lte(trackingEvents.occurredAt, f.to)];
+function filterConditions(f: StatsFilters, organizationId: string) {
+  const conds = [
+    eq(trackingEvents.organizationId, organizationId),
+    gte(trackingEvents.occurredAt, f.from),
+    lte(trackingEvents.occurredAt, f.to),
+  ];
   if (f.launchId) conds.push(eq(trackingEvents.launchId, f.launchId));
   return and(...conds);
 }
 
 export async function listLaunchesForFilter() {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   return db
     .select({ id: launches.id, slug: launches.slug, name: launches.name })
     .from(launches)
+    .where(eq(launches.organizationId, organizationId))
     .orderBy(desc(launches.createdAt));
 }
 
@@ -44,7 +43,7 @@ export type FunnelSummary = {
 };
 
 export async function getFunnelSummary(f: StatsFilters): Promise<FunnelSummary> {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const rows = await db
     .select({
       type: trackingEvents.type,
@@ -52,7 +51,7 @@ export async function getFunnelSummary(f: StatsFilters): Promise<FunnelSummary> 
       revenue: sql<number>`coalesce(sum(${trackingEvents.amountCents}), 0)::int`,
     })
     .from(trackingEvents)
-    .where(filterConditions(f))
+    .where(filterConditions(f, organizationId))
     .groupBy(trackingEvents.type);
 
   let visits = 0;
@@ -99,7 +98,7 @@ export async function getBreakdown(
   dimension: BreakdownDimension,
   f: StatsFilters,
 ): Promise<BreakdownRow[]> {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const col = DIMENSION_COLUMN[dimension];
   const keyExpr = sql<string>`coalesce(${col}, 'directo')`;
 
@@ -111,7 +110,7 @@ export async function getBreakdown(
       revenue: sql<number>`coalesce(sum(${trackingEvents.amountCents}), 0)::int`,
     })
     .from(trackingEvents)
-    .where(filterConditions(f))
+    .where(filterConditions(f, organizationId))
     .groupBy(keyExpr, trackingEvents.type);
 
   const byKey = new Map<string, BreakdownRow>();
@@ -139,8 +138,8 @@ export type AffiliateBreakdownRow = {
 };
 
 export async function getAffiliateBreakdown(f: StatsFilters): Promise<AffiliateBreakdownRow[]> {
-  await requireAdmin();
-  const conds = [filterConditions(f), sql`${trackingEvents.affiliateUserId} is not null`];
+  const { organizationId } = await requireOrgAdmin();
+  const conds = [filterConditions(f, organizationId), sql`${trackingEvents.affiliateUserId} is not null`];
 
   const rows = await db
     .select({
@@ -188,7 +187,7 @@ export type DailyPoint = {
 };
 
 export async function getTimeSeries(f: StatsFilters): Promise<DailyPoint[]> {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const dayExpr = sql<string>`to_char(date_trunc('day', ${trackingEvents.occurredAt}), 'YYYY-MM-DD')`;
 
   const rows = await db
@@ -199,7 +198,7 @@ export async function getTimeSeries(f: StatsFilters): Promise<DailyPoint[]> {
       revenue: sql<number>`coalesce(sum(${trackingEvents.amountCents}), 0)::int`,
     })
     .from(trackingEvents)
-    .where(filterConditions(f))
+    .where(filterConditions(f, organizationId))
     .groupBy(dayExpr, trackingEvents.type)
     .orderBy(dayExpr);
 
@@ -226,8 +225,12 @@ export type AdSpendSummary = {
 };
 
 export async function getAdSpendSummary(f: StatsFilters): Promise<AdSpendSummary> {
-  await requireAdmin();
-  const conds = [gte(adSpend.spendDate, f.from), lte(adSpend.spendDate, f.to)];
+  const { organizationId } = await requireOrgAdmin();
+  const conds = [
+    eq(adSpend.organizationId, organizationId),
+    gte(adSpend.spendDate, f.from),
+    lte(adSpend.spendDate, f.to),
+  ];
   if (f.launchId) conds.push(eq(adSpend.launchId, f.launchId));
 
   const rows = await db
@@ -259,7 +262,7 @@ const addSpendSchema = z.object({
 });
 
 export async function addAdSpendAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = addSpendSchema.parse({
     launchId: formData.get("launchId"),
     channel: formData.get("channel"),
@@ -268,7 +271,14 @@ export async function addAdSpendAction(formData: FormData) {
     notes: formData.get("notes") || undefined,
   });
 
-  await db.insert(adSpend).values(parsed);
+  const [launch] = await db
+    .select({ id: launches.id })
+    .from(launches)
+    .where(and(eq(launches.id, parsed.launchId), eq(launches.organizationId, organizationId)))
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+
+  await db.insert(adSpend).values({ ...parsed, organizationId });
   revalidatePath("/admin/estadisticas");
 }
 
@@ -281,11 +291,10 @@ export type ExternalSalesRow = {
 };
 
 export async function getExternalSalesForRange(f: StatsFilters): Promise<ExternalSalesRow[]> {
-  await requireAdmin();
-  const conds = f.launchId ? eq(externalSalesSources.launchId, f.launchId) : undefined;
-  const sources = conds
-    ? await db.select().from(externalSalesSources).where(conds)
-    : await db.select().from(externalSalesSources);
+  const { organizationId } = await requireOrgAdmin();
+  const conds = [eq(externalSalesSources.organizationId, organizationId)];
+  if (f.launchId) conds.push(eq(externalSalesSources.launchId, f.launchId));
+  const sources = await db.select().from(externalSalesSources).where(and(...conds));
 
   const out: ExternalSalesRow[] = [];
   for (const source of sources) {
@@ -311,8 +320,12 @@ export async function getExternalSalesForRange(f: StatsFilters): Promise<Externa
 }
 
 export async function listRecentAdSpend(f: StatsFilters) {
-  await requireAdmin();
-  const conds = [gte(adSpend.spendDate, f.from), lte(adSpend.spendDate, f.to)];
+  const { organizationId } = await requireOrgAdmin();
+  const conds = [
+    eq(adSpend.organizationId, organizationId),
+    gte(adSpend.spendDate, f.from),
+    lte(adSpend.spendDate, f.to),
+  ];
   if (f.launchId) conds.push(eq(adSpend.launchId, f.launchId));
 
   return db

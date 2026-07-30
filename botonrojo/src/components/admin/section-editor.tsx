@@ -41,10 +41,22 @@ const SUGGESTIONS: Record<LandingSectionKey, string[]> = {
     "Añade un bloque más sobre el coste de no actuar",
     "Reescribe los dolores en primera persona del avatar",
   ],
+  speakers: [
+    "Añade un ponente más",
+    "Hazlo más enfocado en la autoridad de cada uno",
+  ],
+  agenda: [
+    "Añade un descanso a media jornada",
+    "Ajusta los horarios a un formato de medio día",
+  ],
   includes: [
     "Reordena del más impactante al menos",
     "Añade 2 bonus extra",
     "Acorta las descripciones",
+  ],
+  pricingTiers: [
+    "Hazlo sonar más exclusivo el nivel más caro",
+    "Añade más bullets al nivel intermedio",
   ],
   about: [
     "Hazlo más personal y menos corporativo",
@@ -81,7 +93,7 @@ export function SectionEditor({
   const meta = SECTION_META[section];
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.02]">
+    <div className="glass">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
         <div>
           <div className="font-[family-name:var(--font-display)] text-base font-bold text-white">
@@ -175,7 +187,11 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md px-2.5 py-1 transition ${active ? "bg-white/10 text-white" : "text-zinc-400 hover:text-white"}`}
+      className={`rounded-md border px-2.5 py-1 transition ${
+        active
+          ? "border-white/25 bg-white/20 text-white"
+          : "border-transparent bg-white/[0.05] text-zinc-300 hover:border-white/15 hover:bg-white/10 hover:text-white"
+      }`}
     >
       {children}
     </button>
@@ -193,7 +209,7 @@ function SuggestionChip({ label }: { label: string }) {
           ta.focus();
         }
       }}
-      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:border-[--color-red] hover:text-white"
+      className="rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs text-zinc-200 transition hover:border-[--color-red] hover:bg-white/10 hover:text-white"
     >
       {label}
     </button>

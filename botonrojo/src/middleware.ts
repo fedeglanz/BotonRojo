@@ -16,6 +16,9 @@ export function middleware(req: NextRequest) {
     host === ownHost ||
     host === "localhost" ||
     host === "127.0.0.1" ||
+    // How the screenshot-service container reaches `pnpm dev` on the host in
+    // local development — never a real public hostname, safe to allowlist.
+    host === "host.docker.internal" ||
     process.env.APP_URL?.includes(host);
 
   if (isOwnHost) return NextResponse.next();

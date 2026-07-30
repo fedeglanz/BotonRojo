@@ -1,0 +1,1 @@
+ALTER TABLE "launches" ADD COLUMN "reference_url" text;

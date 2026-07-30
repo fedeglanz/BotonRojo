@@ -1,11 +1,13 @@
 import { pgTable, text, date, integer, pgEnum, timestamp } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const adChannel = pgEnum("ad_channel", ["meta", "google", "other"]);
 
 export const adSpend = pgTable("ad_spend", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   launchId: text("launch_id")
     .notNull()
     .references(() => launches.id, { onDelete: "cascade" }),

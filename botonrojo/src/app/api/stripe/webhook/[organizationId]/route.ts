@@ -1,22 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
-import { env } from "@/lib/env";
+import { getStripeClientForOrg, getStripeCredentialsForOrg } from "@/lib/stripe";
 import { db } from "@/db";
 import { orders, trackingEvents, users, launches } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+/**
+ * Each organization brings its own Stripe account, so each gets its own
+ * webhook URL (configured in their Stripe dashboard when they connect) —
+ * there's no single shared webhook secret to verify against anymore.
+ */
+export async function POST(req: NextRequest, props: { params: Promise<{ organizationId: string }> }) {
+  const { organizationId } = await props.params;
+
   const sig = req.headers.get("stripe-signature");
   if (!sig) return NextResponse.json({ error: "missing_signature" }, { status: 400 });
+
+  const creds = await getStripeCredentialsForOrg(organizationId);
+  if (!creds) return NextResponse.json({ error: "organization_not_configured" }, { status: 404 });
+
+  const stripe = await getStripeClientForOrg(organizationId);
 
   const raw = await req.text();
   let event;
   try {
-    event = stripe.webhooks.constructEvent(raw, sig, env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(raw, sig, creds.webhookSecret);
   } catch (err) {
     return NextResponse.json({ error: `webhook_invalid: ${(err as Error).message}` }, { status: 400 });
   }
@@ -34,6 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     await db.insert(orders).values({
+      organizationId,
       stripeSessionId: session.id,
       stripePaymentIntentId: (session.payment_intent as string) ?? null,
       email: session.customer_details?.email ?? session.customer_email ?? null,
@@ -47,6 +59,7 @@ export async function POST(req: NextRequest) {
     });
 
     await db.insert(trackingEvents).values({
+      organizationId,
       type: "sale",
       email: session.customer_details?.email ?? session.customer_email ?? null,
       name: session.customer_details?.name ?? null,
@@ -63,11 +76,12 @@ export async function POST(req: NextRequest) {
       payload: (session.metadata as Record<string, string>) ?? {},
     });
 
-    if (isActiveCampaignConfigured() && launchId) {
+    if (launchId) {
       const [launch] = await db.select().from(launches).where(eq(launches.id, launchId)).limit(1);
       const email = session.customer_details?.email ?? session.customer_email;
       if (launch && email) {
-        syncLeadToAc({
+        const ac = await getActiveCampaignClientForOrg(organizationId);
+        ac?.syncLeadToAc({
           email,
           name: session.customer_details?.name ?? undefined,
           launchSlug: launch.slug,

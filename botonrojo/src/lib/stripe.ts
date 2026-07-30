@@ -1,10 +1,26 @@
+import "server-only";
 import Stripe from "stripe";
-import { env } from "./env";
+import { getDecryptedCredential } from "@/server/integrations";
+import type { StripeCredentials } from "@/server/integrations";
 
-export const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-12-18.acacia",
-  typescript: true,
-});
+const clientCache = new Map<string, Stripe>();
+
+/** Each organization brings its own Stripe account — no shared/global client. */
+export async function getStripeClientForOrg(organizationId: string): Promise<Stripe> {
+  const cached = clientCache.get(organizationId);
+  if (cached) return cached;
+
+  const creds = await getDecryptedCredential<StripeCredentials>(organizationId, "stripe");
+  if (!creds) throw new Error("stripe_not_configured");
+
+  const client = new Stripe(creds.secretKey, { apiVersion: "2025-02-24.acacia", typescript: true });
+  clientCache.set(organizationId, client);
+  return client;
+}
+
+export async function getStripeCredentialsForOrg(organizationId: string): Promise<StripeCredentials | null> {
+  return getDecryptedCredential<StripeCredentials>(organizationId, "stripe");
+}
 
 export type CheckoutInput = {
   priceId: string;
@@ -16,7 +32,9 @@ export type CheckoutInput = {
   utm?: Record<string, string | undefined>;
 };
 
-export async function createCheckoutSession(input: CheckoutInput) {
+export async function createCheckoutSession(organizationId: string, input: CheckoutInput) {
+  const stripe = await getStripeClientForOrg(organizationId);
+
   const metadata: Record<string, string> = {};
   if (input.affiliateRef) metadata.affiliate_ref = input.affiliateRef;
   if (input.launchId) metadata.launch_id = input.launchId;

@@ -1,0 +1,1 @@
+ALTER TABLE "launches" ADD COLUMN "content_drip_starts_at" timestamp;

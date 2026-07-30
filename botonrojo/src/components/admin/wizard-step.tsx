@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<Props["status"], string> = {
 
 export function WizardStep({ index, title, subtitle, status, children, action }: Props) {
   return (
-    <section className={cn("rounded-xl border p-6", STATUS_STYLES[status])}>
+    <section className={cn("glass p-6", STATUS_STYLES[status])}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="font-[family-name:var(--font-mono)] text-xs text-zinc-500">

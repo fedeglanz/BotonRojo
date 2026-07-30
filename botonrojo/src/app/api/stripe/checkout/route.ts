@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
   }
 
   const [product] = await db.select().from(products).where(eq(products.slug, parsed.data.productSlug)).limit(1);
-  if (!product || !product.stripePriceId) {
+  if (!product || !product.stripePriceId || !product.organizationId) {
     return NextResponse.json({ error: "product_not_found" }, { status: 404 });
   }
 
-  const session = await createCheckoutSession({
+  const session = await createCheckoutSession(product.organizationId, {
     priceId: product.stripePriceId,
     successUrl: `${env.APP_URL}/gracias?session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${env.APP_URL}/${product.slug}`,

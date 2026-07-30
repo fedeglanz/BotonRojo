@@ -9,12 +9,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().default("postgres://botonrojo:botonrojo@localhost:5432/botonrojo"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
 
-  STRIPE_SECRET_KEY: z.string().default(""),
-  STRIPE_WEBHOOK_SECRET: z.string().default(""),
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().default(""),
-
+  // Platform-level (shared, the platform operator pays for these — not per-client).
   ANTHROPIC_API_KEY: z.string().default(""),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
+  UNSPLASH_ACCESS_KEY: z.string().default(""),
+  MAGNIFIC_API_KEY: z.string().default(""),
 
   RESEND_API_KEY: z.string().default(""),
   EMAIL_FROM: z.string().default("Botón Rojo <hola@example.com>"),
@@ -26,24 +25,26 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().default("botonrojo_secret"),
   S3_PUBLIC_URL: z.string().default("http://localhost:9000/botonrojo"),
 
-  ACTIVECAMPAIGN_API_URL: z.string().default(""),
-  ACTIVECAMPAIGN_API_KEY: z.string().default(""),
-  ACTIVECAMPAIGN_FROM_NAME: z.string().default("Escuela Nómada Digital"),
-  ACTIVECAMPAIGN_FROM_EMAIL: z.string().default("hola@escuelanomadadigital.com"),
-
-  TELEGRAM_BOT_TOKEN: z.string().default(""),
-  NOTION_TOKEN: z.string().default(""),
-  YOUTUBE_API_KEY: z.string().default(""),
-  META_ACCESS_TOKEN: z.string().default(""),
-  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().default(""),
-
   GEOIP_PROVIDER_URL: z.string().default("https://ip.guide"),
-
-  UNSPLASH_ACCESS_KEY: z.string().default(""),
-  REPLICATE_API_TOKEN: z.string().default(""),
 
   // Custom domains: the IPv4 clients point an A record at for apex domains.
   SERVER_IPV4: z.string().default(""),
+
+  // Design review: a sidecar Docker service (Playwright) that screenshots a
+  // just-generated landing so Claude can visually review it. Unset = the
+  // review step is skipped entirely (landings still generate normally).
+  SCREENSHOT_SERVICE_URL: z.string().default(""),
+  SCREENSHOT_SERVICE_TOKEN: z.string().default(""),
+  // How the screenshot service reaches this app internally — the compose
+  // service name in production (`http://app:3000`), but `pnpm dev` runs on
+  // the host outside the compose network, so local dev needs
+  // `http://host.docker.internal:3000` instead.
+  SCREENSHOT_APP_URL: z.string().default("http://app:3000"),
+
+  // Encrypts every client's own Stripe/ActiveCampaign/etc. credentials at rest
+  // (see src/lib/crypto.ts). Generate once with `openssl rand -base64 32` and
+  // never rotate casually — changing it makes all stored credentials unreadable.
+  APP_ENCRYPTION_KEY: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);

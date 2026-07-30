@@ -136,7 +136,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
 
           {/* Source buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-white/30 hover:text-white">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-200 transition hover:border-white/40 hover:bg-white/15 hover:text-white">
               {uploading ? "Subiendo…" : "↑ Subir archivo"}
               <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
             </label>
@@ -147,7 +147,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
                 setUnsplashOpen((o) => !o);
                 if (!unsplashOpen && imagePrompt) setUnsplashQuery(imagePrompt);
               }}
-              className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-white/30 hover:text-white"
+              className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-200 transition hover:border-white/40 hover:bg-white/15 hover:text-white"
             >
               🔍 Unsplash
             </button>
@@ -156,7 +156,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
               type="button"
               onClick={generateAiImage}
               disabled={generating}
-              className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-[--color-red] hover:text-white disabled:opacity-50"
+              className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-200 transition hover:border-[--color-red] hover:bg-white/15 hover:text-white disabled:opacity-50"
             >
               {generating ? "Generando IA…" : "✨ Generar con IA"}
             </button>

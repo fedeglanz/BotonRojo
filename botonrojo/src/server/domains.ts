@@ -2,20 +2,14 @@
 
 import { promises as dns } from "node:dns";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { domains, launches } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { createId } from "@/lib/ids";
 import { env } from "@/lib/env";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") throw new Error("unauthorized");
-  return session.user;
-}
 
 const hostnameSchema = z
   .string()
@@ -23,7 +17,20 @@ const hostnameSchema = z
   .toLowerCase()
   .regex(/^(?!:\/\/)([a-z0-9-]+\.)+[a-z]{2,}$/, "Dominio no válido");
 
+/** Verifies the launch belongs to the acting admin's organization before touching its domains. */
+async function getOrgLaunchId(launchId: string, organizationId: string) {
+  const [launch] = await db
+    .select({ id: launches.id })
+    .from(launches)
+    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+  return launch.id;
+}
+
 export async function listDomainsForLaunch(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  await getOrgLaunchId(launchId, organizationId);
   return db.select().from(domains).where(eq(domains.launchId, launchId)).orderBy(domains.createdAt);
 }
 
@@ -34,16 +41,18 @@ const addSchema = z.object({
 });
 
 export async function addDomainAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = addSchema.parse({
     launchId: formData.get("launchId"),
     launchSlug: formData.get("launchSlug"),
     hostname: formData.get("hostname"),
   });
+  await getOrgLaunchId(parsed.launchId, organizationId);
 
   const isApex = parsed.hostname.split(".").length === 2;
 
   await db.insert(domains).values({
+    organizationId,
     launchId: parsed.launchId,
     hostname: parsed.hostname,
     isApex,
@@ -54,12 +63,12 @@ export async function addDomainAction(formData: FormData) {
 }
 
 export async function removeDomainAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const id = String(formData.get("id") ?? "");
   const launchSlug = String(formData.get("launchSlug") ?? "");
   if (!id) throw new Error("missing_id");
 
-  await db.delete(domains).where(eq(domains.id, id));
+  await db.delete(domains).where(and(eq(domains.id, id), eq(domains.organizationId, organizationId)));
   revalidatePath(`/admin/lanzamientos/${launchSlug}`);
 }
 
@@ -69,12 +78,16 @@ export async function removeDomainAction(formData: FormData) {
  * a subdomain must CNAME (directly or transitively) to our own app hostname.
  */
 export async function verifyDomainAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const id = String(formData.get("id") ?? "");
   const launchSlug = String(formData.get("launchSlug") ?? "");
   if (!id) throw new Error("missing_id");
 
-  const [domain] = await db.select().from(domains).where(eq(domains.id, id)).limit(1);
+  const [domain] = await db
+    .select()
+    .from(domains)
+    .where(and(eq(domains.id, id), eq(domains.organizationId, organizationId)))
+    .limit(1);
   if (!domain) throw new Error("domain_not_found");
 
   const appHostname = new URL(env.APP_URL).hostname;
@@ -111,7 +124,8 @@ export async function verifyDomainAction(formData: FormData) {
 
 /**
  * Called by Caddy's on-demand TLS `ask` directive before issuing a certificate
- * for a hostname it doesn't already have a static config block for.
+ * for a hostname it doesn't already have a static config block for. Hostnames
+ * are globally unique (see `domains.hostname`), so no organization scoping applies.
  */
 export async function isDomainActiveForTls(hostname: string): Promise<boolean> {
   const [domain] = await db

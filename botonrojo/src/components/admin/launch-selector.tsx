@@ -52,6 +52,9 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                   </div>
                 </div>
                 <p className="mt-4 text-sm text-zinc-400">{t.description}</p>
+                <p className="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-zinc-500">
+                  📄 {t.pages}
+                </p>
                 <Link
                   href={`/admin/lanzamientos/nuevo?type=${key}`}
                   className="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-[--color-red] hover:text-white"

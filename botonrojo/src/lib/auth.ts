@@ -13,6 +13,8 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: DefaultSession["user"] & {
       id: string;
+      organizationId: string;
+      isSuperAdmin: boolean;
       role: "admin" | "affiliate" | "customer";
       affiliateCode?: string | null;
     };
@@ -62,6 +64,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: user.email,
             name: user.name ?? undefined,
             role: user.role,
+            organizationId: user.organizationId,
+            isSuperAdmin: user.isSuperAdmin,
             affiliateCode: user.affiliateCode,
           };
         } catch (err) {
@@ -76,6 +80,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = (user as { id: string }).id;
         token.role = (user as { role: string }).role;
+        token.organizationId = (user as { organizationId: string }).organizationId;
+        token.isSuperAdmin = (user as { isSuperAdmin: boolean }).isSuperAdmin;
         token.affiliateCode = (user as { affiliateCode?: string | null }).affiliateCode;
       }
       return token;
@@ -84,6 +90,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as "admin" | "affiliate" | "customer";
+        session.user.organizationId = token.organizationId as string;
+        session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
         session.user.affiliateCode = (token.affiliateCode as string | null | undefined) ?? null;
       }
       return session;

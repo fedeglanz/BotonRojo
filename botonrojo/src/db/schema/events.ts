@@ -2,6 +2,7 @@ import { pgTable, text, timestamp, pgEnum, integer, jsonb, index } from "drizzle
 import { createId } from "@/lib/ids";
 import { users } from "./users";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const eventType = pgEnum("event_type", [
   "visit",
@@ -18,6 +19,7 @@ export const trackingEvents = pgTable(
   "tracking_events",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
+    organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
     occurredAt: timestamp("occurred_at", { mode: "date" }).notNull().defaultNow(),
     type: eventType("type").notNull(),
 
@@ -60,6 +62,7 @@ export const trackingEvents = pgTable(
     userAgent: text("user_agent"),
   },
   (t) => ({
+    organizationIdx: index("tracking_events_organization_idx").on(t.organizationId),
     occurredAtIdx: index("tracking_events_occurred_at_idx").on(t.occurredAt),
     typeIdx: index("tracking_events_type_idx").on(t.type),
     launchIdx: index("tracking_events_launch_idx").on(t.launchId),

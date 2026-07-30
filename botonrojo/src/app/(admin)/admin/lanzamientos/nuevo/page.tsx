@@ -1,6 +1,7 @@
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { createLaunchAction } from "@/server/launches";
 import { SubmitButton } from "@/components/admin/submit-button";
+import { LaunchPageOptionsFields } from "@/components/admin/launch-page-options-fields";
 import Link from "next/link";
 
 type SearchParams = Promise<{ type?: string }>;
@@ -31,8 +32,6 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
       </div>
 
       <form action={createLaunchAction} className="glass space-y-6 p-6">
-        <input type="hidden" name="type" value={defaultType} />
-
         <label className="block">
           <span className="block text-xs uppercase tracking-widest text-zinc-400">Nombre del lanzamiento</span>
           <input
@@ -48,20 +47,7 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
           </span>
         </label>
 
-        <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Tipo</span>
-          <select
-            name="type"
-            defaultValue={defaultType}
-            className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
-          >
-            {(Object.keys(LAUNCH_TYPES) as LaunchType[]).map((k) => (
-              <option key={k} value={k}>
-                {LAUNCH_TYPES[k].label} — {LAUNCH_TYPES[k].tagline}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LaunchPageOptionsFields defaultType={defaultType} />
 
         <label className="block">
           <span className="block text-xs uppercase tracking-widest text-zinc-400">Brief</span>
@@ -89,6 +75,22 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
             className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
           />
           <span className="mt-1 block text-xs text-zinc-500">En céntimos. Lo podrás cambiar luego.</span>
+        </label>
+
+        <label className="block">
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Web de referencia — opcional
+          </span>
+          <input
+            type="url"
+            name="referenceUrl"
+            placeholder="https://..."
+            className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
+          />
+          <span className="mt-1 block text-xs text-zinc-500">
+            Una página que te guste — se analiza su estructura y tono (nunca sus colores) para
+            inspirar la landing. También lo podrás añadir luego.
+          </span>
         </label>
 
         <div className="flex flex-col items-center gap-4 pt-6">

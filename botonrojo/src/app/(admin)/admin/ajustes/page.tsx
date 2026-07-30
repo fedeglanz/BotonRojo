@@ -7,57 +7,64 @@ import {
   removeExternalSalesSourceAction,
   updateExternalSalesSourceColumnsAction,
 } from "@/server/external-sales";
+import { listIntegrations, saveIntegrationCredentialAction, disconnectIntegrationAction } from "@/server/integrations";
 import { ExternalSalesPanel } from "@/components/admin/external-sales-panel";
+import { IntegrationConnectPanel } from "@/components/admin/integration-connect-panel";
 
 export const dynamic = "force-dynamic";
 
-const INTEGRATIONS = [
-  { name: "ActiveCampaign", configured: Boolean(env.ACTIVECAMPAIGN_API_URL && env.ACTIVECAMPAIGN_API_KEY), envVars: "ACTIVECAMPAIGN_API_URL, ACTIVECAMPAIGN_API_KEY" },
-  { name: "Stripe", configured: Boolean(env.STRIPE_SECRET_KEY), envVars: "STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET" },
-  { name: "Resend (email)", configured: Boolean(env.RESEND_API_KEY), envVars: "RESEND_API_KEY" },
-  { name: "Telegram", configured: Boolean(env.TELEGRAM_BOT_TOKEN), envVars: "TELEGRAM_BOT_TOKEN" },
-  { name: "Notion", configured: Boolean(env.NOTION_TOKEN), envVars: "NOTION_TOKEN" },
-  { name: "YouTube", configured: Boolean(env.YOUTUBE_API_KEY), envVars: "YOUTUBE_API_KEY" },
-  { name: "Meta Ads", configured: Boolean(env.META_ACCESS_TOKEN), envVars: "META_ACCESS_TOKEN" },
-  { name: "Google Ads", configured: Boolean(env.GOOGLE_ADS_DEVELOPER_TOKEN), envVars: "GOOGLE_ADS_DEVELOPER_TOKEN" },
-  { name: "Unsplash", configured: Boolean(env.UNSPLASH_ACCESS_KEY), envVars: "UNSPLASH_ACCESS_KEY" },
-  { name: "Replicate (IA imagen)", configured: Boolean(env.REPLICATE_API_TOKEN), envVars: "REPLICATE_API_TOKEN" },
-  { name: "Anthropic (Claude)", configured: Boolean(env.ANTHROPIC_API_KEY), envVars: "ANTHROPIC_API_KEY" },
+const PLATFORM_INTEGRATIONS = [
+  { name: "Anthropic (Claude)", configured: Boolean(env.ANTHROPIC_API_KEY) },
+  { name: "Magnific (IA imagen)", configured: Boolean(env.MAGNIFIC_API_KEY) },
+  { name: "Unsplash", configured: Boolean(env.UNSPLASH_ACCESS_KEY) },
+  { name: "Resend (email)", configured: Boolean(env.RESEND_API_KEY) },
 ];
 
 export default async function AjustesPage() {
-  const [launches, sources] = await Promise.all([
+  const [launches, sources, connected] = await Promise.all([
     listLaunchesForFilter(),
     listExternalSalesSources(),
+    listIntegrations(),
   ]);
 
   return (
     <div className="space-y-10">
       <div>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold md:text-4xl">Ajustes</h1>
-        <p className="mt-2 text-zinc-400">Integraciones externas y fuentes de ventas de otras plataformas.</p>
+        <p className="mt-2 text-zinc-400">Tus propias integraciones, y fuentes de ventas de otras plataformas.</p>
       </div>
 
       <section>
         <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
-          Integraciones
+          Tus integraciones
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Se configuran por variables de entorno en el servidor (<code>.env</code>) — no se editan aquí para no
-          guardar secretos en la base de datos. Reinicia el contenedor <code>app</code> tras cambiarlas.
+          Cada dato se guarda cifrado, aislado de cualquier otro cliente. Puedes reconectar o
+          desconectar cuando quieras.
         </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {INTEGRATIONS.map((i) => (
-            <div key={i.name} className="glass flex items-start justify-between gap-3 p-4">
-              <div>
-                <div className="text-sm font-medium text-white">{i.name}</div>
-                <div className="mt-1 font-[family-name:var(--font-mono)] text-[10px] text-zinc-500">{i.envVars}</div>
-              </div>
+        <div className="mt-4">
+          <IntegrationConnectPanel
+            connected={connected}
+            saveAction={saveIntegrationCredentialAction}
+            disconnectAction={disconnectIntegrationAction}
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
+          Integraciones de la plataforma
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Generación con IA e imágenes — las paga la plataforma, no se configuran por cliente.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PLATFORM_INTEGRATIONS.map((i) => (
+            <div key={i.name} className="glass flex items-center justify-between gap-3 p-4">
+              <div className="text-sm font-medium text-white">{i.name}</div>
               <span
                 className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
-                  i.configured
-                    ? "border-emerald-500/40 text-emerald-300"
-                    : "border-white/10 text-zinc-500"
+                  i.configured ? "border-emerald-500/40 text-emerald-300" : "border-white/10 text-zinc-500"
                 }`}
               >
                 {i.configured ? "Activo" : "Sin configurar"}
@@ -73,7 +80,7 @@ export default async function AjustesPage() {
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
           Conecta la base de datos de otra plataforma de venta (WordPress, ThriveCart, un cart propio del
-          cliente…) para verificar ventas de un lanzamiento que no pasan por el Stripe de este sistema.
+          cliente…) para verificar ventas de un lanzamiento que no pasan por tu Stripe conectado arriba.
         </p>
         <div className="mt-4">
           <ExternalSalesPanel

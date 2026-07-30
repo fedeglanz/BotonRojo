@@ -2,67 +2,60 @@ import { env } from "@/lib/env";
 import { storage, BUCKET, ensureBucket, publicUrlFor } from "./storage";
 import { createId } from "@/lib/ids";
 
+// Magnific (formerly Freepik) — Mystic text-to-image. Platform-level: the
+// platform pays for this, it isn't a per-client credential like Stripe/AC.
+// Docs: https://docs.magnific.com/api-reference/mystic/post-mystic
+const MAGNIFIC_BASE_URL = "https://api.magnific.com";
+
 export function isImageGenConfigured() {
-  return Boolean(env.REPLICATE_API_TOKEN);
+  return Boolean(env.MAGNIFIC_API_KEY);
 }
 
-type Prediction = {
-  status: string;
-  output?: string[];
-  error?: string;
-  urls: { get: string };
+type MysticTask = {
+  task_id: string;
+  status: "CREATED" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  generated: string[];
 };
 
 export async function generateImage(prompt: string): Promise<string> {
-  if (!env.REPLICATE_API_TOKEN) throw new Error("replicate_not_configured");
+  if (!env.MAGNIFIC_API_KEY) throw new Error("magnific_not_configured");
 
-  const createRes = await fetch(
-    "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.REPLICATE_API_TOKEN}`,
-        "Content-Type": "application/json",
-        Prefer: "wait=60",
-      },
-      body: JSON.stringify({
-        input: {
-          prompt,
-          num_outputs: 1,
-          output_format: "webp",
-          width: 1280,
-          height: 720,
-        },
-      }),
-    },
-  );
+  const headers = {
+    "x-magnific-api-key": env.MAGNIFIC_API_KEY,
+    "Content-Type": "application/json",
+  };
+
+  const createRes = await fetch(`${MAGNIFIC_BASE_URL}/v1/ai/mystic`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      prompt,
+      resolution: "1k",
+      aspect_ratio: "widescreen_16_9",
+      model: "realism",
+    }),
+  });
 
   if (!createRes.ok) {
-    throw new Error(`replicate_api_error: ${await createRes.text()}`);
+    throw new Error(`magnific_api_error: ${await createRes.text()}`);
   }
 
-  let prediction = (await createRes.json()) as Prediction;
+  let task = ((await createRes.json()) as { data: MysticTask }).data;
 
-  // With Prefer: wait=60, it may already be done; if not, poll
-  if (prediction.status !== "succeeded") {
-    const pollUrl = prediction.urls.get;
+  if (task.status !== "COMPLETED") {
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 3000));
-      const pollRes = await fetch(pollUrl, {
-        headers: { Authorization: `Bearer ${env.REPLICATE_API_TOKEN}` },
-      });
-      prediction = (await pollRes.json()) as Prediction;
-      if (prediction.status === "succeeded") break;
-      if (prediction.status === "failed") {
-        throw new Error(`generation_failed: ${prediction.error ?? "unknown"}`);
-      }
+      const pollRes = await fetch(`${MAGNIFIC_BASE_URL}/v1/ai/mystic/${task.task_id}`, { headers });
+      task = ((await pollRes.json()) as { data: MysticTask }).data;
+      if (task.status === "COMPLETED") break;
+      if (task.status === "FAILED") throw new Error("generation_failed");
     }
   }
 
-  const imageUrl = prediction.output?.[0];
+  const imageUrl = task.generated?.[0];
   if (!imageUrl) throw new Error("no_output");
 
-  // Download temporary Replicate URL and re-host on MinIO
+  // Download the Magnific-hosted image and re-host it on our own MinIO.
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error("download_failed");
 

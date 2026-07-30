@@ -2,15 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
 import { launches } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import {
-  getAffiliateOverview,
+  getAffiliateOverviewForAdmin,
   getAffiliateLaunchBreakdown,
   listPayouts,
   recordPayoutAction,
   setCommissionRateAction,
 } from "@/server/affiliates";
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { StatCard } from "@/components/affiliate/stat-card";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { formatDate, formatPrice } from "@/lib/utils";
@@ -19,8 +20,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AffiliateDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
+  const { organizationId } = await requireOrgAdmin();
 
-  const overview = await getAffiliateOverview(id);
+  const overview = await getAffiliateOverviewForAdmin(id);
   if (!overview) notFound();
 
   const breakdown = await getAffiliateLaunchBreakdown(id);
@@ -28,6 +30,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
   const availableLaunches = await db
     .select({ id: launches.id, name: launches.name })
     .from(launches)
+    .where(eq(launches.organizationId, organizationId))
     .orderBy(desc(launches.createdAt));
 
   const rate = ((overview.user.affiliateCommissionRate ?? 0) / 100).toFixed(0);

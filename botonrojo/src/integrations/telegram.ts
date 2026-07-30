@@ -1,8 +1,10 @@
-import { env } from "@/lib/env";
-
-export async function sendTelegram(chatId: string, text: string, opts: { parseMode?: "MarkdownV2" | "HTML" } = {}) {
-  if (!env.TELEGRAM_BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN not set");
-  const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+export async function sendTelegram(
+  botToken: string,
+  chatId: string,
+  text: string,
+  opts: { parseMode?: "MarkdownV2" | "HTML" } = {},
+) {
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

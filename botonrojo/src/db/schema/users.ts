@@ -1,10 +1,15 @@
-import { pgTable, text, timestamp, pgEnum, primaryKey, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, primaryKey, integer, boolean } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
+import { organizations } from "./organizations";
 
 export const userRole = pgEnum("user_role", ["admin", "affiliate", "customer"]);
 
 export const users = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { mode: "date" }),
   name: text("name"),

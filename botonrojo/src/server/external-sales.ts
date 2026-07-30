@@ -1,19 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { externalSalesSources, launches } from "@/db/schema";
 import type { ExternalSalesSource } from "@/db/schema/external-sales";
-import { auth } from "@/lib/auth";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") throw new Error("unauthorized");
-  return session.user;
-}
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 
 function safeIdent(name: string): string {
   if (!/^[A-Za-z0-9_]+$/.test(name)) throw new Error(`identificador no válido: ${name}`);
@@ -26,7 +20,7 @@ function safeFilterFragment(sql: string): string {
 }
 
 export async function listExternalSalesSources() {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   return db
     .select({
       id: externalSalesSources.id,
@@ -48,6 +42,7 @@ export async function listExternalSalesSources() {
     })
     .from(externalSalesSources)
     .innerJoin(launches, eq(externalSalesSources.launchId, launches.id))
+    .where(eq(externalSalesSources.organizationId, organizationId))
     .orderBy(externalSalesSources.createdAt);
 }
 
@@ -68,7 +63,7 @@ const addSchema = z.object({
 });
 
 export async function addExternalSalesSourceAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = addSchema.parse({
     launchId: formData.get("launchId"),
     label: formData.get("label"),
@@ -85,7 +80,14 @@ export async function addExternalSalesSourceAction(formData: FormData) {
     extraFilterSql: formData.get("extraFilterSql") || undefined,
   });
 
-  await db.insert(externalSalesSources).values(parsed);
+  const [launch] = await db
+    .select({ id: launches.id })
+    .from(launches)
+    .where(and(eq(launches.id, parsed.launchId), eq(launches.organizationId, organizationId)))
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+
+  await db.insert(externalSalesSources).values({ ...parsed, organizationId });
   revalidatePath("/admin/ajustes");
 }
 
@@ -99,7 +101,7 @@ const updateColumnsSchema = z.object({
 });
 
 export async function updateExternalSalesSourceColumnsAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = updateColumnsSchema.parse({
     id: formData.get("id"),
     salesTableHint: formData.get("salesTableHint") || undefined,
@@ -118,16 +120,18 @@ export async function updateExternalSalesSourceColumnsAction(formData: FormData)
       amountDivisor: parsed.amountDivisor,
       extraFilterSql: parsed.extraFilterSql ?? null,
     })
-    .where(eq(externalSalesSources.id, parsed.id));
+    .where(and(eq(externalSalesSources.id, parsed.id), eq(externalSalesSources.organizationId, organizationId)));
 
   revalidatePath("/admin/ajustes");
 }
 
 export async function removeExternalSalesSourceAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("missing_id");
-  await db.delete(externalSalesSources).where(eq(externalSalesSources.id, id));
+  await db
+    .delete(externalSalesSources)
+    .where(and(eq(externalSalesSources.id, id), eq(externalSalesSources.organizationId, organizationId)));
   revalidatePath("/admin/ajustes");
 }
 
@@ -216,11 +220,15 @@ export async function queryExternalSalesSummary(
 }
 
 export async function testExternalSalesSourceAction(formData: FormData) {
-  await requireAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("missing_id");
 
-  const [source] = await db.select().from(externalSalesSources).where(eq(externalSalesSources.id, id)).limit(1);
+  const [source] = await db
+    .select()
+    .from(externalSalesSources)
+    .where(and(eq(externalSalesSources.id, id), eq(externalSalesSources.organizationId, organizationId)))
+    .limit(1);
   if (!source) throw new Error("source_not_found");
 
   let ok = false;

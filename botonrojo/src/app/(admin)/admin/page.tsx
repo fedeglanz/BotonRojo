@@ -1,13 +1,20 @@
 import { db } from "@/db";
 import { launches } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { LaunchSelector } from "@/components/admin/launch-selector";
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 import type { LaunchType } from "@/lib/launch-types";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHomePage() {
-  const rows = await db.select().from(launches).orderBy(desc(launches.createdAt)).limit(50);
+  const { organizationId } = await requireOrgAdmin();
+  const rows = await db
+    .select()
+    .from(launches)
+    .where(eq(launches.organizationId, organizationId))
+    .orderBy(desc(launches.createdAt))
+    .limit(50);
 
   const summaries = rows.map((l) => ({
     id: l.id,
