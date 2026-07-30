@@ -9,3 +9,4 @@ export * from "./domains";
 export * from "./ad-spend";
 export * from "./external-sales";
 export * from "./integration-credentials";
+export * from "./media";

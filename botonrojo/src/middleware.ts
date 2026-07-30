@@ -29,5 +29,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/|api/|favicon.ico|track.js).*)"],
+  // `ads-render` is the internal ad-creative surface, only ever fetched by the
+  // screenshot service — it must never be rewritten as a custom domain. It
+  // can't live under an `_`-prefixed folder: Next excludes those from routing.
+  matcher: ["/((?!_next/|ads-render|api/|favicon.ico|track.js).*)"],
 };

@@ -40,6 +40,11 @@ const envSchema = z.object({
   // the host outside the compose network, so local dev needs
   // `http://host.docker.internal:3000` instead.
   SCREENSHOT_APP_URL: z.string().default("http://app:3000"),
+  // Where the screenshot container can reach object storage, when that differs
+  // from S3_PUBLIC_URL. In local dev the browser uses localhost:9000 but the
+  // container needs host.docker.internal:9000 — no single value works for
+  // both. Empty = storage URLs are already reachable from the container.
+  STORAGE_INTERNAL_URL: z.string().default(""),
 
   // Encrypts every client's own Stripe/ActiveCampaign/etc. credentials at rest
   // (see src/lib/crypto.ts). Generate once with `openssl rand -base64 32` and

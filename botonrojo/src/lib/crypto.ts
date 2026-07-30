@@ -1,5 +1,5 @@
 import "server-only";
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { env } from "./env";
 
 // Derives a stable 32-byte AES key from APP_ENCRYPTION_KEY once per process —
@@ -45,4 +45,42 @@ export function decryptSecret(payload: string): string {
 export function maskSecret(value: string): string {
   if (value.length <= 8) return "••••";
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+// Separate derived key from the AES one: signing URLs and encrypting client
+// credentials are different jobs and must not share key material.
+let cachedSigningKey: Buffer | null = null;
+function getSigningKey(): Buffer {
+  if (!env.APP_ENCRYPTION_KEY) {
+    throw new Error("APP_ENCRYPTION_KEY no está configurada — no se pueden firmar URLs internas.");
+  }
+  if (!cachedSigningKey) {
+    cachedSigningKey = scryptSync(env.APP_ENCRYPTION_KEY, "botonrojo-url-signing", 32);
+  }
+  return cachedSigningKey;
+}
+
+/**
+ * Signs a JSON payload into a `{p, sig}` pair for URLs that must be readable
+ * by something without a session — specifically the headless Chromium in
+ * `screenshot-service`, which renders the ad-creative page. Without this the
+ * render route would either be open to anyone or unreachable by the service.
+ */
+export function signPayload(payload: unknown): { p: string; sig: string } {
+  const p = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = createHmac("sha256", getSigningKey()).update(p).digest("base64url");
+  return { p, sig };
+}
+
+/** Returns the payload only if the signature matches; null otherwise. */
+export function verifyPayload<T>(p: string, sig: string): T | null {
+  try {
+    const expected = createHmac("sha256", getSigningKey()).update(p).digest("base64url");
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    return JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as T;
+  } catch {
+    return null;
+  }
 }

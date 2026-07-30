@@ -36,6 +36,11 @@ import {
 import { resolvePages, pagePath } from "@/lib/launch-pages";
 import { SimplePageEditor } from "@/components/admin/simple-page-editor";
 import { ContentDripForm } from "@/components/admin/content-drip-form";
+import { AdsPanel } from "@/components/admin/ads-panel";
+import { AdStaticsGenerator } from "@/components/admin/ad-statics-generator";
+import type { AdsBody } from "@/components/admin/ads-types";
+import { generateAdStaticsAction, deleteAdImageAction, listAdImages, fixAdCopyLengthsAction } from "@/server/ads";
+import { listMediaItems } from "@/server/media";
 
 import { WizardStep } from "@/components/admin/wizard-step";
 import { SubmitButton } from "@/components/admin/submit-button";
@@ -122,6 +127,8 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
     .where(and(eq(products.launchId, launch.id), eq(products.active, true)))
     .orderBy(products.createdAt);
   const [product] = launchProducts;
+
+  const [mediaItems, adImages] = await Promise.all([listMediaItems(), listAdImages(launch.id)]);
 
   const hasMarco = Boolean(launch.promise);
   const brandKitApproved = launch.brandKitStatus === "approved";
@@ -344,12 +351,12 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
       <WizardStep
         index={5}
         title="Anuncios Meta + Google"
-        subtitle="UGC, voz en off y clips de YouTube + CTA overlay. Copy listo para subir."
+        subtitle="Copy con los límites de cada plataforma + estáticos compuestos sobre tus fotos."
         status={!hasMarco ? "needs-prev" : adsAsset ? "ready" : "empty"}
         action={
           <form action={generateAdsAction.bind(null, launch.id)}>
             <AiGeneratingOverlay
-              messages={["Guionizando el UGC…", "Escribiendo hooks…", "Pensando el overlay del CTA…"]}
+              messages={["Guionizando el UGC…", "Escribiendo hooks…", "Pensando los conceptos de estático…"]}
             />
             <SubmitButton
               variant={adsAsset ? "outline" : "primary"}
@@ -361,13 +368,29 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           </form>
         }
       >
-        {adsAsset ? (
-          <pre className="max-h-96 overflow-auto rounded-lg border border-white/5 bg-black/40 p-4 font-[family-name:var(--font-mono)] text-xs text-zinc-300">
-{JSON.stringify(adsAsset.body, null, 2)}
-          </pre>
-        ) : (
-          <p className="text-sm text-zinc-500">Aún no se han generado anuncios.</p>
-        )}
+        <div className="space-y-6">
+          <AdsPanel
+            body={(adsAsset?.body ?? null) as AdsBody | null}
+            launchId={launch.id}
+            fixLengthsAction={fixAdCopyLengthsAction}
+          />
+
+          {adsAsset && (
+            <div>
+              <div className="mb-2 text-xs uppercase tracking-widest text-zinc-400">
+                Componer estáticos con tus fotos
+              </div>
+              <AdStaticsGenerator
+                launchId={launch.id}
+                concepts={((adsAsset.body as AdsBody).statics ?? [])}
+                mediaItems={mediaItems}
+                adImages={adImages}
+                generateAction={generateAdStaticsAction}
+                deleteAction={deleteAdImageAction}
+              />
+            </div>
+          )}
+        </div>
       </WizardStep>
 
       {/* Step 6 — Producto Stripe */}

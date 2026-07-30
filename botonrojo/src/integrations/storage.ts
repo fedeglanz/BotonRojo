@@ -36,3 +36,23 @@ export async function ensureBucket(): Promise<void> {
 export function publicUrlFor(key: string): string {
   return `${env.S3_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
 }
+
+/** Best-effort delete — a missing object is not an error worth surfacing when
+ * the caller's real goal is "this file should no longer exist". */
+export async function removeObject(key: string): Promise<void> {
+  await storage.removeObject(BUCKET, key).catch(() => {});
+}
+
+/**
+ * Rewrites a public storage URL to one the screenshot container can fetch.
+ * Only needed when the two differ (local dev: localhost:9000 for the browser
+ * vs host.docker.internal:9000 inside the container). A stored image that
+ * silently fails to load would produce a finished ad with a blank background,
+ * so this is not cosmetic.
+ */
+export function internalAssetUrl(url: string): string {
+  if (!env.STORAGE_INTERNAL_URL) return url;
+  const publicBase = env.S3_PUBLIC_URL.replace(/\/$/, "");
+  if (!url.startsWith(publicBase)) return url;
+  return `${env.STORAGE_INTERNAL_URL.replace(/\/$/, "")}${url.slice(publicBase.length)}`;
+}
