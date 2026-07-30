@@ -14,6 +14,19 @@ Cosas concretas a comprobar:
   sección?
 - Espacios: ¿hay huecos en blanco raros o elementos que se ven amontonados?
 
+Y AUDITA además contra estas reglas de diseño del cliente. Señala cada incumplimiento que
+veas de verdad en las capturas (no las repitas como teoría):
+- UN OBJETIVO: ¿hay más de un botón/acción compitiendo por ser el principal?
+- JERARQUÍA: ¿se entiende de un vistazo qué leer primero? ¿O hay demasiados elementos con el
+  mismo peso visual, sin nada que destaque?
+- CONTRASTE (le gusta fuerte): ¿la tipografía juega con tamaños muy distintos, o todo tiene un
+  tamaño parecido y plano?
+- RUIDO: ¿hay decoración que no aporta nada, o varios efectos compitiendo? Debe haber UN gesto
+  visual protagonista, no diez.
+- ESPACIADO: ¿el ritmo entre secciones es consistente, o cada bloque respira distinto?
+- MÓVIL: en la captura de móvil, ¿lo esencial está arriba y el CTA es alcanzable sin buscarlo?
+- LEGIBILIDAD: ¿hay párrafos demasiado largos que deberían partirse?
+
 Devuelve SOLO JSON con esta forma exacta:
 
 {

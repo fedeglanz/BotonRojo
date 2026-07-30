@@ -10,6 +10,15 @@
   --color-red-bright: #ff3849;
   --color-red-glow: rgba(239, 43, 61, 0.55);
 
+  /* Defaults for the vars <BrandStyle> overrides per launch. Without these,
+     any page rendered without BrandStyle (or a section styled before it loads)
+     resolves them to nothing and loses its accent/muted colours entirely. */
+  --color-accent: #ff3849;
+  --color-accent-glow: rgba(255, 56, 73, 0.45);
+  --color-muted-1: rgba(244, 244, 245, 0.82);
+  --color-muted-2: rgba(244, 244, 245, 0.58);
+  --color-muted-3: rgba(244, 244, 245, 0.42);
+
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -391,4 +400,171 @@ html, body {
   border-color: color-mix(in srgb, var(--color-red-bright) 60%, transparent);
   background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-red-bright) 14%, transparent);
+}
+
+/* ==========================================================================
+   Section effects — decoration scoped to one section band (never `fixed`,
+   unlike .mesh-bg/.circuit-grid, which are viewport-wide and are hidden on
+   public pages by BrandStyle). All read the brand vars so they follow the
+   launch's palette.
+   ========================================================================== */
+
+/* Slow drifting brand glow. */
+.fx-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 45% at 25% 30%, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 65%),
+    radial-gradient(ellipse 40% 40% at 75% 70%, color-mix(in srgb, var(--color-red) 26%, transparent), transparent 65%);
+  filter: blur(60px);
+  animation: fx-drift 22s ease-in-out infinite;
+}
+
+@keyframes fx-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4%, -3%) scale(1.08); }
+}
+
+/* Fine technical grid, faded at the edges so it never ends in a hard line. */
+.fx-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-fg) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-fg) 55%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 78%);
+}
+
+/* Orbit: a ring of items rotating around a centre. The wrapper rotates and
+   each item counter-rotates, so labels stay upright while orbiting. */
+.fx-orbit {
+  /* One source of truth for the diameter: the item placement below derives its
+     radius from it, so the two can't drift apart. Wider than the text column
+     on purpose, so the labels orbit *around* the copy instead of over it. */
+  --fx-orbit-size: min(92vw, 52rem);
+  position: relative;
+  width: var(--fx-orbit-size);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.fx-orbit__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.fx-orbit__core {
+  position: absolute;
+  inset: 34%;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 60%, transparent), transparent 70%);
+  filter: blur(6px);
+}
+
+.fx-orbit__spinner {
+  position: absolute;
+  inset: 0;
+  animation: fx-orbit-spin 28s linear infinite;
+}
+
+/* Pausing on hover is the behaviour the client asked for explicitly. Also
+   pauses on keyboard focus so it isn't mouse-only. */
+.fx-orbit:hover .fx-orbit__spinner,
+.fx-orbit:focus-within .fx-orbit__spinner {
+  animation-play-state: paused;
+}
+
+.fx-orbit__item {
+  position: absolute;
+  /* Placed by coordinates (--fx-x/--fx-y), NOT by rotate(): a static rotation
+     would leave every label permanently tilted, since the label's reverse
+     animation only cancels the spinner's rotation, not an extra fixed angle. */
+  left: var(--fx-x);
+  top: var(--fx-y);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.fx-orbit__label {
+  display: inline-block;
+  animation: fx-orbit-spin 28s linear infinite reverse;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 75%, transparent);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-fg);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.fx-orbit:hover .fx-orbit__label,
+.fx-orbit:focus-within .fx-orbit__label {
+  animation-play-state: paused;
+}
+
+a.fx-orbit__label:hover,
+a.fx-orbit__label:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+a.fx-orbit__label:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@keyframes fx-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* On a phone the ring can't sit outside the content, so the labels would land
+   on the copy and get clipped at the edges. Keep the ring and the glow as
+   decoration and drop the labels — legibility beats the effect. Any link they
+   carried is decorative; the section's real CTA is unaffected. */
+@media (max-width: 640px) {
+  .fx-orbit {
+    --fx-orbit-size: min(96vw, 24rem);
+  }
+
+  .fx-orbit__item {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Reduced motion. Every animation above (and the pre-existing ambient ones)
+   runs `infinite`; honouring this preference is an accessibility requirement,
+   not a nicety. Layout and colour are unaffected — only movement stops.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* These exist only to move; with motion off they'd sit as a static blob or
+     a frozen half-drawn ring, so hide them outright. */
+  .mesh-bg::before,
+  .mesh-bg::after,
+  .fx-aurora,
+  .pulse-dot::after,
+  .big-red-button::after {
+    display: none !important;
+  }
 }

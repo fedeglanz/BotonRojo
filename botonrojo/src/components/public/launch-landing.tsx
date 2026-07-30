@@ -25,6 +25,7 @@ import {
 import type { LandingBody } from "@/components/public/landing-types";
 import { BrandStyle } from "@/components/public/brand-style";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
+import { SectionShell } from "@/components/public/section-shell";
 
 import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
@@ -139,7 +140,10 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const fonts = launch.brandFonts;
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    // No `overflow-hidden` here: each SectionShell clips its own decoration, so
+    // a global clip would only stop sections from bleeding as intended.
+    // `overflow-x-clip` still prevents sideways page scroll.
+    <main className="relative min-h-screen overflow-x-clip">
       <BrandStyle palette={palette} fonts={fonts} />
       <Script
         src="/track.js"
@@ -189,14 +193,23 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
       )}
 
       {/* SECTIONS FROM GENERATED LANDING — order/inclusion depends on launch type,
-          unless the client's general instructions asked Claude for a custom order. */}
+          unless the client's general instructions asked Claude for a custom order.
+          Each is wrapped in SectionShell, which is a no-op unless that section
+          has a design (background / effect / full height / width) set. */}
       {landing &&
         (landing.sectionOrder?.length ? landing.sectionOrder : LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf).map(
-          (key) =>
-            MIDDLE_SECTION_RENDERERS[key]?.(landing, {
+          (key) => {
+            const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
               products: activeProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
               cartClosesAt: launch.cartClosesAt,
-            }),
+            });
+            if (!rendered) return null;
+            return (
+              <SectionShell key={key} design={landing.sectionDesign?.[key]}>
+                {rendered}
+              </SectionShell>
+            );
+          },
         )}
 
       {/* FINAL CTA */}

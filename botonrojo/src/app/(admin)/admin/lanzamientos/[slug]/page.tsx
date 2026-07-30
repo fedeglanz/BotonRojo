@@ -44,6 +44,7 @@ import {
   generateMilestonesAction,
   updateMilestoneAction,
   analyzeCalendarAction,
+  updateSectionDesignAction,
   generateBrandKitAction,
   updateBrandKitAction,
   approveBrandKitAction,
@@ -434,6 +435,7 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           refineAction={refineLandingSectionAction}
           rawUpdateAction={updateSectionRawAction}
           imageSaveAction={setSectionImageAction}
+          designAction={updateSectionDesignAction}
         />
       </WizardStep>
 

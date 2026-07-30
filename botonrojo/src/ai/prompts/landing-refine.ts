@@ -40,5 +40,33 @@ Instrucción del usuario:
 ${input.instruction}
 """
 
-Devuelve únicamente el JSON actualizado de la sección (sin envolver en \`\`\`).`;
+Devuelve JSON con esta forma exacta:
+
+{
+  "content": <el valor de la sección, con la MISMA forma que el JSON actual de arriba>,
+  "design": { "background": "...", "effect": "...", "height": "...", "width": "..." }
+}
+
+"design" es OPCIONAL: inclúyelo solo si la instrucción del usuario menciona algo del
+aspecto de la sección. Si solo te piden cambios de texto, omítelo por completo.
+
+Estos son los ÚNICOS valores admitidos. Cualquier otra cosa se descarta:
+- "background": "none" (sin fondo), "tint" (leve tinte de marca), "accent" (tinte fuerte),
+  "dark" (banda oscura), "photo" (una foto de fondo con velo para que el texto se lea).
+- "effect": "none", "orbit" (círculo con elementos girando alrededor, se paran al pasar el
+  ratón), "geometry" (círculos y líneas grandes de fondo), "aurora" (resplandor que se
+  desplaza despacio), "grid" (retícula técnica difuminada).
+  IMPORTANTE con "orbit": el texto de la sección se muestra en una columna estrecha en el
+  centro del círculo, así que úsalo SOLO en secciones de texto corto (una frase o dos). Si
+  la sección tiene párrafos largos, elige "aurora" o "geometry" en su lugar.
+- "height": "auto" o "full" ("full" = la sección ocupa toda la altura de la pantalla).
+- "width": "normal", "wide" o "full" ("full" = a sangre, de borde a borde).
+
+Campos extra permitidos según el caso:
+- Con "background": "photo", añade "imagePrompt": descripción de la foto en español.
+- Con "effect": "orbit", añade "orbitItems": [{ "label": "...", "href": "opcional" }] —
+  entre 3 y 8 elementos, etiquetas de 1-3 palabras.
+
+NO existen parallax, vídeo de fondo, overlays a medida, animaciones propias ni CSS suelto.
+Si te piden algo así, elige la opción del catálogo que más se acerque.`;
 }

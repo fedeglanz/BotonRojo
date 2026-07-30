@@ -1,4 +1,5 @@
 import type { AvatarBrief, BrandPalette, BrandFonts } from "@/db/schema/launches";
+import { DESIGN_RULES } from "./design-rules";
 
 export const LANDING_SYSTEM = `Eres un copywriter + director de arte de landings de lanzamientos digitales.
 
@@ -32,7 +33,9 @@ no proponas colores ni tipografía, eso ya está decidido de antemano. Ejemplos:
 - "Persona joven mirando al horizonte con luz dorada del amanecer desde una azotea de Madrid"
 - "Mano sobre teclado de portátil con post-its de colores alrededor, plano cenital, luz natural"
 
-Tono: futurista pero humano. Español neutro de España. Sin emojis salvo donde se piden iconos.`;
+Tono: futurista pero humano. Español neutro de España. Sin emojis salvo donde se piden iconos.
+
+${DESIGN_RULES}`;
 
 export function landingPrompt(
   launchName: string,

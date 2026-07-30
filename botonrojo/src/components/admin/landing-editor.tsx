@@ -29,6 +29,7 @@ type Props = {
   refineAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   rawUpdateAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   imageSaveAction: (launchId: string, slotPath: string, formData: FormData) => Promise<void>;
+  designAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
 };
 
 export function LandingEditor({
@@ -39,6 +40,7 @@ export function LandingEditor({
   refineAction,
   rawUpdateAction,
   imageSaveAction,
+  designAction,
 }: Props) {
   if (!body) {
     return (
@@ -117,6 +119,8 @@ export function LandingEditor({
             refineAction={refineAction}
             rawUpdateAction={rawUpdateAction}
             imageSaveAction={imageSaveAction}
+            design={body.sectionDesign?.[section] ?? null}
+            designAction={designAction}
           />
         );
       })}
