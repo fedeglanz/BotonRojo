@@ -1,4 +1,5 @@
 import { GraciasContent } from "@/components/public/gracias-content";
+import { resolveGraciasLaunch } from "@/server/checkout";
 
 type SearchParams = Promise<{
   session_id?: string;
@@ -8,5 +9,6 @@ type SearchParams = Promise<{
 
 export default async function GraciasPage(props: { searchParams: SearchParams }) {
   const sp = await props.searchParams;
-  return <GraciasContent isLead={sp.lead === "1"} launchSlug={sp.launch} />;
+  const launch = await resolveGraciasLaunch({ launchSlug: sp.launch, sessionId: sp.session_id });
+  return <GraciasContent isLead={sp.lead === "1"} launch={launch} />;
 }

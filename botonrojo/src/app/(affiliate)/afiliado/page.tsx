@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getAffiliateOverview, getAffiliateLaunchBreakdown } from "@/server/affiliates";
+import { getMyAffiliateOverview, getAffiliateLaunchBreakdown } from "@/server/affiliates";
 import { StatCard } from "@/components/affiliate/stat-card";
 import { formatPrice } from "@/lib/utils";
 
@@ -11,7 +11,7 @@ export default async function AffiliateDashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const overview = await getAffiliateOverview(session.user.id);
+  const overview = await getMyAffiliateOverview();
   const breakdown = await getAffiliateLaunchBreakdown(session.user.id);
 
   if (!overview) redirect("/");

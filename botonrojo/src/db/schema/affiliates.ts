@@ -2,9 +2,11 @@ import { pgTable, text, timestamp, integer, jsonb, decimal } from "drizzle-orm/p
 import { createId } from "@/lib/ids";
 import { users } from "./users";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const affiliatePayouts = pgTable("affiliate_payouts", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   launchId: text("launch_id").references(() => launches.id, { onDelete: "set null" }),
   amountCents: integer("amount_cents").notNull(),
@@ -16,6 +18,7 @@ export const affiliatePayouts = pgTable("affiliate_payouts", {
 
 export const affiliateLinks = pgTable("affiliate_links", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   launchId: text("launch_id").references(() => launches.id, { onDelete: "set null" }),
   slug: text("slug").notNull().unique(),

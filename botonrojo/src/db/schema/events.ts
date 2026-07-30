@@ -62,6 +62,7 @@ export const trackingEvents = pgTable(
     userAgent: text("user_agent"),
   },
   (t) => ({
+    organizationIdx: index("tracking_events_organization_idx").on(t.organizationId),
     occurredAtIdx: index("tracking_events_occurred_at_idx").on(t.occurredAt),
     typeIdx: index("tracking_events_type_idx").on(t.type),
     launchIdx: index("tracking_events_launch_idx").on(t.launchId),

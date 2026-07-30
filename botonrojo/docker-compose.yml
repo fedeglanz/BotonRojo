@@ -40,6 +40,18 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
 
+  screenshot:
+    build: ./screenshot-service
+    restart: unless-stopped
+    environment:
+      SCREENSHOT_SERVICE_TOKEN: ${SCREENSHOT_SERVICE_TOKEN:-}
+    # Bound to localhost only, like the other services — in production the
+    # app reaches it internally at http://screenshot:4000; the published
+    # port just lets `pnpm dev` (running on the host, outside this network)
+    # reach it too during local development.
+    ports:
+      - "127.0.0.1:4000:4000"
+
   app:
     build: .
     restart: unless-stopped
@@ -47,6 +59,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_started
+      screenshot:
         condition: service_started
     env_file: .env
     ports:

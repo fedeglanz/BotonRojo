@@ -57,7 +57,7 @@ export function LandingEditor({
         <Link
           href={`/${launchSlug}`}
           target="_blank"
-          className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 uppercase tracking-widest text-zinc-200 transition hover:border-[--color-red]"
+          className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 uppercase tracking-widest text-zinc-100 transition hover:border-[--color-red] hover:bg-white/15"
         >
           Ver landing pública ↗
         </Link>
@@ -164,6 +164,15 @@ function collectImageSlots(section: LandingSectionKey, body: LandingBody): Image
       slotPath: `includes.${idx}.imageUrl`,
       currentUrl: it.imageUrl,
       imagePrompt: it.imagePrompt,
+    }));
+  }
+
+  if (section === "speakers" && body.speakers) {
+    return body.speakers.map((s, idx) => ({
+      label: `Foto ponente ${idx + 1}: ${s.name}`,
+      slotPath: `speakers.${idx}.imageUrl`,
+      currentUrl: s.imageUrl,
+      imagePrompt: s.imagePrompt,
     }));
   }
 
@@ -289,6 +298,57 @@ function renderPreview(section: LandingSectionKey, sectionJson: unknown, body: L
           </li>
         ))}
       </ul>
+    );
+  }
+
+  if (section === "speakers") {
+    const items = sectionJson as LandingBody["speakers"];
+    return (
+      <div className="grid gap-2 md:grid-cols-3">
+        {items?.map((s, i) => (
+          <div key={i} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 p-2 text-xs">
+            {s.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+            )}
+            <div>
+              <div className="text-white">{s.name}</div>
+              {s.role && <div className="text-zinc-500">{s.role}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section === "agenda") {
+    const items = sectionJson as LandingBody["agenda"];
+    return (
+      <ul className="space-y-1 text-sm">
+        {items?.map((a, i) => (
+          <li key={i}>
+            <span className="font-[family-name:var(--font-mono)] text-[--color-red-bright]">{a.time}</span>{" "}
+            <span className="text-zinc-300">— {a.topic}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (section === "pricingTiers") {
+    const items = sectionJson as LandingBody["pricingTiers"];
+    return (
+      <div className="grid gap-2 md:grid-cols-3">
+        {items?.map((t, i) => (
+          <div key={i} className="rounded-lg border border-white/5 bg-black/30 p-3 text-xs">
+            <div className="font-bold text-white">{t.productSlug}</div>
+            {t.highlight && <div className="text-[--color-red-bright]">{t.highlight}</div>}
+            <ul className="mt-1 space-y-0.5 text-zinc-400">
+              {t.bullets?.map((b, j) => <li key={j}>· {b}</li>)}
+            </ul>
+          </div>
+        ))}
+      </div>
     );
   }
 

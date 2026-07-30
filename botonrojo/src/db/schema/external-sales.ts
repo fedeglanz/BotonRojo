@@ -1,6 +1,7 @@
 import { pgTable, text, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const externalSalesKind = pgEnum("external_sales_kind", ["mysql", "postgres"]);
 
@@ -12,6 +13,7 @@ export const externalSalesKind = pgEnum("external_sales_kind", ["mysql", "postgr
  */
 export const externalSalesSources = pgTable("external_sales_sources", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   launchId: text("launch_id")
     .notNull()
     .references(() => launches.id, { onDelete: "cascade" }),

@@ -1,7 +1,8 @@
+import { eq } from "drizzle-orm";
 import { db } from "./index";
 import { launches, users, organizations } from "./schema";
 import { hashPassword } from "@/lib/passwords";
-import { eq } from "drizzle-orm";
+import { createSlug } from "@/lib/ids";
 
 async function main() {
   console.log("Seeding…");
@@ -34,15 +35,16 @@ async function main() {
   const [admin] = await db
     .insert(users)
     .values({
+      organizationId: org.id,
       email: adminEmail,
       name: "Admin",
       role: "admin",
+      isSuperAdmin: true,
       passwordHash,
-      organizationId: org.id,
     })
     .onConflictDoUpdate({
       target: users.email,
-      set: { passwordHash, role: "admin", organizationId: org.id, updatedAt: new Date() },
+      set: { passwordHash, role: "admin", isSuperAdmin: true, organizationId: org.id, updatedAt: new Date() },
     })
     .returning({ id: users.id });
 
@@ -98,12 +100,13 @@ async function main() {
       email: superEmail,
       name: "Super Admin",
       role: "superadmin",
+      isSuperAdmin: true,
       passwordHash: superHash,
       organizationId: org.id,
     })
     .onConflictDoUpdate({
       target: users.email,
-      set: { passwordHash: superHash, role: "superadmin", organizationId: org.id, updatedAt: new Date() },
+      set: { passwordHash: superHash, role: "superadmin", isSuperAdmin: true, organizationId: org.id, updatedAt: new Date() },
     });
 
   console.log(`✓ Superadmin ready: ${superEmail} / ${superPassword}`);

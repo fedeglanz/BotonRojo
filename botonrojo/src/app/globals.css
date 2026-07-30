@@ -45,8 +45,8 @@ html, body {
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse 900px 700px at 15% 0%, rgba(239, 43, 61, 0.28), transparent 60%),
-              radial-gradient(ellipse 900px 800px at 100% 100%, rgba(120, 0, 30, 0.32), transparent 60%),
+  background: radial-gradient(ellipse 900px 700px at 15% 0%, color-mix(in srgb, var(--color-red-bright) 28%, transparent), transparent 60%),
+              radial-gradient(ellipse 900px 800px at 100% 100%, color-mix(in srgb, var(--color-red) 32%, transparent), transparent 60%),
               radial-gradient(ellipse 700px 600px at 90% 5%, rgba(140, 20, 200, 0.10), transparent 65%);
 }
 
@@ -63,7 +63,7 @@ html, body {
 .mesh-bg::before {
   width: 560px;
   height: 560px;
-  background: radial-gradient(circle, #ff2d3f, transparent 72%);
+  background: radial-gradient(circle, var(--color-red-bright), transparent 72%);
   top: -8%;
   left: -6%;
 }
@@ -71,7 +71,7 @@ html, body {
 .mesh-bg::after {
   width: 620px;
   height: 620px;
-  background: radial-gradient(circle, #c2003a, transparent 72%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-red) 70%, black), transparent 72%);
   bottom: -14%;
   right: -8%;
   animation-delay: -8s;
@@ -119,12 +119,12 @@ html, body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: white;
-  background: linear-gradient(180deg, #ff3849 0%, #d4172a 100%);
+  background: linear-gradient(180deg, var(--color-red-bright) 0%, color-mix(in srgb, var(--color-red-bright) 80%, black) 100%);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   box-shadow:
-    0 0 0 6px rgba(239, 43, 61, 0.14),
-    0 0 70px 14px rgba(239, 43, 61, 0.45),
+    0 0 0 6px color-mix(in srgb, var(--color-red-bright) 14%, transparent),
+    0 0 70px 14px color-mix(in srgb, var(--color-red-bright) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     inset 0 -3px 12px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s ease, box-shadow 0.3s ease;
@@ -132,11 +132,21 @@ html, body {
   user-select: none;
 }
 
+/* CTA copy length varies (it's AI-generated) — the fixed desktop padding/
+   size wraps long labels to 2-3 lines on narrow phones, flagged repeatedly
+   by the automatic design review. */
+@media (max-width: 480px) {
+  .big-red-button {
+    padding: 1rem 1.5rem;
+    font-size: 0.95rem;
+  }
+}
+
 .big-red-button:hover {
   transform: translateY(-1px) scale(1.02);
   box-shadow:
-    0 0 0 8px rgba(239, 43, 61, 0.2),
-    0 0 100px 18px rgba(239, 43, 61, 0.6),
+    0 0 0 8px color-mix(in srgb, var(--color-red-bright) 20%, transparent),
+    0 0 100px 18px color-mix(in srgb, var(--color-red-bright) 60%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -3px 12px rgba(0, 0, 0, 0.35);
 }
@@ -150,7 +160,7 @@ html, body {
   position: absolute;
   inset: -2px;
   border-radius: inherit;
-  background: conic-gradient(from 0deg, transparent, #ff3849, transparent 60%);
+  background: conic-gradient(from 0deg, transparent, var(--color-red-bright), transparent 60%);
   filter: blur(8px);
   opacity: 0.6;
   z-index: -1;
@@ -173,11 +183,11 @@ html, body {
 }
 
 .glass-hover:hover {
-  border-color: rgba(239, 43, 61, 0.45);
+  border-color: color-mix(in srgb, var(--color-red-bright) 45%, transparent);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 20px 40px -20px rgba(0, 0, 0, 0.6),
-    0 0 40px -8px rgba(239, 43, 61, 0.45);
+    0 0 40px -8px color-mix(in srgb, var(--color-red-bright) 45%, transparent);
   transform: translateY(-2px);
 }
 
@@ -192,7 +202,12 @@ html, body {
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(255, 56, 73, 0.7), rgba(255, 255, 255, 0.08) 40%, rgba(255, 56, 73, 0.25) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-red-bright) 70%, transparent),
+    rgba(255, 255, 255, 0.08) 40%,
+    color-mix(in srgb, var(--color-red-bright) 25%, transparent) 100%
+  );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -232,7 +247,7 @@ html, body {
 
 /* Holographic gradient text */
 .text-holo {
-  background: linear-gradient(90deg, #fff 0%, #ffb3ba 35%, #ff3849 65%, #fff 100%);
+  background: linear-gradient(90deg, #fff 0%, #ffb3ba 35%, var(--color-red-bright) 65%, #fff 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -276,6 +291,93 @@ html, body {
   background-size: 100% 4px;
 }
 
+/* AI generation overlay — a charging reactor, not just a spinner */
+.ai-reactor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: rgba(3, 3, 4, 0.82);
+  backdrop-filter: blur(6px);
+  animation: reactor-fade-in 0.25s ease-out;
+}
+
+@keyframes reactor-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ai-reactor {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.ai-reactor__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--color-red-bright);
+  border-right-color: color-mix(in srgb, var(--color-red-bright) 40%, transparent);
+  animation: reactor-spin 1.6s linear infinite;
+}
+
+.ai-reactor__ring--outer {
+  inset: -22px;
+  border-top-color: color-mix(in srgb, var(--color-red-bright) 55%, transparent);
+  border-right-color: transparent;
+  border-left-color: color-mix(in srgb, var(--color-red-bright) 25%, transparent);
+  animation-duration: 2.6s;
+  animation-direction: reverse;
+}
+
+@keyframes reactor-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-reactor__core {
+  position: absolute;
+  inset: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-red-bright), color-mix(in srgb, var(--color-red-bright) 40%, black) 70%);
+  box-shadow: 0 0 40px 8px color-mix(in srgb, var(--color-red-bright) 55%, transparent);
+  animation: reactor-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reactor-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.85; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+.ai-reactor__pulse-ring {
+  position: absolute;
+  inset: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--color-red-bright);
+  animation: reactor-expand 1.8s ease-out infinite;
+}
+
+@keyframes reactor-expand {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+.ai-reactor-status {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-fg);
+  opacity: 0.85;
+  min-height: 1.2em;
+  text-align: center;
+}
+
 /* Focus ring used on form inputs across the app */
 .field-input {
   background: rgba(255, 255, 255, 0.03);
@@ -286,7 +388,7 @@ html, body {
 
 .field-input:focus {
   outline: none;
-  border-color: rgba(239, 43, 61, 0.6);
+  border-color: color-mix(in srgb, var(--color-red-bright) 60%, transparent);
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 4px rgba(239, 43, 61, 0.14);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-red-bright) 14%, transparent);
 }

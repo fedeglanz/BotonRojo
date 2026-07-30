@@ -43,6 +43,13 @@
       "when": 1784876884164,
       "tag": "0005_stiff_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785426070374,
+      "tag": "0006_overjoyed_rocket_racer",
+      "breakpoints": true
     }
   ]
 }

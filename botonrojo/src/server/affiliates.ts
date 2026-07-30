@@ -6,10 +6,22 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { users, trackingEvents, affiliateLinks, affiliatePayouts, launches } from "@/db/schema";
+import { users, trackingEvents, affiliateLinks, affiliatePayouts, launches, organizations } from "@/db/schema";
 import { auth, hashPassword, signIn } from "@/lib/auth";
+import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { createAffiliateCode, createId } from "@/lib/ids";
-import { requireOrgAdmin, requireOrgAccess } from "@/lib/org";
+
+
+// ---------- Helpers ----------
+
+async function requireAffiliateOrAdmin() {
+  const session = await auth();
+  if (!session?.user) throw new Error("unauthorized");
+  if (!["affiliate", "admin", "superadmin"].includes(session.user.role)) throw new Error("forbidden");
+  const organizationId = session.user.organizationId;
+  if (!organizationId) throw new Error("no_organization");
+  return { user: session.user, organizationId };
+}
 
 // ---------- Stats ----------
 
@@ -36,7 +48,8 @@ export type LaunchBreakdown = {
   salesAmountCents: number;
 };
 
-export async function getAffiliateOverview(userId: string): Promise<AffiliateOverview | null> {
+/** userId must already be known to belong to the caller's organization (see callers below). */
+async function getAffiliateOverview(userId: string): Promise<AffiliateOverview | null> {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return null;
 
@@ -88,6 +101,24 @@ export async function getAffiliateOverview(userId: string): Promise<AffiliateOve
   };
 }
 
+/** Admin viewing an arbitrary affiliate — verifies they belong to the acting admin's organization first. */
+export async function getAffiliateOverviewForAdmin(userId: string): Promise<AffiliateOverview | null> {
+  const { organizationId } = await requireOrgAdmin();
+  const [affiliate] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.organizationId, organizationId), eq(users.role, "affiliate")))
+    .limit(1);
+  if (!affiliate) return null;
+  return getAffiliateOverview(userId);
+}
+
+/** An affiliate viewing their own dashboard — no cross-tenant risk, it's always their own row. */
+export async function getMyAffiliateOverview(): Promise<AffiliateOverview | null> {
+  const { user } = await requireAffiliateOrAdmin();
+  return getAffiliateOverview(user.id);
+}
+
 export async function getAffiliateLaunchBreakdown(userId: string): Promise<LaunchBreakdown[]> {
   const rows = await db
     .select({
@@ -127,8 +158,12 @@ export async function getAffiliateLaunchBreakdown(userId: string): Promise<Launc
   return Array.from(byLaunch.values()).sort((a, b) => b.salesAmountCents - a.salesAmountCents);
 }
 
-export async function getAllAffiliatesOverview(organizationId: string): Promise<AffiliateOverview[]> {
-  const list = await db.select().from(users).where(and(eq(users.role, "affiliate"), eq(users.organizationId, organizationId)));
+export async function getAllAffiliatesOverview(): Promise<AffiliateOverview[]> {
+  const { organizationId } = await requireOrgAdmin();
+  const list = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.role, "affiliate"), eq(users.organizationId, organizationId)));
   const out: AffiliateOverview[] = [];
   for (const u of list) {
     const o = await getAffiliateOverview(u.id);
@@ -143,6 +178,7 @@ const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
+  organizationSlug: z.string().min(1),
 });
 
 export async function registerAffiliateAction(formData: FormData) {
@@ -150,7 +186,15 @@ export async function registerAffiliateAction(formData: FormData) {
     name: formData.get("name"),
     email: String(formData.get("email") ?? "").toLowerCase().trim(),
     password: formData.get("password"),
+    organizationSlug: formData.get("organizationSlug"),
   });
+
+  const [org] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.slug, parsed.organizationSlug))
+    .limit(1);
+  if (!org) throw new Error("organization_not_found");
 
   const [existing] = await db.select().from(users).where(eq(users.email, parsed.email)).limit(1);
   if (existing) throw new Error("email_already_used");
@@ -169,6 +213,7 @@ export async function registerAffiliateAction(formData: FormData) {
   }
 
   await db.insert(users).values({
+    organizationId: org.id,
     email: parsed.email,
     name: parsed.name,
     passwordHash,
@@ -210,13 +255,13 @@ export async function adminCreateAffiliateAction(formData: FormData) {
   const [created] = await db
     .insert(users)
     .values({
+      organizationId,
       email: parsed.email,
       name: parsed.name,
       passwordHash,
       role: "affiliate",
       affiliateCode,
       affiliateCommissionRate: Math.round(parsed.commissionPercent * 100),
-      organizationId,
     })
     .returning({ id: users.id });
 
@@ -230,7 +275,7 @@ const setRateSchema = z.object({
 });
 
 export async function setCommissionRateAction(formData: FormData) {
-  await requireOrgAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = setRateSchema.parse({
     userId: formData.get("userId"),
     commissionPercent: formData.get("commissionPercent"),
@@ -239,7 +284,7 @@ export async function setCommissionRateAction(formData: FormData) {
   await db
     .update(users)
     .set({ affiliateCommissionRate: Math.round(parsed.commissionPercent * 100), updatedAt: new Date() })
-    .where(eq(users.id, parsed.userId));
+    .where(and(eq(users.id, parsed.userId), eq(users.organizationId, organizationId)));
 
   revalidatePath(`/admin/afiliados/${parsed.userId}`);
 }
@@ -253,7 +298,7 @@ const payoutSchema = z.object({
 });
 
 export async function recordPayoutAction(formData: FormData) {
-  await requireOrgAdmin();
+  const { organizationId } = await requireOrgAdmin();
   const parsed = payoutSchema.parse({
     userId: formData.get("userId"),
     amountCents: formData.get("amountCents"),
@@ -262,7 +307,16 @@ export async function recordPayoutAction(formData: FormData) {
     launchId: formData.get("launchId") || undefined,
   });
 
+  // The affiliate must belong to this organization — otherwise silently no-op via the where clause below.
+  const [affiliate] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, parsed.userId), eq(users.organizationId, organizationId)))
+    .limit(1);
+  if (!affiliate) throw new Error("affiliate_not_found");
+
   await db.insert(affiliatePayouts).values({
+    organizationId,
     userId: parsed.userId,
     amountCents: parsed.amountCents,
     reference: parsed.reference,
@@ -283,8 +337,7 @@ const linkSchema = z.object({
 });
 
 export async function createAffiliateLinkAction(formData: FormData) {
-  const { userId, session } = await requireOrgAccess();
-  const user = session.user;
+  const { user, organizationId } = await requireAffiliateOrAdmin();
   const parsed = linkSchema.parse({
     launchSlug: formData.get("launchSlug"),
     utmSource: formData.get("utmSource") || undefined,
@@ -293,7 +346,11 @@ export async function createAffiliateLinkAction(formData: FormData) {
     utmContent: formData.get("utmContent") || undefined,
   });
 
-  const [launch] = await db.select().from(launches).where(eq(launches.slug, parsed.launchSlug)).limit(1);
+  const [launch] = await db
+    .select()
+    .from(launches)
+    .where(and(eq(launches.slug, parsed.launchSlug), eq(launches.organizationId, organizationId)))
+    .limit(1);
   if (!launch) throw new Error("launch_not_found");
 
   const [dbUser] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
@@ -306,6 +363,7 @@ export async function createAffiliateLinkAction(formData: FormData) {
   if (parsed.utmContent) params.set("utm_content", parsed.utmContent);
 
   await db.insert(affiliateLinks).values({
+    organizationId,
     userId: user.id,
     launchId: launch.id,
     slug: `${dbUser.affiliateCode}-${createId(6)}`,
@@ -358,12 +416,23 @@ export async function listPayouts(userId: string) {
 }
 
 export async function getAffiliateByIdOrEmail(idOrEmail: string) {
-  const [byId] = await db.select().from(users).where(and(eq(users.id, idOrEmail), eq(users.role, "affiliate"))).limit(1);
+  const { organizationId } = await requireOrgAdmin();
+  const [byId] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, idOrEmail), eq(users.role, "affiliate"), eq(users.organizationId, organizationId)))
+    .limit(1);
   if (byId) return byId;
   const [byEmail] = await db
     .select()
     .from(users)
-    .where(and(eq(users.email, idOrEmail.toLowerCase()), eq(users.role, "affiliate")))
+    .where(
+      and(
+        eq(users.email, idOrEmail.toLowerCase()),
+        eq(users.role, "affiliate"),
+        eq(users.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   return byEmail ?? null;
 }

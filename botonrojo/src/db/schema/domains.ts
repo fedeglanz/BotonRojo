@@ -1,11 +1,13 @@
 import { pgTable, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { launches } from "./launches";
+import { organizations } from "./organizations";
 
 export const domainStatus = pgEnum("domain_status", ["pending", "verifying", "active", "failed"]);
 
 export const domains = pgTable("domains", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   launchId: text("launch_id")
     .notNull()
     .references(() => launches.id, { onDelete: "cascade" }),

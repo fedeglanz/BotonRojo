@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { launches } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { LinkGenerator } from "@/components/affiliate/link-generator";
 import { CopyLink } from "@/components/affiliate/copy-link";
 import { createAffiliateLinkAction, listAffiliateLinks } from "@/server/affiliates";
@@ -14,10 +14,12 @@ export const dynamic = "force-dynamic";
 export default async function MisEnlacesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if (!session.user.organizationId) redirect("/login");
 
   const available = await db
     .select({ slug: launches.slug, name: launches.name })
     .from(launches)
+    .where(eq(launches.organizationId, session.user.organizationId))
     .orderBy(desc(launches.createdAt));
 
   const links = await listAffiliateLinks(session.user.id);

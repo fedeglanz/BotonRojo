@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getAffiliateOverview, listPayouts } from "@/server/affiliates";
+import { getMyAffiliateOverview, listPayouts } from "@/server/affiliates";
 import { StatCard } from "@/components/affiliate/stat-card";
 import { formatDate, formatPrice } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ export default async function MisPagosPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const overview = await getAffiliateOverview(session.user.id);
+  const overview = await getMyAffiliateOverview();
   if (!overview) redirect("/");
 
   const payouts = await listPayouts(session.user.id);

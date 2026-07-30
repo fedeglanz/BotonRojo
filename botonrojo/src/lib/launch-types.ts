@@ -4,6 +4,7 @@ export const LAUNCH_TYPES: Record<LaunchType, {
   label: string;
   tagline: string;
   description: string;
+  pages: string;
   color: string;
   icon: string;
 }> = {
@@ -11,6 +12,7 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     label: "Venta Directa",
     tagline: "Evento de lanzamiento",
     description: "Webinar o sesión en vivo con oferta al cierre.",
+    pages: "Página de venta (sin registro) + su gracias por compra. Niveles de precio, countdown y ponentes si el evento los tiene. Legales opcionales.",
     color: "from-red-500 to-orange-500",
     icon: "🔴",
   },
@@ -18,6 +20,7 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     label: "Semilla",
     tagline: "Validación directa",
     description: "Lanzamiento ligero para validar oferta sin evento.",
+    pages: "Registro + venta, cada una con su gracias — siempre las dos. Legales opcionales.",
     color: "from-fuchsia-500 to-pink-500",
     icon: "🌱",
   },
@@ -25,6 +28,7 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     label: "PLF",
     tagline: "Product Launch Formula",
     description: "Secuencia clásica: pre-pre, pre, contenido, carrito.",
+    pages: "Registro (una página por canal) + páginas de contenido + venta, cada una con su gracias. Afiliados y legales opcionales.",
     color: "from-violet-500 to-indigo-500",
     icon: "🚀",
   },

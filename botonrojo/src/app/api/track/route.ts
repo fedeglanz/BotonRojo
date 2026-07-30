@@ -4,8 +4,7 @@ import { trackingEvents, launches, users } from "@/db/schema";
 import { trackPayloadSchema, getClientIp, classifySource } from "@/lib/tracking";
 import { isBot, isSuspiciousUa } from "@/lib/bots";
 import { lookupGeoIp } from "@/lib/geoip";
-import { syncLeadToAc, isActiveCampaignConfigured } from "@/integrations/activecampaign";
-import { isTelegramConfigured } from "@/integrations/telegram";
+import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 import { sendAutomatedTelegramMessage } from "@/server/launches";
 import { eq } from "drizzle-orm";
 
@@ -39,6 +38,7 @@ export async function POST(req: NextRequest) {
   const geo = await lookupGeoIp(ip);
 
   let launchId: string | null = null;
+  let organizationId: string | null = null;
   let launchAcListId: number | null = null;
   let launchAcTagIds: Record<string, number> = {};
   let launchSlug: string | null = null;
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     const [launch] = await db.select().from(launches).where(eq(launches.slug, data.launchSlug)).limit(1);
     if (launch) {
       launchId = launch.id;
+      organizationId = launch.organizationId;
       launchAcListId = launch.activeCampaignListId ?? null;
       launchAcTagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
       launchSlug = launch.slug;
@@ -64,22 +65,21 @@ export async function POST(req: NextRequest) {
 
   const source = classifySource(data.utmSource, data.ref);
 
-  if (
-    isActiveCampaignConfigured() &&
-    data.email &&
-    launchSlug &&
-    (data.type === "lead" || data.type === "sale" || data.type === "seminar")
-  ) {
+  if (organizationId && data.email && launchSlug && (data.type === "lead" || data.type === "sale" || data.type === "seminar")) {
     const intent: "registro" | "comprador" | "evento" =
       data.type === "sale" ? "comprador" : data.type === "seminar" ? "evento" : "registro";
-    syncLeadToAc({
-      email: data.email,
-      name: data.name,
-      launchSlug,
-      launchListId: launchAcListId,
-      launchTagIds: launchAcTagIds,
-      intent,
-    }).catch((err) => console.error("AC sync failed", err));
+    getActiveCampaignClientForOrg(organizationId)
+      .then((ac) =>
+        ac?.syncLeadToAc({
+          email: data.email!,
+          name: data.name,
+          launchSlug,
+          launchListId: launchAcListId,
+          launchTagIds: launchAcTagIds,
+          intent,
+        }),
+      )
+      .catch((err) => console.error("AC sync failed", err));
   }
 
   // Telegram automation: fire-and-forget
@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
   }
 
   await db.insert(trackingEvents).values({
+    organizationId,
     type: data.type,
     sessionId: data.sessionId ?? null,
     visitorCookie: data.cookie ?? null,

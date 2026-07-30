@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 import { db } from "@/db";
 import { products, launches } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { syncLeadToAc, applyTag, isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 
 const schema = z.object({
   productSlug: z.string(),
@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
   }
 
   const [product] = await db.select().from(products).where(eq(products.slug, parsed.data.productSlug)).limit(1);
-  if (!product || !product.stripePriceId) {
+  if (!product || !product.stripePriceId || !product.organizationId) {
     return NextResponse.json({ error: "product_not_found" }, { status: 404 });
   }
 
-  const session = await createCheckoutSession({
+  const session = await createCheckoutSession(product.organizationId, {
     priceId: product.stripePriceId,
     successUrl: `${env.APP_URL}/gracias?session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${env.APP_URL}/${product.slug}`,
@@ -37,23 +37,26 @@ export async function POST(req: NextRequest) {
   });
 
   // Apply "abandono" tag when checkout starts (fire-and-forget)
-  if (isActiveCampaignConfigured() && parsed.data.email && parsed.data.launchId) {
+  if (parsed.data.email && parsed.data.launchId) {
     const [launch] = await db.select().from(launches).where(eq(launches.id, parsed.data.launchId)).limit(1);
     if (launch) {
-      const tagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
-      const abandonoTagId = tagIds.abandono;
-      if (abandonoTagId) {
-        syncLeadToAc({
-          email: parsed.data.email,
-          launchSlug: launch.slug,
-          launchListId: launch.activeCampaignListId ?? null,
-          launchTagIds: tagIds,
-          intent: "registro",
-        })
-          .then((contact) => {
-            if (contact) applyTag(contact.id, String(abandonoTagId));
+      const ac = await getActiveCampaignClientForOrg(product.organizationId);
+      if (ac) {
+        const tagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
+        const abandonoTagId = tagIds.abandono;
+        if (abandonoTagId) {
+          ac.syncLeadToAc({
+            email: parsed.data.email,
+            launchSlug: launch.slug,
+            launchListId: launch.activeCampaignListId ?? null,
+            launchTagIds: tagIds,
+            intent: "registro",
           })
-          .catch((err) => console.error("AC abandono tag failed", err));
+            .then((contact) => {
+              if (contact) ac.applyTag(contact.id, String(abandonoTagId));
+            })
+            .catch((err) => console.error("AC abandono tag failed", err));
+        }
       }
     }
   }

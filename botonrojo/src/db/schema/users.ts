@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, primaryKey, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, primaryKey, integer, boolean } from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { organizations } from "./organizations";
 
@@ -6,6 +6,10 @@ export const userRole = pgEnum("user_role", ["superadmin", "admin", "affiliate",
 
 export const users = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { mode: "date" }),
   name: text("name"),
@@ -14,7 +18,6 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   affiliateCode: text("affiliate_code").unique(),
   affiliateCommissionRate: integer("affiliate_commission_rate_bps").default(3000),
-  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

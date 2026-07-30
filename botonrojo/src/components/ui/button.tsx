@@ -6,8 +6,8 @@ type Variant = "primary" | "ghost" | "outline" | "danger";
 const VARIANTS: Record<Variant, string> = {
   primary:
     "bg-gradient-to-b from-[#ff3849] to-[#d4172a] text-white shadow-[0_0_24px_-4px_rgba(239,43,61,0.55)] hover:brightness-110",
-  ghost: "bg-white/5 text-zinc-200 hover:bg-white/10",
-  outline: "border border-white/10 text-zinc-200 hover:border-white/30 hover:bg-white/5",
+  ghost: "border border-white/15 bg-white/10 text-zinc-100 hover:border-white/25 hover:bg-white/15",
+  outline: "border border-white/20 bg-white/[0.04] text-zinc-100 hover:border-white/40 hover:bg-white/10",
   danger: "bg-red-950 text-red-200 hover:bg-red-900",
 };
 
