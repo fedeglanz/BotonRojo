@@ -479,13 +479,21 @@ export async function updateCartScheduleAction(launchId: string, formData: FormD
 
   const raw = String(formData.get("cartClosesAt") ?? "").trim();
   const cartClosesAt = raw ? new Date(raw) : null;
+  const rawRegistration = String(formData.get("registrationClosesAt") ?? "").trim();
+  const registrationClosesAt = rawRegistration ? new Date(rawRegistration) : null;
 
   await db
     .update(launches)
-    .set({ cartClosesAt, updatedAt: new Date() })
+    .set({ cartClosesAt, registrationClosesAt, updatedAt: new Date() })
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  // The public pages read these dates for their countdown bar, so they have to be
+  // revalidated too: saving a date and seeing nothing change on the live page reads
+  // as the date not having been saved.
+  for (const pageDef of resolvePages(launch.type as LaunchType, launch.pageConfig)) {
+    revalidatePath(pagePath(launch.slug, pageDef));
+  }
 }
 
 export async function updateContentDripScheduleAction(launchId: string, formData: FormData) {
@@ -501,6 +509,11 @@ export async function updateContentDripScheduleAction(launchId: string, formData
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  // Same reason as the cart date: this one decides which content pages are still
+  // locked, so a stale public page would keep gating content that has opened.
+  for (const pageDef of resolvePages(launch.type as LaunchType, launch.pageConfig)) {
+    revalidatePath(pagePath(launch.slug, pageDef));
+  }
 }
 
 export async function generateBrandKitAction(launchId: string) {

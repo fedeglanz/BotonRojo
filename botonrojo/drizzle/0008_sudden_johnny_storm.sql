@@ -1,0 +1,1 @@
+ALTER TABLE "launches" ADD COLUMN "registration_closes_at" timestamp;
