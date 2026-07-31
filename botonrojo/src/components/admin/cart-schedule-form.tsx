@@ -5,6 +5,10 @@ import { SubmitButton } from "./submit-button";
 type Props = {
   launchId: string;
   currentCartClosesAt: Date | null;
+  /** Feeds the countdown on the capture pages, which used to borrow the content
+   *  drip date — a different thing: the drip is when the content starts, not when
+   *  you can no longer sign up. */
+  currentRegistrationClosesAt: Date | null;
   saveAction: (launchId: string, formData: FormData) => Promise<void>;
 };
 
@@ -14,15 +18,24 @@ function toLocalInputValue(date: Date | null) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function CartScheduleForm({ launchId, currentCartClosesAt, saveAction }: Props) {
+export function CartScheduleForm({
+  launchId,
+  currentCartClosesAt,
+  currentRegistrationClosesAt,
+  saveAction,
+}: Props) {
   return (
     <form
       action={saveAction.bind(null, launchId)}
       className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-black/30 p-4"
     >
       <label className="block">
-        <span className="block text-xs uppercase tracking-widest text-zinc-400">Cierre del carrito</span>
-        <span className="mt-1 block text-xs text-zinc-500">Alimenta el countdown de la landing. Vacío = sin countdown.</span>
+        <span className="block text-xs uppercase tracking-widest text-zinc-400">
+          Cierre del carrito
+        </span>
+        <span className="mt-1 block text-xs text-zinc-500">
+          Alimenta el countdown de la landing. Vacío = sin countdown.
+        </span>
         <input
           type="datetime-local"
           name="cartClosesAt"
@@ -30,8 +43,22 @@ export function CartScheduleForm({ launchId, currentCartClosesAt, saveAction }: 
           className="field-input mt-2 px-3 py-2 text-sm text-white"
         />
       </label>
+      <label className="block">
+        <span className="block text-xs uppercase tracking-widest text-zinc-400">
+          Cierre del registro
+        </span>
+        <span className="mt-1 block text-xs text-zinc-500">
+          Countdown de las páginas de captación. Vacío = sin countdown.
+        </span>
+        <input
+          type="datetime-local"
+          name="registrationClosesAt"
+          defaultValue={toLocalInputValue(currentRegistrationClosesAt)}
+          className="field-input mt-2 px-3 py-2 text-sm text-white"
+        />
+      </label>
       <SubmitButton variant="ghost" pendingLabel="Guardando…">
-        Guardar fecha
+        Guardar fechas
       </SubmitButton>
     </form>
   );

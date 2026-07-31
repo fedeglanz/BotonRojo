@@ -1,3 +1,5 @@
+import type { PageBlock } from "./page-bodies";
+
 export type LandingHero = {
   headline?: string;
   subheadline?: string;
@@ -86,7 +88,12 @@ export type LandingCardStyle =
   | "brutal"
   | "editorial";
 
-export type LandingCtaStyle = "solid" | "glow" | "outline" | "ghost" | "pill-arrow";
+export type LandingCtaStyle =
+  | "solid"
+  | "glow"
+  | "outline"
+  | "ghost"
+  | "pill-arrow";
 
 export type LandingStyle = {
   cardStyle?: LandingCardStyle;
@@ -107,7 +114,14 @@ export type LandingStyle = {
  * in the prompt, so nothing can reintroduce them.
  */
 export type SectionBackground = "none" | "tint" | "accent" | "dark" | "photo";
-export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise";
+export type SectionEffect =
+  | "none"
+  | "orbit"
+  | "geometry"
+  | "aurora"
+  | "grid"
+  | "dots"
+  | "noise";
 /** Display treatment for the section's heading — the size/shape contrast the
  *  client keeps asking for, without touching the section components. */
 export type SectionTitleFx = "none" | "gradient" | "outline";
@@ -135,7 +149,13 @@ export type SectionDesign = {
   orbitItems?: SectionOrbitItem[];
 };
 
-export const SECTION_BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
+export const SECTION_BACKGROUNDS: SectionBackground[] = [
+  "none",
+  "tint",
+  "accent",
+  "dark",
+  "photo",
+];
 export const SECTION_EFFECTS: SectionEffect[] = [
   "none",
   "orbit",
@@ -145,7 +165,11 @@ export const SECTION_EFFECTS: SectionEffect[] = [
   "dots",
   "noise",
 ];
-export const SECTION_TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
+export const SECTION_TITLE_FX: SectionTitleFx[] = [
+  "none",
+  "gradient",
+  "outline",
+];
 export const SECTION_HEIGHTS: SectionHeight[] = ["auto", "full"];
 export const SECTION_WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 
@@ -187,6 +211,13 @@ export type LandingBody = {
   /** Per-section background/effect/height/width, set from the section refine
    * box or the design dropdowns. Absent = every section keeps its defaults. */
   sectionDesign?: Partial<Record<SectionDesignKey, SectionDesign>>;
+  /** Sections added from the page itself, rendered after the fixed set. The sales
+   *  page's own sections are a closed vocabulary, so this is where "one more
+   *  section" goes — the same blocks the capture pages stack. */
+  blocks?: PageBlock[];
+  /** Design for those blocks, by position — `sectionDesign` is keyed by section
+   *  name and can't address them. */
+  design?: { blocks?: SectionDesign[] };
 };
 
 /**
@@ -216,7 +247,10 @@ export const LANDING_SECTIONS = [
 export type LandingSectionKey = (typeof LANDING_SECTIONS)[number];
 
 /** Sections whose value is a plain string, not an object or array. */
-const STRING_SECTIONS = new Set<LandingSectionKey>(["amplifiedPromise", "guarantee"]);
+const STRING_SECTIONS = new Set<LandingSectionKey>([
+  "amplifiedPromise",
+  "guarantee",
+]);
 /** Sections whose value is an array. */
 const ARRAY_SECTIONS = new Set<LandingSectionKey>([
   "painBlocks",
@@ -235,7 +269,10 @@ const ARRAY_SECTIONS = new Set<LandingSectionKey>([
  * verbatim and crashes the public page with "Objects are not valid as a React
  * child" — the page breaks far away from where the bad data came in.
  */
-export function normalizeSectionValue(section: LandingSectionKey, raw: unknown): unknown {
+export function normalizeSectionValue(
+  section: LandingSectionKey,
+  raw: unknown,
+): unknown {
   let value = raw;
 
   // Peel the wrappers models actually produce, in a loop because they combine:
@@ -243,7 +280,11 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
   for (let i = 0; i < 3; i++) {
     // `[ {...} ]` → `{...}`. A single-element array around an object section is
     // never meaningful; the model is just being conversational.
-    if (Array.isArray(value) && value.length === 1 && !ARRAY_SECTIONS.has(section)) {
+    if (
+      Array.isArray(value) &&
+      value.length === 1 &&
+      !ARRAY_SECTIONS.has(section)
+    ) {
       value = value[0];
       continue;
     }
@@ -252,7 +293,11 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
       const keys = Object.keys(obj);
       // `{ amplifiedPromise: ... }` → `...` (model echoing the section key), and
       // the generic envelopes it reaches for when asked for "the value".
-      if (keys.length === 1 && (keys[0] === section || ["value", "content", "data", "section"].includes(keys[0]))) {
+      if (
+        keys.length === 1 &&
+        (keys[0] === section ||
+          ["value", "content", "data", "section"].includes(keys[0]))
+      ) {
         value = obj[keys[0]];
         continue;
       }
@@ -263,7 +308,10 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
   // `forWhom` split across two objects: `[{ yes: [...] }, { no: [...] }]`.
   if (section === "forWhom" && Array.isArray(value)) {
     const merged = value
-      .filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v))
+      .filter(
+        (v): v is Record<string, unknown> =>
+          Boolean(v) && typeof v === "object" && !Array.isArray(v),
+      )
       .reduce<Record<string, unknown>>((acc, v) => ({ ...acc, ...v }), {});
     if (Array.isArray(merged.yes) || Array.isArray(merged.no)) value = merged;
   }
@@ -271,7 +319,11 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
   if (STRING_SECTIONS.has(section)) {
     if (typeof value === "string") return value;
     // Tolerate `{ text: "..." }`, a common shape for the model to volunteer.
-    if (value && typeof value === "object" && typeof (value as { text?: unknown }).text === "string") {
+    if (
+      value &&
+      typeof value === "object" &&
+      typeof (value as { text?: unknown }).text === "string"
+    ) {
       return (value as { text: string }).text;
     }
     throw new Error(
@@ -290,7 +342,11 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
 
   // `about` is legitimately either a string or an object.
   if (section === "about") {
-    if (typeof value === "string" || (value && typeof value === "object" && !Array.isArray(value))) return value;
+    if (
+      typeof value === "string" ||
+      (value && typeof value === "object" && !Array.isArray(value))
+    )
+      return value;
     throw new Error(
       'La IA devolvió la sección "about" con una forma que no encaja. ' +
         "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
@@ -305,20 +361,72 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
   );
 }
 
-export const SECTION_META: Record<LandingSectionKey, { label: string; description: string; hasImage: boolean }> = {
-  hero: { label: "Hero", description: "Titular principal + subtítulo + CTA + imagen destacada", hasImage: true },
-  forWhom: { label: "Para quién", description: "Listado sí/no — quién encaja y quién no", hasImage: false },
-  amplifiedPromise: { label: "Promesa amplificada", description: "Frase grande con la transformación", hasImage: false },
-  painBlocks: { label: "Dolor → solución", description: "Bloques de problemas y cómo se resuelven", hasImage: false },
-  speakers: { label: "Ponentes", description: "Grid de ponentes/expertos — solo eventos con varios ponentes", hasImage: true },
-  agenda: { label: "Agenda", description: "Horario → tema — solo eventos con agenda por franjas", hasImage: false },
-  includes: { label: "Qué incluye", description: "Módulos / bonus con descripciones e imágenes opcionales", hasImage: false },
-  pricingTiers: { label: "Niveles de precio", description: "Varias opciones de compra lado a lado — solo si hay más de un producto Stripe", hasImage: false },
-  about: { label: "Sobre el creador", description: "Texto + foto del creador", hasImage: true },
-  testimonials: { label: "Testimonios", description: "Placeholder de testimonios", hasImage: false },
-  guarantee: { label: "Garantía", description: "Texto de garantía / devolución", hasImage: false },
+export const SECTION_META: Record<
+  LandingSectionKey,
+  { label: string; description: string; hasImage: boolean }
+> = {
+  hero: {
+    label: "Hero",
+    description: "Titular principal + subtítulo + CTA + imagen destacada",
+    hasImage: true,
+  },
+  forWhom: {
+    label: "Para quién",
+    description: "Listado sí/no — quién encaja y quién no",
+    hasImage: false,
+  },
+  amplifiedPromise: {
+    label: "Promesa amplificada",
+    description: "Frase grande con la transformación",
+    hasImage: false,
+  },
+  painBlocks: {
+    label: "Dolor → solución",
+    description: "Bloques de problemas y cómo se resuelven",
+    hasImage: false,
+  },
+  speakers: {
+    label: "Ponentes",
+    description: "Grid de ponentes/expertos — solo eventos con varios ponentes",
+    hasImage: true,
+  },
+  agenda: {
+    label: "Agenda",
+    description: "Horario → tema — solo eventos con agenda por franjas",
+    hasImage: false,
+  },
+  includes: {
+    label: "Qué incluye",
+    description: "Módulos / bonus con descripciones e imágenes opcionales",
+    hasImage: false,
+  },
+  pricingTiers: {
+    label: "Niveles de precio",
+    description:
+      "Varias opciones de compra lado a lado — solo si hay más de un producto Stripe",
+    hasImage: false,
+  },
+  about: {
+    label: "Sobre el creador",
+    description: "Texto + foto del creador",
+    hasImage: true,
+  },
+  testimonials: {
+    label: "Testimonios",
+    description: "Placeholder de testimonios",
+    hasImage: false,
+  },
+  guarantee: {
+    label: "Garantía",
+    description: "Texto de garantía / devolución",
+    hasImage: false,
+  },
   faq: { label: "FAQ", description: "Preguntas frecuentes", hasImage: false },
-  finalCta: { label: "CTA final", description: "Llamada a la acción de cierre", hasImage: false },
+  finalCta: {
+    label: "CTA final",
+    description: "Llamada a la acción de cierre",
+    hasImage: false,
+  },
 };
 
 /**
@@ -326,9 +434,14 @@ export const SECTION_META: Record<LandingSectionKey, { label: string; descriptio
  * rather than in the renderer because the generator needs the same list to
  * compose the page's design rhythm — two copies would drift.
  */
-export type MiddleSectionKey = Exclude<LandingSectionKey, "hero" | "finalCta"> | "countdown";
+export type MiddleSectionKey =
+  | Exclude<LandingSectionKey, "hero" | "finalCta">
+  | "countdown";
 
-export const LAYOUT_PRESETS: Record<"venta_directa" | "semilla" | "plf", MiddleSectionKey[]> = {
+export const LAYOUT_PRESETS: Record<
+  "venta_directa" | "semilla" | "plf",
+  MiddleSectionKey[]
+> = {
   // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
   // countdown antes de la garantía, de cara al cierre.
   venta_directa: [
@@ -347,5 +460,13 @@ export const LAYOUT_PRESETS: Record<"venta_directa" | "semilla" | "plf", MiddleS
   semilla: ["forWhom", "amplifiedPromise", "testimonials", "faq"],
   // Secuencia larga: la más completa, incluye About porque la relación con
   // el creador pesa más en un PLF.
-  plf: ["forWhom", "painBlocks", "includes", "about", "testimonials", "guarantee", "faq"],
+  plf: [
+    "forWhom",
+    "painBlocks",
+    "includes",
+    "about",
+    "testimonials",
+    "guarantee",
+    "faq",
+  ],
 };

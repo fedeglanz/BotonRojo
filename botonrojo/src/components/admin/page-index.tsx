@@ -11,6 +11,20 @@ const KIND_LABELS: Record<PageDef["kind"], string> = {
 };
 
 /**
+ * Which kinds of page can be edited on top of themselves (`?editar=1`).
+ *
+ * Every kind except legal: those are boilerplate, deliberately outside the
+ * composable system. Offering the link there would open a page with no overlay on
+ * it, which reads as the editor being broken rather than as not applying.
+ */
+const IN_PAGE_EDITABLE = new Set<PageDef["kind"]>([
+  "registro",
+  "venta",
+  "contenido",
+  "afiliados",
+]);
+
+/**
  * The launch's pages as a plain index: one row each, all with the same weight.
  * Before this the sales page was edited inline here — with its design review,
  * reference URL, instructions and full section editor — while the rest got a
@@ -47,7 +61,9 @@ export function PageIndex({
                 href={`/admin/lanzamientos/${launchSlug}/paginas/${page.pageKey}`}
                 className="min-w-0 flex-1"
               >
-                <span className="block font-medium text-white">{page.label}</span>
+                <span className="block font-medium text-white">
+                  {page.label}
+                </span>
                 <span className="block truncate font-[family-name:var(--font-mono)] text-[11px] text-zinc-500">
                   {pagePath(launchSlug, page)}
                   {page.isEntry && " · entrada"}
@@ -73,6 +89,18 @@ export function PageIndex({
               >
                 Ver ↗
               </a>
+
+              {generated && IN_PAGE_EDITABLE.has(page.kind) && (
+                <a
+                  href={`${pagePath(launchSlug, page)}?editar=1`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Abrir la página y editarla señalando encima"
+                  className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/20"
+                >
+                  Editar encima ↗
+                </a>
+              )}
 
               <Link
                 href={`/admin/lanzamientos/${launchSlug}/paginas/${page.pageKey}`}

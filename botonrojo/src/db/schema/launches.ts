@@ -33,6 +33,10 @@ export const launches = pgTable("launches", {
 
   // Schedule
   anchorDate: timestamp("anchor_date", { mode: "date" }),  // event / cart-open date
+  /** When registration closes. The capture pages' countdown runs to this, which
+   *  used to borrow the content drip date — a different thing entirely: the drip
+   *  is when the content starts, not when you can no longer sign up. */
+  registrationClosesAt: timestamp("registration_closes_at", { mode: "date" }),
   cartOpensAt: timestamp("cart_opens_at", { mode: "date" }),
   cartClosesAt: timestamp("cart_closes_at", { mode: "date" }),
   // PLF only — day "contenido-1" unlocks; contenido-2/3/4 unlock one day

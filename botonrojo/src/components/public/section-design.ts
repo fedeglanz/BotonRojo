@@ -191,9 +191,13 @@ export const DESIGN_CAPABILITIES: DesignCapabilityMap = {
     allowFullHeight: true,
   },
   // A form needs maximum legibility: no photo behind it, no orbit stealing focus.
+  // A form band excludes the orbit because the orbit forces a narrow column and
+  // would squeeze the form's own layout. `geometry` and `dots` are backdrops
+  // drawn behind the content and impose nothing, so they're fine here — leaving
+  // them out meant a brief asking for "something geometric" silently became a glow.
   form: {
     backgrounds: ["none", "tint", "dark"],
-    effects: ["none", "aurora", "grid", "noise"],
+    effects: ["none", "aurora", "grid", "dots", "noise", "geometry"],
     allowFullHeight: true,
   },
   pricing: {
@@ -616,7 +620,9 @@ export function applyBrandRhythm(
     const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
 
     // No paint, nothing to shape.
-    if (!hasPaint) {
+    if (!hasPaint || index === 0) {
+      // Same reason as usableDivider: the first band has no neighbour, so any
+      // divider on it leaks the page background.
       current.divider = "none";
       return;
     }
@@ -683,9 +689,16 @@ export function applyBrandRhythm(
 export function usableDivider(
   design: SectionDesign | undefined,
   previous: SectionDesign | undefined,
+  /** True for the page's first band. */
+  isFirst = false,
 ): SectionDesign["divider"] {
   const hasPaint = Boolean(design?.background && design.background !== "none");
   if (!hasPaint) return "none";
+
+  // Nothing above to transition from: a fade or a cut here just reveals the page
+  // background, which on a light palette put a white gradient across the top of a
+  // dark hero.
+  if (isFirst) return "none";
 
   // Anything that shapes or ramps the paint reveals the page background, not the
   // band above — so between two painted bands the only correct answer is a clean
