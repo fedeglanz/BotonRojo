@@ -1,5 +1,6 @@
 import Script from "next/script";
 import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import { LeadForm } from "@/components/public/lead-form";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -58,9 +59,7 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
         </Reveal>
       </section>
 
-      <footer className="border-t border-[--color-border] py-8 pb-28 text-center text-xs text-[--color-muted-3]">
-        {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
         targetDate={launch.contentDripStartsAt ? launch.contentDripStartsAt.toISOString() : null}

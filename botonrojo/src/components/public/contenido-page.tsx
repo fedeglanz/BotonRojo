@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Script from "next/script";
 import { BrandStyle } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal } from "@/components/public/reveal";
 import { Countdown } from "@/components/public/countdown";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -112,9 +113,7 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
         </aside>
       </div>
 
-      <footer className="border-t border-[--color-border] py-8 pb-28 text-center text-xs text-[--color-muted-3]">
-        {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
         targetDate={nextUnlockDate ? nextUnlockDate.toISOString() : null}

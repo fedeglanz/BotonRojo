@@ -24,6 +24,7 @@ import {
 } from "@/components/public/landing-sections";
 import type { LandingBody, LandingCardStyle } from "@/components/public/landing-types";
 import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
 
@@ -190,11 +191,8 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
       {/* HERO — sized to the viewport and vertically centered so the CTA/form
           is visible without scrolling, on mobile and desktop alike. */}
       <section className="relative mx-auto flex min-h-[100svh] max-w-3xl flex-col items-center justify-center px-6 py-6 text-center">
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[--color-border] bg-[--color-surface] px-3 py-1 text-xs uppercase tracking-widest text-[--color-muted-1] sm:mb-4">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[--color-red]" />
-          {launch.type.replace("_", " ")}
-        </div>
-
+        {/* No launch-type badge: "plf" / "venta directa" is our internal
+            vocabulary, and it was the first thing a visitor read. */}
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl md:text-6xl">
           {heroHeadline}
         </h1>
@@ -274,9 +272,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
         </section>
       </SectionShell>
 
-      <footer className="border-t border-[--color-border] py-8 pb-28 text-center text-xs text-[--color-muted-3]">
-        Escuela Nómada Digital · {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
         targetDate={launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null}

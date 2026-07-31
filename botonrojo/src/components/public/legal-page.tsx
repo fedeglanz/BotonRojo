@@ -1,4 +1,5 @@
 import { BrandStyle } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import type { Launch } from "@/db/schema/launches";
 import type { LegalPageBody } from "@/components/public/page-bodies";
 
@@ -48,9 +49,7 @@ export function LegalPage({ launch, body }: { launch: Launch; body: LegalPageBod
         </article>
       </div>
 
-      <footer className="border-t border-[--color-border] py-8 text-center text-xs text-[--color-muted-3]">
-        {launch.name} · {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} />
     </main>
   );
 }
