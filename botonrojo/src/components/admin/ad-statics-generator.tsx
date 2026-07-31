@@ -66,7 +66,7 @@ export function AdStaticsGenerator({
                 key={i}
                 className={`cursor-pointer rounded-lg border p-3 transition ${
                   conceptIndex === i
-                    ? "border-[--color-red] bg-[--color-red]/10"
+                    ? "border-[var(--color-red)] bg-[var(--color-red)]/10"
                     : "border-white/10 bg-white/[0.02] hover:border-white/25"
                 }`}
               >
@@ -98,7 +98,7 @@ export function AdStaticsGenerator({
                 key={m.id}
                 title={m.label ?? m.filename}
                 className={`relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 transition ${
-                  mediaItemId === m.id ? "border-[--color-red]" : "border-transparent hover:border-white/30"
+                  mediaItemId === m.id ? "border-[var(--color-red)]" : "border-transparent hover:border-white/30"
                 }`}
               >
                 <input
@@ -129,7 +129,7 @@ export function AdStaticsGenerator({
                   name="formats"
                   value={f.key}
                   defaultChecked={f.key === "meta_feed_1x1" || f.key === "meta_story_9x16"}
-                  className="h-4 w-4 accent-[--color-red-bright]"
+                  className="h-4 w-4 accent-[var(--color-red-bright)]"
                 />
                 <span>
                   {f.label}

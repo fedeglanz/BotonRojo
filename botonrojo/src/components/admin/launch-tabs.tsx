@@ -48,7 +48,7 @@ export function LaunchTabs({
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm transition",
               isActive
-                ? "border-[--color-red]/50 bg-[--color-red]/10 text-white"
+                ? "border-[var(--color-red)]/50 bg-[var(--color-red)]/10 text-white"
                 : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20 hover:text-zinc-200",
             )}
           >

@@ -77,10 +77,21 @@ export type LandingAgendaItem = { time: string; topic: string };
  * Resolved by `resolveVisualStyle` in lib/design/presets.ts, which is also
  * where the padding-by-density and hover treatments live.
  */
-export type LandingCardStyle = "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+export type LandingCardStyle =
+  | "glass"
+  | "liquid"
+  | "flat"
+  | "outline"
+  | "soft"
+  | "brutal"
+  | "editorial";
+
+export type LandingCtaStyle = "solid" | "glow" | "outline" | "ghost" | "pill-arrow";
 
 export type LandingStyle = {
   cardStyle?: LandingCardStyle;
+  /** Resolved by `resolveCtaStyle` in lib/design/presets.ts. */
+  ctaStyle?: LandingCtaStyle;
 };
 
 /**
@@ -90,8 +101,16 @@ export type LandingStyle = {
  * parallax/overlay) and that took the whole public page down — see
  * normalizeSectionDesign.
  */
+/**
+ * Band backgrounds. Flat only, by the client's explicit call: the gradient and
+ * spotlight fills were dropped from the vocabulary rather than merely discouraged
+ * in the prompt, so nothing can reintroduce them.
+ */
 export type SectionBackground = "none" | "tint" | "accent" | "dark" | "photo";
-export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid";
+export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise";
+/** Display treatment for the section's heading — the size/shape contrast the
+ *  client keeps asking for, without touching the section components. */
+export type SectionTitleFx = "none" | "gradient" | "outline";
 export type SectionHeight = "auto" | "full";
 export type SectionWidth = "normal" | "wide" | "full";
 
@@ -106,8 +125,9 @@ export type SectionDesign = {
   width?: SectionWidth;
   align?: "start" | "center" | "end";
   density?: "compact" | "normal" | "spacious";
-  style?: "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+  style?: LandingCardStyle;
   divider?: "none" | "line" | "fade" | "angle" | "curve" | "dots";
+  titleFx?: SectionTitleFx;
   /** Only meaningful with `background: "photo"`. */
   imageUrl?: string;
   imagePrompt?: string;
@@ -116,7 +136,16 @@ export type SectionDesign = {
 };
 
 export const SECTION_BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
-export const SECTION_EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid"];
+export const SECTION_EFFECTS: SectionEffect[] = [
+  "none",
+  "orbit",
+  "geometry",
+  "aurora",
+  "grid",
+  "dots",
+  "noise",
+];
+export const SECTION_TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
 export const SECTION_HEIGHTS: SectionHeight[] = ["auto", "full"];
 export const SECTION_WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 
@@ -133,6 +162,9 @@ export type LandingBody = {
   hero?: LandingHero;
   forWhom?: LandingForWhom;
   amplifiedPromise?: string;
+  /** 40-100 characters under the promise, set much smaller. Required shape when
+   *  the promise carries the orbit: 4-6 big words can't say enough alone. */
+  amplifiedPromiseSubline?: string;
   painBlocks?: LandingPainBlock[];
   includes?: LandingIncludeItem[];
   about?: LandingAbout;
@@ -206,12 +238,34 @@ const ARRAY_SECTIONS = new Set<LandingSectionKey>([
 export function normalizeSectionValue(section: LandingSectionKey, raw: unknown): unknown {
   let value = raw;
 
-  // Unwrap `{ amplifiedPromise: ... }` → `...` (model echoing the section key).
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const keys = Object.keys(value as Record<string, unknown>);
-    if (keys.length === 1 && keys[0] === section) {
-      value = (value as Record<string, unknown>)[section];
+  // Peel the wrappers models actually produce, in a loop because they combine:
+  // `[{ forWhom: { yes, no } }]` is one array wrapper plus one key echo.
+  for (let i = 0; i < 3; i++) {
+    // `[ {...} ]` → `{...}`. A single-element array around an object section is
+    // never meaningful; the model is just being conversational.
+    if (Array.isArray(value) && value.length === 1 && !ARRAY_SECTIONS.has(section)) {
+      value = value[0];
+      continue;
     }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const obj = value as Record<string, unknown>;
+      const keys = Object.keys(obj);
+      // `{ amplifiedPromise: ... }` → `...` (model echoing the section key), and
+      // the generic envelopes it reaches for when asked for "the value".
+      if (keys.length === 1 && (keys[0] === section || ["value", "content", "data", "section"].includes(keys[0]))) {
+        value = obj[keys[0]];
+        continue;
+      }
+    }
+    break;
+  }
+
+  // `forWhom` split across two objects: `[{ yes: [...] }, { no: [...] }]`.
+  if (section === "forWhom" && Array.isArray(value)) {
+    const merged = value
+      .filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v))
+      .reduce<Record<string, unknown>>((acc, v) => ({ ...acc, ...v }), {});
+    if (Array.isArray(merged.yes) || Array.isArray(merged.no)) value = merged;
   }
 
   if (STRING_SECTIONS.has(section)) {
@@ -220,23 +274,35 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
     if (value && typeof value === "object" && typeof (value as { text?: unknown }).text === "string") {
       return (value as { text: string }).text;
     }
-    throw new Error(`section_shape_invalid: "${section}" debe ser texto`);
+    throw new Error(
+      `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba texto). ` +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   if (ARRAY_SECTIONS.has(section)) {
     if (Array.isArray(value)) return value;
-    throw new Error(`section_shape_invalid: "${section}" debe ser una lista`);
+    throw new Error(
+      `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba una lista). ` +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   // `about` is legitimately either a string or an object.
   if (section === "about") {
     if (typeof value === "string" || (value && typeof value === "object" && !Array.isArray(value))) return value;
-    throw new Error(`section_shape_invalid: "about" debe ser texto u objeto`);
+    throw new Error(
+      'La IA devolvió la sección "about" con una forma que no encaja. ' +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   // hero / finalCta / forWhom / style
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
-  throw new Error(`section_shape_invalid: "${section}" debe ser un objeto`);
+  throw new Error(
+    `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba un objeto). ` +
+      "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+  );
 }
 
 export const SECTION_META: Record<LandingSectionKey, { label: string; description: string; hasImage: boolean }> = {
@@ -253,4 +319,33 @@ export const SECTION_META: Record<LandingSectionKey, { label: string; descriptio
   guarantee: { label: "Garantía", description: "Texto de garantía / devolución", hasImage: false },
   faq: { label: "FAQ", description: "Preguntas frecuentes", hasImage: false },
   finalCta: { label: "CTA final", description: "Llamada a la acción de cierre", hasImage: false },
+};
+
+/**
+ * Which middle sections each launch type shows, and in what order. Lives here
+ * rather than in the renderer because the generator needs the same list to
+ * compose the page's design rhythm — two copies would drift.
+ */
+export type MiddleSectionKey = Exclude<LandingSectionKey, "hero" | "finalCta"> | "countdown";
+
+export const LAYOUT_PRESETS: Record<"venta_directa" | "semilla" | "plf", MiddleSectionKey[]> = {
+  // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
+  // countdown antes de la garantía, de cara al cierre.
+  venta_directa: [
+    "painBlocks",
+    "speakers",
+    "agenda",
+    "amplifiedPromise",
+    "includes",
+    "pricingTiers",
+    "countdown",
+    "guarantee",
+    "testimonials",
+    "faq",
+  ],
+  // Validación ligera: corta y directa, sin Includes/About.
+  semilla: ["forWhom", "amplifiedPromise", "testimonials", "faq"],
+  // Secuencia larga: la más completa, incluye About porque la relación con
+  // el creador pesa más en un PLF.
+  plf: ["forWhom", "painBlocks", "includes", "about", "testimonials", "guarantee", "faq"],
 };

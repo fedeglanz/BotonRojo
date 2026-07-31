@@ -60,10 +60,10 @@ export default function HomePage() {
         ].map((c) => (
           <div key={c.k} className="glass glass-hover group relative overflow-hidden p-6">
             <div
-              className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[--color-red] opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-20"
+              className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[var(--color-red)] opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-20"
               aria-hidden
             />
-            <div className="font-[family-name:var(--font-mono)] text-xs text-[--color-red-bright]">{c.k}</div>
+            <div className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-red-bright)]">{c.k}</div>
             <div className="mt-2 font-[family-name:var(--font-display)] text-xl font-bold">{c.t}</div>
             <div className="mt-2 text-sm text-zinc-400">{c.d}</div>
           </div>

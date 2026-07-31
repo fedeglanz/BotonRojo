@@ -25,7 +25,7 @@ export function AffiliateShell({ affiliateCode, children }: { affiliateCode: str
 
           <div className="rounded-lg border border-white/10 bg-white/5 p-3">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500">Tu código</div>
-            <div className="mt-1 font-[family-name:var(--font-mono)] text-sm text-[--color-red-bright]">
+            <div className="mt-1 font-[family-name:var(--font-mono)] text-sm text-[var(--color-red-bright)]">
               ?ref={affiliateCode}
             </div>
           </div>
@@ -46,7 +46,7 @@ export function AffiliateShell({ affiliateCode, children }: { affiliateCode: str
                 >
                   {active && (
                     <span
-                      className="absolute -left-4 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[--color-red-bright] shadow-[0_0_10px_var(--color-red-glow)]"
+                      className="absolute -left-4 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[var(--color-red-bright)] shadow-[0_0_10px_var(--color-red-glow)]"
                       aria-hidden
                     />
                   )}

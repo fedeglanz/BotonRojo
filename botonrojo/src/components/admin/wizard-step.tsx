@@ -11,7 +11,7 @@ type Props = {
 
 const STATUS_STYLES = {
   empty: "border-white/10 bg-white/[0.02]",
-  ready: "border-[--color-red]/30 bg-[--color-red]/5",
+  ready: "border-[var(--color-red)]/30 bg-[var(--color-red)]/5",
   pending: "border-amber-500/30 bg-amber-500/5",
   "needs-prev": "border-white/5 bg-white/[0.015] opacity-60",
 };
@@ -40,7 +40,7 @@ export function WizardStep({ index, title, subtitle, status, children, action }:
           <span
             className={cn(
               "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest",
-              status === "ready" && "border-[--color-red]/40 text-[--color-red-bright]",
+              status === "ready" && "border-[var(--color-red)]/40 text-[var(--color-red-bright)]",
               status === "empty" && "border-white/10 text-zinc-500",
               status === "pending" && "border-amber-500/40 text-amber-300",
               status === "needs-prev" && "border-white/5 text-zinc-600",

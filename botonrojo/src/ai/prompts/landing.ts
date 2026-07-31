@@ -1,4 +1,5 @@
-import type { AvatarBrief, BrandPalette, BrandFonts } from "@/db/schema/launches";
+import type { AvatarBrief, BrandPalette, BrandFonts, BrandDesign } from "@/db/schema/launches";
+import { describeBrandDesign } from "@/lib/design/brand-design";
 import { DESIGN_RULES } from "./design-rules";
 
 export const LANDING_SYSTEM = `Eres un copywriter + director de arte de landings de lanzamientos digitales.
@@ -43,7 +44,12 @@ export function landingPrompt(
   promise: string,
   pains: string[],
   benefits: string[],
-  brandKit: { palette: BrandPalette; fonts: BrandFonts },
+  brandKit: {
+    palette: BrandPalette;
+    fonts: BrandFonts;
+    moodNotes?: string | null;
+    design?: BrandDesign | null;
+  },
   generalInstructions?: string | null,
   products?: Array<{ slug: string; name: string; priceCents: number; currency: string }>,
   referenceSummary?: string | null,
@@ -86,12 +92,13 @@ Devuelve JSON con esta forma exacta:
     "imagePrompt": "Descripción concreta de la foto del hero"
   },
   "forWhom": { "yes": ["..."], "no": ["..."] },
-  "amplifiedPromise": "...",
-  "painBlocks": [{ "pain": "...", "solution": "...", "icon": "🔥" }],
+  "amplifiedPromise": "4-6 palabras, muy grandes",
+  "amplifiedPromiseSubline": "40-100 caracteres que expliquen esas palabras",
+  "painBlocks": [{ "pain": "...", "solution": "...", "icon": "rayo" }],
   "speakers": [{ "name": "...", "role": "...", "imagePrompt": "Descripción de la foto del ponente" }],
   "agenda": [{ "time": "09:00", "topic": "..." }],
   "includes": [
-    { "title": "...", "description": "...", "icon": "📚", "imagePrompt": "Opcional, descripción de imagen para este módulo" }
+    { "title": "...", "description": "...", "icon": "libro", "imagePrompt": "Opcional, descripción de imagen para este módulo" }
   ],
   "pricingTiers": [{ "productSlug": "...", "bullets": ["...", "..."], "highlight": "Opcional, ej. 'La más elegida'" }],
   "scarcityNote": "Opcional, frase corta de urgencia de aforo",
@@ -108,7 +115,8 @@ Devuelve JSON con esta forma exacta:
   "faq": [{ "q": "...", "a": "..." }],
   "finalCta": { "headline": "...", "subheadline": "...", "button": "..." },
   "sectionOrder": ["forWhom", "painBlocks", "speakers", "agenda", "amplifiedPromise", "includes", "pricingTiers", "about", "testimonials", "guarantee", "faq"],
-  "style": { "cardStyle": "glass" }
+  "style": { "cardStyle": "glass", "ctaStyle": "glow" },
+  "sectionDesign": { "amplifiedPromise": { "background": "dark", "effect": "orbit", "height": "full" } }
 }
 
 Omite por completo cualquier clave (incluidas "speakers", "agenda", "pricingTiers",
@@ -120,10 +128,64 @@ reordenar o quitar secciones. Si lo incluyes, debe contener únicamente claves d
 muestren, en el orden que quieras. Si omites una sección entera, no incluyas tampoco su clave en
 el JSON principal de arriba.
 
+Los campos "icon" NO son emojis: son NOMBRES de un catálogo cerrado de iconos que se pintan en
+SVG con degradado de marca. Elige el que mejor describa el contenido de ese bloque. Cualquier
+nombre que no esté en esta lista se descarta y el bloque se queda sin icono:
+"rayo", "cohete", "fuego", "tendencia", "grafica", "barras", "velocimetro", "diana", "trofeo", "corona", "estrella", "escudo", "escudoOk", "candado", "verificado", "documentoOk", "balanza", "salvavidas", "cartera", "monedas", "tarjeta", "factura", "porcentaje", "reloj", "alarma", "calendario", "repetir", "infinito", "libro", "birrete", "documento", "reproducir", "bombilla", "cerebro", "brujula", "lupa", "personas", "apretonManos", "manosCorazon", "mensajes", "correo", "enviar", "campana", "capas", "cajas", "ajustes", "enlace", "nube", "baseDatos", "movil", "pantalla", "maletin", "mundo", "regalo", "chispas", "varita", "check", "cerrar"
+
+"amplifiedPromise" son 4-6 PALABRAS como máximo — se pinta enorme, así que una frase larga se
+convierte en un muro de texto. Lo que quieras explicar va en "amplifiedPromiseSubline", de 40 a
+100 caracteres, que se pinta mucho más pequeño debajo. Ese salto de tamaño es el efecto.
+
+"sectionDesign" es el DISEÑO de cada banda de la página, y es lo que separa una página plana de
+una que parece diseñada. NO lo omitas: sin él la landing sale a una sola columna estrecha en el
+centro, que es exactamente lo que no queremos.
+
+Es un objeto con la clave de la sección y estos campos (vocabulario CERRADO — cualquier otro valor
+se descarta al guardar):
+- "background": "none" | "tint" (leve tinte de marca) | "accent" (tinte fuerte) | "dark" (banda
+  oscura con texto claro) | "photo" (foto de fondo con velo; añade "imagePrompt").
+- "effect": "none" | "orbit" (círculo con elementos girando que se paran al pasar el ratón) |
+  "geometry" (círculos y arcos grandes) | "aurora" (resplandor de marca que se desplaza despacio) |
+  "grid" (retícula técnica difuminada). Los fondos EN MOVIMIENTO son "aurora" y "orbit".
+- "height": "auto" | "full" (la banda ocupa toda la pantalla).
+- "width": "normal" | "wide" | "full" (a sangre, de borde a borde).
+- "align": "start" | "center" | "end".
+- "density": "compact" | "normal" | "spacious".
+- "divider": "none" | "line" | "fade" | "angle" | "curve" | "dots" (transición al inicio de la banda).
+- "style": la caja de ESA sección, con los mismos 6 valores de "style.cardStyle" de más abajo.
+  Sirve para mezclar: "editorial" en una sección de texto largo y "brutal" en las tarjetas.
+- "titleFx": "none" | "gradient" (titular con degradado de marca) | "outline" (titular hueco, solo
+  contorno). Es el contraste de formas: úsalo en UNA sección como mucho.
+- Con "effect": "orbit", añade "orbitItems": [{ "label": "1-3 palabras" }] — entre 3 y 6.
+
+Cómo componerlo (esto es lo que hace que la página respire):
+1. ALTERNA fondos. Dos bandas seguidas con el mismo fondo se leen como una sola: ve encadenando
+   none → tint → none → dark → none, o similar.
+2. UN gesto protagonista por página, no diez. Elige UNA sección para el efecto llamativo (órbita o
+   pantalla completa) — normalmente "amplifiedPromise" o "finalCta" — y deja el resto sobrio.
+3. "orbit" SOLO en secciones de texto corto (una o dos frases): el texto se muestra en una columna
+   estrecha dentro del círculo. Para párrafos largos usa "aurora" o "geometry".
+4. Las secciones de tarjetas ("painBlocks", "includes", "testimonials", "pricingTiers") van mejor
+   con "width": "wide", para que las tarjetas usen la pantalla en vez de apilarse en el centro.
+5. El "finalCta" cierra: "background": "accent" o "dark", "height": "full", "align": "center".
+6. Si la dirección de arte pide "movimiento", usa "aurora" en una o dos bandas y "orbit" en una.
+7. Nada de decorar por decorar: si una sección no gana nada, déjala sin diseño y no la incluyas.
+
+"style.ctaStyle" es el aspecto del botón principal: "glow" (rojo con resplandor, el de siempre),
+"solid" (relleno plano del color primario), "outline" (solo borde), "ghost" (sin caja, para
+secundarios) o "pill-arrow" (pastilla que se abre al pasar el ratón). Si la dirección de arte pide
+algo sobrio, "solid" u "outline" encajan mejor que "glow".
+
 "style.cardStyle" controla cómo se ven las "cajas" (formulario de registro, bloques de dolor →
-solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos 6 valores:
-- "glass": tarjeta oscura con desenfoque y esquinas tipo HUD futurista (por defecto — úsalo si el
-  cliente no pide nada distinto).
+solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos 7 valores:
+- "glass": tarjeta OSCURA con desenfoque y esquinas tipo HUD. Solo si el fondo de la página es
+  oscuro: sobre fondo claro se ve como un bloque gris con el texto ilegible. Con paleta clara usa
+  "liquid" o "soft".
+- "liquid": cristal líquido — muy desenfocado, con brillo especular arriba a la izquierda y canto
+  oscuro abajo; refracta lo que pasa por debajo. Es el más llamativo y el que mejor encaja con
+  "futurista", "premium", "tipo Apple" o si piden movimiento de fondo, porque el fondo se ve a
+  través. Necesita algo detrás que refractar: úsalo sobre bandas con fondo, foto o efecto.
 - "flat": fondo casi plano, integrado con el color de fondo de la página, borde muy sutil. Úsalo
   si piden algo "más moderno", "más integrado", "más limpio" o "menos recargado".
 - "outline": solo borde de color de acento, sin relleno. Úsalo si piden algo "minimalista" o
@@ -134,7 +196,7 @@ solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos
   ratón. Úsalo si piden mucho contraste, algo "rotundo", "con carácter" o "sin miedo".
 - "editorial": sin caja, solo una línea superior y mucho aire. Úsalo cuando el contenido sea texto
   largo y lo importante sea leerlo, o si piden algo "tipo revista" o "editorial".
-No inventes más valores que estos 6. Si las instrucciones no mencionan el diseño de las cajas,
+No inventes más valores que estos 7. Si las instrucciones no mencionan el diseño de las cajas,
 usa "glass" y no incluyas el campo "style" en absoluto.
 
 Responde SOLO con JSON válido. No expliques nada.`;

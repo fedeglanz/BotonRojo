@@ -43,8 +43,12 @@ export type SemanticColors = {
   textMuted: string;
   /** Tertiary text: labels, captions. Do not use for body copy. */
   textSubtle: string;
-  /** Text that sits on top of `primary` / `accent` fills. */
+  /** Text on an `accent` fill. */
   textOnAccent: string;
+  /** Text on a `primary` fill. Separate from textOnAccent on purpose: the two
+   *  colours can differ in luminance, and using the accent's choice on a primary fill
+   *  is how a button ends up with black text on dark blue. */
+  textOnPrimary: string;
   primary: string;
   primaryHover: string;
   accent: string;

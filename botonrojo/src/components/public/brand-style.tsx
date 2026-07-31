@@ -1,5 +1,5 @@
 import { googleFontsUrl } from "@/lib/brand-kit";
-import { resolveTheme, themeToCssVars } from "@/lib/design/theme";
+import { relativeLuminance, resolveTheme, themeToCssVars } from "@/lib/design/theme";
 import type { BrandPalette, BrandFonts } from "@/db/schema/launches";
 import type { LandingCardStyle } from "@/components/public/landing-types";
 
@@ -63,5 +63,45 @@ export function brandThemeMode(palette: BrandPalette | null): "light" | "dark" {
  * `soft` is the light-mode equivalent: same weight, follows the palette.
  */
 export function defaultCardStyleFor(palette: BrandPalette | null): LandingCardStyle {
-  return brandThemeMode(palette) === "light" ? "soft" : "glass";
+  return brandThemeMode(palette) === "light" ? "liquid" : "glass";
+}
+
+/**
+ * Coerces a stored or AI-chosen box style into one that can actually work on
+ * this palette. `glass` is a fixed dark card with its own light-on-dark text: on
+ * a white page it renders as a grey slab with unreadable copy. That must not
+ * depend on the model remembering — it's a property of the preset, so it's
+ * enforced here, which also repairs pages already stored with it.
+ */
+export function usableCardStyle(
+  palette: BrandPalette | null,
+  style: LandingCardStyle | undefined,
+): LandingCardStyle {
+  if (!style) return defaultCardStyleFor(palette);
+  if (style === "glass" && brandThemeMode(palette) === "light") return "liquid";
+  return style;
+}
+
+/**
+ * Whether the logo needs a plate behind it to be readable on the page's own
+ * surface, and which one. Clients supply a single logo, so a dark wordmark on a
+ * dark bar is a fact to handle rather than a mistake to point out.
+ *
+ * Judged on the SHARE of ink that would disappear, not on an average: a logo whose
+ * bright mark averages "light" can still have a near-black wordmark that vanishes,
+ * which is exactly the case that prompted this.
+ */
+export function logoPlateFor(
+  palette: BrandPalette | null,
+  ink: { dark?: number; light?: number } | null | undefined,
+): "light" | "dark" | null {
+  if (!ink) return null;
+
+  const surfaceIsDark = relativeLuminance(palette?.background ?? "#050505") < 0.5;
+  // A quarter of the ink is enough: that's a whole wordmark next to a mark.
+  const AT_RISK = 0.25;
+
+  if (surfaceIsDark && (ink.dark ?? 0) >= AT_RISK) return "light";
+  if (!surfaceIsDark && (ink.light ?? 0) >= AT_RISK) return "dark";
+  return null;
 }

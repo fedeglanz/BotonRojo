@@ -26,11 +26,12 @@ type Props = {
   currentJson: unknown;
   preview: React.ReactNode;
   imageSlots?: ImageSlot[];
-  refineAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
-  rawUpdateAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
-  imageSaveAction: (launchId: string, slotPath: string, formData: FormData) => Promise<void>;
+  /** Already bound to the launch and the page by the caller. */
+  refineAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
+  rawUpdateAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
+  imageSaveAction: (slotPath: string, formData: FormData) => Promise<void>;
   design?: SectionDesign | null;
-  designAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
+  designAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
 };
 
 const SUGGESTIONS: Record<LandingSectionKey, string[]> = {
@@ -127,7 +128,7 @@ export function SectionEditor({
       {mode === "preview" && <div className="p-5">{preview}</div>}
 
       {mode === "design" && (
-        <form action={designAction.bind(null, launchId, section)} className="space-y-4 p-5">
+        <form action={designAction.bind(null, section)} className="space-y-4 p-5">
           <p className="text-xs text-zinc-500">
             Control directo del aspecto de esta sección. También puedes pedírselo en palabras
             desde la pestaña ✨ IA (&ldquo;ponle un fondo oscuro a pantalla completa&rdquo;).
@@ -156,7 +157,7 @@ export function SectionEditor({
 
       {mode === "ai" && (
         <div className="space-y-4 p-5">
-          <form action={refineAction.bind(null, launchId, section)} className="space-y-3">
+          <form action={refineAction.bind(null, section)} className="space-y-3">
             <label className="block">
               <span className="block text-xs uppercase tracking-widest text-zinc-400">
                 Dile a Claude qué cambiar en esta sección
@@ -167,7 +168,7 @@ export function SectionEditor({
                 required
                 minLength={3}
                 placeholder={`Ej: ${SUGGESTIONS[section][0] ?? "Reescribe esta sección"}`}
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
               />
             </label>
 
@@ -192,7 +193,7 @@ export function SectionEditor({
               label={slot.label}
               currentUrl={slot.currentUrl}
               imagePrompt={slot.imagePrompt}
-              saveAction={imageSaveAction.bind(null, launchId, slot.slotPath)}
+              saveAction={imageSaveAction.bind(null, slot.slotPath)}
             />
           ))}
         </div>
@@ -200,7 +201,7 @@ export function SectionEditor({
 
       {mode === "manual" && (
         <div className="space-y-3 p-5">
-          <form action={rawUpdateAction.bind(null, launchId, section)} className="space-y-3">
+          <form action={rawUpdateAction.bind(null, section)} className="space-y-3">
             <label className="block">
               <span className="block text-xs uppercase tracking-widest text-zinc-400">
                 JSON crudo (solo para esta sección)
@@ -210,7 +211,7 @@ export function SectionEditor({
                 rows={14}
                 required
                 defaultValue={JSON.stringify(currentJson ?? null, null, 2)}
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 p-3 font-[family-name:var(--font-mono)] text-xs text-white outline-none focus:border-[--color-red]"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 p-3 font-[family-name:var(--font-mono)] text-xs text-white outline-none focus:border-[var(--color-red)]"
               />
             </label>
             <div className="flex justify-end">
@@ -301,7 +302,7 @@ function SuggestionChip({ label }: { label: string }) {
           ta.focus();
         }
       }}
-      className="rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs text-zinc-200 transition hover:border-[--color-red] hover:bg-white/10 hover:text-white"
+      className="rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs text-zinc-200 transition hover:border-[var(--color-red)] hover:bg-white/10 hover:text-white"
     >
       {label}
     </button>

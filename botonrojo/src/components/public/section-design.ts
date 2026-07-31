@@ -14,6 +14,7 @@ import type {
   SectionDesignKey,
   SectionEffect,
   SectionHeight,
+  SectionTitleFx,
   SectionWidth,
 } from "./landing-types";
 
@@ -70,6 +71,7 @@ export type NormalizedSectionDesign = {
   density: DensityTokens;
   style: VisualStylePreset;
   divider: DividerPreset;
+  titleFx: SectionTitleFx;
   imageUrl?: string;
   imagePrompt?: string;
   orbitItems?: Array<{ label: string; href?: string }>;
@@ -81,9 +83,13 @@ export type ResolvedSectionDesign = {
   isDefault: boolean;
   wrapperClass: string;
   contentClass: string;
-  dividerClass: string;
+  /** The band's paint, shaped by its divider. Goes on its own layer behind the
+   *  content: masking or clipping the wrapper would take the copy with it. */
+  backdropClass: string;
   background: SectionBackground;
   effect: SectionEffect;
+  /** Box treatment for this section specifically, when it overrides the page. */
+  style: VisualStylePreset;
   needsPhoto: boolean;
   forcesLightText: boolean;
   imageUrl?: string;
@@ -93,6 +99,21 @@ export type ResolvedSectionDesign = {
 export type ResolveOptions = {
   theme?: ThemeContext;
   kind?: SectionKind;
+  /**
+   * The launch's approved design system. Whatever a section doesn't state is
+   * inherited from here — NOT from generic defaults.
+   *
+   * This is the difference between a page that looks designed and one that looks
+   * like a form dump. The model returns sections with half the fields set, and
+   * filling the rest with `style: "glass", titleFx: "none", density: "normal"`
+   * silently discarded every decision the brand kit had just made.
+   */
+  brand?: {
+    cardStyle?: VisualStylePreset;
+    titleFx?: SectionTitleFx;
+    density?: DensityTokens;
+    divider?: DividerPreset;
+  } | null;
   /** Approximate characters of copy in the section. Used to reject an orbit
    *  around a long text block before it ships, not after. */
   contentLength?: number;
@@ -121,12 +142,21 @@ export type DesignCapabilityMap = Record<
 /* ----------------------------------------------------------- vocabularies */
 
 const BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
-const EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid"];
+const EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid", "dots", "noise"];
+const TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
 const HEIGHTS: SectionHeight[] = ["auto", "full"];
 const WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 const ALIGNMENTS: AlignmentTokens[] = ["start", "center", "end"];
 const DENSITIES: DensityTokens[] = ["compact", "normal", "spacious"];
-const STYLES: VisualStylePreset[] = ["glass", "flat", "outline", "soft", "brutal", "editorial"];
+const STYLES: VisualStylePreset[] = [
+  "glass",
+  "liquid",
+  "flat",
+  "outline",
+  "soft",
+  "brutal",
+  "editorial",
+];
 const DIVIDERS: DividerPreset[] = ["none", "line", "fade", "angle", "curve", "dots"];
 
 /** Deprecated keys and values kept working, so nothing already stored breaks. */
@@ -145,13 +175,37 @@ const ALIASES: Record<string, string> = {
 export const DESIGN_CAPABILITIES: DesignCapabilityMap = {
   hero: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   statement: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
-  list: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "aurora", "grid"], allowFullHeight: false },
-  cards: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "aurora", "grid"], allowFullHeight: false },
-  media: { backgrounds: ["none", "tint", "dark"], effects: ["none", "aurora"], allowFullHeight: true },
+  list: {
+    backgrounds: ["none", "tint", "accent", "dark", "tint"],
+    effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
+    allowFullHeight: false,
+  },
+  cards: {
+    backgrounds: ["none", "tint", "accent", "dark", "tint"],
+    effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
+    allowFullHeight: false,
+  },
+  media: {
+    backgrounds: ["none", "tint", "dark", "tint"],
+    effects: ["none", "aurora", "noise"],
+    allowFullHeight: true,
+  },
   // A form needs maximum legibility: no photo behind it, no orbit stealing focus.
-  form: { backgrounds: ["none", "tint", "dark"], effects: ["none", "aurora", "grid"], allowFullHeight: true },
-  pricing: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "grid"], allowFullHeight: false },
-  faq: { backgrounds: ["none", "tint", "dark"], effects: ["none", "grid"], allowFullHeight: false },
+  form: {
+    backgrounds: ["none", "tint", "dark"],
+    effects: ["none", "aurora", "grid", "noise"],
+    allowFullHeight: true,
+  },
+  pricing: {
+    backgrounds: ["none", "tint", "accent", "dark"],
+    effects: ["none", "geometry", "grid", "dots"],
+    allowFullHeight: false,
+  },
+  faq: {
+    backgrounds: ["none", "tint", "dark"],
+    effects: ["none", "grid", "dots"],
+    allowFullHeight: false,
+  },
   cta: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   // Legal pages are documents: decoration would only hurt reading.
   legal: { backgrounds: ["none"], effects: ["none"], allowFullHeight: false },
@@ -190,9 +244,25 @@ const KIND_DEFAULTS: Partial<Record<SectionKind, Partial<NormalizedSectionDesign
   legal: { align: "start", density: "normal" },
 };
 
+/**
+ * The approved system as section defaults. Background and effect are deliberately
+ * absent: inheriting those would put the same band colour and the same effect on
+ * every section, which is the opposite of a designed page (design rule 10 — one
+ * protagonist gesture). Those are placed by `applyBrandRhythm`.
+ */
+function brandDefaults(brand: ResolveOptions["brand"]): Partial<NormalizedSectionDesign> {
+  if (!brand) return {};
+  const out: Partial<NormalizedSectionDesign> = {};
+  if (brand.cardStyle) out.style = brand.cardStyle;
+  if (brand.titleFx) out.titleFx = brand.titleFx;
+  if (brand.density) out.density = brand.density;
+  if (brand.divider) out.divider = brand.divider;
+  return out;
+}
+
 /** An orbit puts the copy in a narrow column inside the ring; past this many
  *  characters the labels start colliding with the text. */
-const ORBIT_MAX_CONTENT_LENGTH = 320;
+const ORBIT_MAX_CONTENT_LENGTH = 150;
 
 /* -------------------------------------------------------------- functions */
 
@@ -248,7 +318,9 @@ export function normalizeSectionDesign(
 
   const kind = options.kind ?? "statement";
   const caps = DESIGN_CAPABILITIES[kind];
-  const defaults = KIND_DEFAULTS[kind] ?? {};
+  // Order matters: the section's own value wins, then the launch's approved
+  // system, then what suits this kind of section.
+  const defaults = { ...(KIND_DEFAULTS[kind] ?? {}), ...brandDefaults(options.brand) };
 
   const track = <T extends string>(field: string, allowed: T[]): T | undefined => {
     if (input[field] === undefined) return undefined;
@@ -271,6 +343,7 @@ export function normalizeSectionDesign(
   const density = track("density", DENSITIES) ?? defaults.density ?? "normal";
   const style = track("style", STYLES) ?? defaults.style ?? "glass";
   const divider = track("divider", DIVIDERS) ?? defaults.divider ?? "none";
+  const titleFx = track("titleFx", TITLE_FX) ?? defaults.titleFx ?? "none";
 
   // Per-kind capability: valid in the abstract, not allowed here.
   if (!caps.backgrounds.includes(background)) {
@@ -282,13 +355,33 @@ export function normalizeSectionDesign(
     background = "none";
   }
   if (!caps.effects.includes(effect)) {
+    // Substitute rather than strip. Asking for "a background with movement" and
+    // getting a bare band because the orbit happened to be disallowed here loses
+    // the intent; the nearest allowed effect keeps it. Ordered by how close each
+    // is to ambient movement.
+    const substitute = (["aurora", "dots", "grid", "noise", "geometry"] as SectionEffect[]).find(
+      (candidate) => caps.effects.includes(candidate),
+    );
     issues.push({
       field: "effect",
       kind: "incompatible",
-      message: `el efecto "${effect}" no está permitido en una sección de tipo "${kind}"`,
+      message: substitute
+        ? `el efecto "${effect}" no encaja en una sección de tipo "${kind}"; se usa "${substitute}"`
+        : `el efecto "${effect}" no está permitido en una sección de tipo "${kind}"`,
     });
-    effect = "none";
+    effect = substitute ?? "none";
   }
+  // Same reason as above, one level up: these sections are lists and grids, so
+  // a centred alignment is never the right call for them.
+  const CENTRED_KINDS_FORBIDDEN: SectionKind[] = ["list", "cards", "faq", "pricing", "legal"];
+  if (align === "center" && CENTRED_KINDS_FORBIDDEN.includes(kind)) {
+    issues.push({
+      field: "align",
+      kind: "incompatible",
+      message: `una sección de tipo "${kind}" no debe centrarse: son listas o rejillas`,
+    });
+  }
+
   if (height === "full" && !caps.allowFullHeight) {
     issues.push({
       field: "height",
@@ -304,10 +397,11 @@ export function normalizeSectionDesign(
     effect,
     height,
     width,
-    align,
+    align: align === "center" && CENTRED_KINDS_FORBIDDEN.includes(kind) ? "start" : align,
     density,
     style,
     divider,
+    titleFx,
   };
 
   if (background === "photo") {
@@ -360,6 +454,7 @@ export function inferMissingDesign(
       density: "normal",
       style: "glass",
       divider: "none",
+      titleFx: "none",
     }
   );
 }
@@ -444,6 +539,163 @@ export function checkSectionCompatibility(
   return { ok: issues.length === 0, issues };
 }
 
+/**
+ * Composes the page: which bands carry a background and which section gets the
+ * one loud gesture.
+ *
+ * This is deterministic on purpose. Asking the model to compose the rhythm gave
+ * `background: "none", effect: "none"` on every section — a flat page — because
+ * a model writing copy has no view of the page as a whole. Alternation and "one
+ * protagonist" are rules, so they're computed:
+ *
+ * 1. Two adjacent bands never share a background: they'd read as one section.
+ * 2. Exactly ONE section gets the loud effect (design rule 10), chosen from the
+ *    brand's own list. Short-text sections only, since `orbit` needs a narrow
+ *    column and long copy would collide with it.
+ * 3. `intensity` decides how many bands are tinted at all.
+ *
+ * Anything the model DID state wins — this only fills the silence.
+ */
+export function applyBrandRhythm(
+  order: SectionDesignKey[],
+  brand: {
+    intensity?: "sobrio" | "equilibrado" | "expresivo";
+    effects?: Array<SectionEffect>;
+  } | null,
+  stated: Partial<Record<SectionDesignKey, SectionDesign>> = {},
+  /** Approximate copy length per section, so the orbit never lands on a wall of text. */
+  contentLength: Partial<Record<SectionDesignKey, number>> = {},
+): Partial<Record<SectionDesignKey, SectionDesign>> {
+  const intensity = brand?.intensity ?? "equilibrado";
+  const effects = (brand?.effects ?? []).filter((e) => e !== "none");
+
+  // How often a band gets a background. Sobrio keeps most of the page plain.
+  const every = intensity === "sobrio" ? 3 : intensity === "expresivo" ? 2 : 2;
+  const cycle: SectionBackground[] =
+    intensity === "expresivo" ? ["tint", "dark", "accent", "tint"] : ["tint", "dark", "tint", "accent"];
+
+  const out: Partial<Record<SectionDesignKey, SectionDesign>> = {};
+  let banded = 0;
+
+  order.forEach((key, index) => {
+    const own = stated[key] ?? {};
+    const design: SectionDesign = { ...own };
+
+    if (!own.background) {
+      // Offset by one so the hero (index 0) stays clean and the first band lands
+      // just below it, where the eye already expects a change.
+      const wantsBand = index > 0 && index % every === 0;
+      design.background = wantsBand ? cycle[banded % cycle.length]! : "none";
+      if (wantsBand) banded += 1;
+    }
+
+    // Cards want the width; a wall of centred cards in a 72rem column wastes the
+    // screen the client keeps complaining about.
+    if (!own.width && SECTION_KIND_BY_KEY[key] === "cards") design.width = "wide";
+
+    out[key] = design;
+  });
+
+  // Dividers, decided from the neighbours. This OVERRIDES whatever was asked for,
+  // including by the model: a shape divider isn't a preference, it has a
+  // precondition.
+  //
+  // `angle` and `curve` work by cutting the band's own paint. What shows through
+  // the cut is the PAGE background — each band's paint is confined to its own
+  // wrapper, so it can't reveal the band above. That reads as a transition only
+  // when the band above is unpainted, because then the revealed colour matches
+  // what's already there. Between two painted bands it appears as a wedge of
+  // page background wedged between two colours, which is what it was doing:
+  // a white triangle sitting between a green band and a dark one.
+  const SHAPE_DIVIDERS = new Set<SectionDesign["divider"]>(["angle", "curve"]);
+
+  order.forEach((key, index) => {
+    const current = out[key]!;
+    const previous = index > 0 ? out[order[index - 1]!] : undefined;
+    const hasPaint = Boolean(current.background && current.background !== "none");
+    const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
+
+    // No paint, nothing to shape.
+    if (!hasPaint) {
+      current.divider = "none";
+      return;
+    }
+
+    if (previousHasPaint) {
+      // Two colours meeting: a clean edge.
+      //
+      // Neither a cut nor a fade works here, and for the same reason: what sits
+      // behind a band's paint is the PAGE background, not the band above it.
+      // A cut showed a wedge of page background between the two colours; a fade
+      // ramps the paint over that background instead of over the neighbour, so a
+      // dark band under a green one faded through grey. Two solid colours meeting
+      // edge to edge is honest and always reads correctly.
+      current.divider = "none";
+      return;
+    }
+
+    // Plain band above: a cut is safe. Keep what was asked for, and if nothing
+    // was, leave whatever the brand's default put there.
+    if (stated[key]?.divider) current.divider = stated[key]!.divider;
+    else if (SHAPE_DIVIDERS.has(current.divider) && index === 0) current.divider = "none";
+  });
+
+  // The single protagonist. Prefer the sections built to carry one.
+  if (effects.length > 0) {
+    const candidates: SectionDesignKey[] = ["amplifiedPromise", "finalCta", "guarantee", "hero"];
+    const hero = candidates.find((key) => {
+      if (!order.includes(key)) return false;
+      if (stated[key]?.effect) return false;
+      const length = contentLength[key] ?? 0;
+      // `orbit` is the only one that constrains the copy; the rest are backdrops.
+      return effects[0] !== "orbit" || length <= ORBIT_MAX_CONTENT_LENGTH;
+    });
+
+    if (hero) {
+      out[hero] = {
+        ...out[hero],
+        effect: effects[0],
+        height: out[hero]?.height ?? "full",
+        align: out[hero]?.align ?? "center",
+        // An effect needs a band to sit on, or it floats over nothing.
+        background: out[hero]?.background === "none" ? "dark" : out[hero]?.background,
+      };
+    }
+
+    // A second, quieter one only when the brand asked to be expressive.
+    if (effects[1] && intensity === "expresivo") {
+      const second = order.find(
+        (key) => key !== hero && !stated[key]?.effect && SECTION_KIND_BY_KEY[key] === "cards",
+      );
+      if (second) out[second] = { ...out[second], effect: effects[1] };
+    }
+  }
+
+  return out;
+}
+
+/**
+ * The divider a band can actually use, given what sits above it. Exported so the
+ * renderer applies it too: pages generated before this rule existed have an
+ * `angle` stored against a painted neighbour, and repairing them on read is
+ * better than making the client regenerate every page.
+ */
+export function usableDivider(
+  design: SectionDesign | undefined,
+  previous: SectionDesign | undefined,
+): SectionDesign["divider"] {
+  const hasPaint = Boolean(design?.background && design.background !== "none");
+  if (!hasPaint) return "none";
+
+  // Anything that shapes or ramps the paint reveals the page background, not the
+  // band above — so between two painted bands the only correct answer is a clean
+  // edge. See the same reasoning in applyBrandRhythm.
+  const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
+  if (previousHasPaint) return "none";
+
+  return design?.divider ?? "none";
+}
+
 /* --------------------------------------------------------------- resolve */
 
 /**
@@ -459,8 +711,18 @@ const WIDTH_CLASSES: Record<SectionWidth, string> = {
 
 const ALIGN_CLASSES: Record<AlignmentTokens, string> = {
   start: "",
-  center: "text-center",
+  // Lists and card bodies are forced back to the left even inside a centred
+  // band: centring them removes the left edge the eye returns to on every line.
+  // Only short display copy — a heading, a promise, a CTA — survives centring.
+  center: "text-center [&_li]:text-left [&_ul]:text-left [&_ol]:text-left",
   end: "text-right",
+};
+
+/** Applied on the wrapper; the CSS targets the section's own headings. */
+const TITLE_FX_CLASSES: Record<SectionTitleFx, string> = {
+  none: "",
+  gradient: "section-title-gradient",
+  outline: "section-title-outline",
 };
 
 const DENSITY_CLASSES: Record<DensityTokens, string> = {
@@ -487,6 +749,7 @@ export function resolveSectionDesign(
   const align = d?.align ?? "start";
   const density = d?.density ?? options.theme?.density ?? "normal";
   const divider = d?.divider ?? "none";
+  const titleFx = d?.titleFx ?? "none";
 
   const isDefault =
     background === "none" &&
@@ -495,7 +758,8 @@ export function resolveSectionDesign(
     width === "normal" &&
     align === "start" &&
     density === "normal" &&
-    divider === "none";
+    divider === "none" &&
+    titleFx === "none";
 
   const bg = resolveBackground(background as BackgroundPreset);
 
@@ -509,18 +773,22 @@ export function resolveSectionDesign(
     // rather than by a global clip on <main>.
     wrapperClass: [
       "relative w-full overflow-hidden",
-      bg.className,
+      bg.text,
       height === "full" ? "flex min-h-[100svh] items-center" : "",
       widthClass,
       DENSITY_CLASSES[density],
       ALIGN_CLASSES[align],
+      TITLE_FX_CLASSES[titleFx],
     ]
       .filter(Boolean)
       .join(" "),
     contentClass: "relative z-10 w-full",
-    dividerClass: resolveDivider(divider as DividerPreset),
+    backdropClass: [bg.paint, bg.paint ? resolveDivider(divider as DividerPreset) : ""]
+      .filter(Boolean)
+      .join(" "),
     background,
     effect,
+    style: (d?.style as VisualStylePreset) ?? "glass",
     needsPhoto: bg.needsPhoto,
     forcesLightText: bg.forcesLightText,
     imageUrl: d?.imageUrl,

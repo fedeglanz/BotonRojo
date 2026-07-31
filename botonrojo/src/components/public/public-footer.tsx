@@ -27,7 +27,7 @@ export function PublicFooter({
 
   return (
     <footer
-      className={`border-t border-[--color-border] py-10 ${stickyBar ? "pb-28" : ""}`}
+      className={`border-t border-[var(--color-border)] py-10 ${stickyBar ? "pb-28" : ""}`}
     >
       {legalPages.length > 0 && (
         <nav
@@ -38,7 +38,7 @@ export function PublicFooter({
             <Link
               key={page.pageKey}
               href={pagePath(launch.slug, page)}
-              className="text-xs text-[--color-muted-2] underline-offset-4 transition hover:text-[--color-accent] hover:underline"
+              className="text-xs text-[var(--color-muted-2)] underline-offset-4 transition hover:text-[var(--color-accent)] hover:underline"
             >
               {page.label}
             </Link>

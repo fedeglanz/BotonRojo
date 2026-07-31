@@ -65,6 +65,10 @@ export const launches = pgTable("launches", {
   brandLogoUrl: text("brand_logo_url"),
   brandMoodImageUrl: text("brand_mood_image_url"),
   brandMoodNotes: text("brand_mood_notes"),
+  /** The design decisions the brand kit makes for every page of this launch:
+   *  box treatment, CTA, density, decoration. Before this the kit only decided
+   *  colours and fonts, and each generation improvised the rest. */
+  brandDesign: jsonb("brand_design").$type<BrandDesign | null>(),
   designSystemProjectId: text("design_system_project_id"),
 
   // Free-text steer for the landing generator: change of angle, structure,
@@ -92,6 +96,28 @@ export type AvatarBrief = {
   fears?: string[];
   beliefs?: string[];
   context?: string;
+};
+
+/**
+ * The system-level design choices, decided once with the brand kit and applied
+ * to every page. Kept separate from BrandPalette because these are *structural*
+ * decisions (how a box looks, how loud the page is), not colours.
+ */
+export type BrandDesign = {
+  /** Box treatment for cards, forms and panels. */
+  cardStyle: "glass" | "liquid" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+  /** Primary button treatment. */
+  ctaStyle: "solid" | "glow" | "outline" | "ghost" | "pill-arrow";
+  /** How much air the sections get. */
+  density: "compact" | "normal" | "spacious";
+  /** Display treatment for section headings. */
+  titleFx: "none" | "gradient" | "outline";
+  /** Transition drawn between bands. */
+  divider: "none" | "line" | "fade" | "angle" | "curve" | "dots";
+  /** How much decoration the pages should carry overall. */
+  intensity: "sobrio" | "equilibrado" | "expresivo";
+  /** Ambient effects that suit this brand, in order of preference. */
+  effects: Array<"none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise">;
 };
 
 export type BrandPalette = {

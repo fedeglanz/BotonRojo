@@ -11,7 +11,9 @@ export const DESIGN_RULES = `REGLAS DE DISEÑO — obligatorias, compruébalas a
 2. JERARQUÍA VISUAL. Estructura clara: titular → subtítulo → contenido → CTA. Lo más
    importante, más grande; y pocos elementos "grandes" para que de verdad destaquen.
 3. MENOS RUIDO. Nada decorativo que no aporte función. Texto breve, directo, fácil de
-   escanear. Un solo botón principal.
+   escanear. Un solo botón principal. OJO: las fotografías NO son adorno — dan contexto,
+   prueba y cara al creador. "Menos ruido" va de efectos y florituras gratuitas, nunca de
+   quitar las imágenes: rellena siempre los campos imagePrompt que te pida el JSON.
 4. RETÍCULA Y ESPACIADO. Ritmo consistente; el espacio en blanco separa ideas y agrupa lo
    relacionado. No amontones.
 5. CONSISTENCIA. Mismos patrones en tarjetas, botones y bloques a lo largo de la página.
@@ -20,7 +22,8 @@ export const DESIGN_RULES = `REGLAS DE DISEÑO — obligatorias, compruébalas a
 7. MÓVIL PRIMERO. Piensa el orden en pantalla pequeña: lo esencial arriba. Titulares que
    no se rompan mal, CTA alcanzable con el pulgar.
 8. ACCESIBILIDAD. No comuniques nada solo con el color. Textos alternativos útiles.
-9. RENDIMIENTO. Nada de efectos pesados sin valor real.
+9. RENDIMIENTO. Nada de efectos pesados sin valor real (esto va de animaciones y capas,
+   no de fotos).
 10. SORPRENDER CON CRITERIO. Base limpia y usable + UN gesto visual protagonista, no diez
     a la vez.
 

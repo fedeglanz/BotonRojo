@@ -22,11 +22,13 @@ import {
   TestimonialsSection,
   type PricingProduct,
 } from "@/components/public/landing-sections";
-import type { LandingBody, LandingCardStyle } from "@/components/public/landing-types";
-import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
+import { LAYOUT_PRESETS } from "@/components/public/landing-types";
+import type { LandingBody, LandingCardStyle, MiddleSectionKey } from "@/components/public/landing-types";
+import { BrandStyle, logoPlateFor, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
+import { usableDivider } from "@/components/public/section-design";
 
 import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
@@ -73,7 +75,13 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
   amplifiedPromise: (landing: LandingBody) => {
     const text = asText(landing.amplifiedPromise);
-    return text ? <AmplifiedPromiseSection key="amplifiedPromise" text={text} /> : null;
+    return text ? (
+      <AmplifiedPromiseSection
+        key="amplifiedPromise"
+        text={text}
+        subline={asText(landing.amplifiedPromiseSubline) ?? undefined}
+      />
+    ) : null;
   },
   painBlocks: (landing: LandingBody, ctx: RenderCtx) =>
     landing.painBlocks && landing.painBlocks.length > 0 ? (
@@ -119,29 +127,6 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
 } as const;
 
-type MiddleSectionKey = keyof typeof MIDDLE_SECTION_RENDERERS;
-
-const LAYOUT_PRESETS: Record<LaunchType, MiddleSectionKey[]> = {
-  // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
-  // countdown antes de la garantía, de cara al cierre.
-  venta_directa: [
-    "painBlocks",
-    "speakers",
-    "agenda",
-    "amplifiedPromise",
-    "includes",
-    "pricingTiers",
-    "countdown",
-    "guarantee",
-    "testimonials",
-    "faq",
-  ],
-  // Validación ligera: corta y directa, sin Includes/About.
-  semilla: ["forWhom", "amplifiedPromise", "testimonials", "faq"],
-  // Secuencia larga: la más completa, incluye About porque la relación con
-  // el creador pesa más en un PLF.
-  plf: ["forWhom", "painBlocks", "includes", "about", "testimonials", "guarantee", "faq"],
-};
 
 export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: Launch; pageKey?: string }) {
   const [landingAsset] = await db
@@ -172,7 +157,8 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const palette = launch.brandPalette;
   // The generator may not set a box style; the fallback has to follow the
   // brand, since `glass` is always a dark card.
-  const cardStyle = landing?.style?.cardStyle ?? defaultCardStyleFor(palette);
+  const cardStyle = usableCardStyle(palette, landing?.style?.cardStyle);
+  const ctaStyle = landing?.style?.ctaStyle;
   const fonts = launch.brandFonts;
 
   return (
@@ -198,7 +184,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
         </h1>
 
         {heroSubheadline && (
-          <p className="mt-2 max-w-2xl text-balance text-sm text-[--color-muted-1] sm:mt-4 sm:text-base md:text-lg">
+          <p className="mt-2 max-w-2xl text-balance text-sm text-[var(--color-muted-1)] sm:mt-4 sm:text-base md:text-lg">
             {heroSubheadline}
           </p>
         )}
@@ -217,6 +203,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             captureLeadAction={captureLeadAction}
             compact
             cardStyle={cardStyle}
+            ctaStyle={ctaStyle}
           />
         </div>
       </section>
@@ -231,15 +218,23 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
           has a design (background / effect / full height / width) set. */}
       {landing &&
         (landing.sectionOrder?.length ? landing.sectionOrder : LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf).map(
-          (key) => {
+          (key, index, all) => {
+            const previousKey = index > 0 ? all[index - 1] : undefined;
             const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
+              // The section's own box style wins over the page default.
+              cardStyle: usableCardStyle(palette, landing.sectionDesign?.[key]?.style as LandingCardStyle),
               products: activeProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
               cartClosesAt: launch.cartClosesAt,
-              cardStyle,
             });
             if (!rendered) return null;
+            // Repaired on read: a shape divider against a painted neighbour shows
+            // a wedge of page background between the two colours.
+            const own = landing.sectionDesign?.[key];
+            const design = own
+              ? { ...own, divider: usableDivider(own, landing.sectionDesign?.[previousKey!]) }
+              : own;
             return (
-              <SectionShell key={key} design={landing.sectionDesign?.[key]}>
+              <SectionShell key={key} design={design}>
                 {rendered}
               </SectionShell>
             );
@@ -254,7 +249,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             {finalCtaHeadline}
           </h2>
           {landing?.finalCta?.subheadline && (
-            <p className="mx-auto mt-4 max-w-xl text-balance text-[--color-muted-1]">
+            <p className="mx-auto mt-4 max-w-xl text-balance text-[var(--color-muted-1)]">
               {landing.finalCta.subheadline}
             </p>
           )}
@@ -267,6 +262,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
               startCheckoutAction={startCheckoutAction}
               captureLeadAction={captureLeadAction}
               cardStyle={cardStyle}
+              ctaStyle={ctaStyle}
             />
           </div>
         </section>
@@ -275,6 +271,17 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
       <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
+        logoUrl={launch.brandLogoUrl}
+        logoAspect={
+          ((launch.assetsCache as Record<string, unknown> | null)?.logoAspect as number) ?? null
+        }
+        logoPlate={logoPlateFor(
+          launch.brandPalette,
+          (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
+            dark?: number;
+            light?: number;
+          } | null,
+        )}
         targetDate={launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null}
         countdownLabel="El carrito cierra en"
         ctaLabel={hasStripeProduct ? "Acceder ahora" : "Registrarse ahora"}

@@ -48,7 +48,7 @@ export function TelegramTokenForm({ currentToken, currentBotUsername }: Props) {
             required
             placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
             defaultValue=""
-            className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+            className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
           />
         </label>
         <SubmitButton pendingLabel="Validando…">
@@ -68,7 +68,7 @@ export function TelegramTokenForm({ currentToken, currentBotUsername }: Props) {
         <p className="font-medium text-white">Para obtener un Bot Token:</p>
         <ol className="list-decimal list-inside space-y-1 text-zinc-400">
           <li>Abrí Telegram y buscá <strong className="text-zinc-200">@BotFather</strong></li>
-          <li>Enviá <code className="text-[--color-red-bright]">/newbot</code></li>
+          <li>Enviá <code className="text-[var(--color-red-bright)]">/newbot</code></li>
           <li>Elegí un nombre y un username para tu bot</li>
           <li>BotFather te va a dar un token — copialo y pegalo acá arriba</li>
         </ol>

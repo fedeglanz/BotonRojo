@@ -24,8 +24,8 @@ export function LegalPage({ launch, body }: { launch: Launch; body: LegalPageBod
       <BrandStyle palette={launch.brandPalette} fonts={launch.brandFonts} />
 
       <div className="mx-auto max-w-4xl px-6 py-16">
-        <header className="border-b border-[--color-border] pb-8">
-          <div className="text-xs uppercase tracking-widest text-[--color-muted-3]">{launch.name}</div>
+        <header className="border-b border-[var(--color-border)] pb-8">
+          <div className="text-xs uppercase tracking-widest text-[var(--color-muted-3)]">{launch.name}</div>
           <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-4xl">
             {body?.title ?? "Documento legal"}
           </h1>
@@ -36,12 +36,12 @@ export function LegalPage({ launch, body }: { launch: Launch; body: LegalPageBod
             b.isHeading ? (
               <h2
                 key={i}
-                className="pt-6 font-[family-name:var(--font-display)] text-lg font-bold text-[--color-accent]"
+                className="pt-6 font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-accent)]"
               >
                 {b.text}
               </h2>
             ) : (
-              <p key={i} className="whitespace-pre-line leading-relaxed text-[--color-muted-1]">
+              <p key={i} className="whitespace-pre-line leading-relaxed text-[var(--color-muted-1)]">
                 {b.text}
               </p>
             ),

@@ -30,7 +30,7 @@ export function GraciasContent({ isLead, launch }: { isLead: boolean; launch: La
           {isLead ? "¡Estas dentro!" : "¡Bienvenido!"}
         </h1>
 
-        <p className="mt-4 max-w-xl text-balance text-lg text-[--color-muted-1]">
+        <p className="mt-4 max-w-xl text-balance text-lg text-[var(--color-muted-1)]">
           {isLead
             ? "Te avisaremos por email cuando se abra el carrito. Revisa tu bandeja de entrada (tambien el spam) en los proximos minutos."
             : "Tu compra esta confirmada. Te enviamos los detalles por email en unos minutos."}
@@ -60,7 +60,7 @@ export function GraciasContent({ isLead, launch }: { isLead: boolean; launch: La
 
         <Link
           href={launch ? `/${launch.slug}` : "/"}
-          className="mt-10 text-xs uppercase tracking-widest text-[--color-muted-3] transition hover:text-[--color-muted-1]"
+          className="mt-10 text-xs uppercase tracking-widest text-[var(--color-muted-3)] transition hover:text-[var(--color-muted-1)]"
         >
           ← Volver {launch ? "a la página" : "al inicio"}
         </Link>

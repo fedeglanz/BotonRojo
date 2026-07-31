@@ -22,21 +22,44 @@ import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefine
 import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
 import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
-import { normalizeSectionValue } from "@/components/public/landing-types";
+import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
+import { auditPageContrast, describeContrastFailures } from "@/lib/design/contrast-audit";
+import { describeBrandDesign, normalizeBrandDesign } from "@/lib/design/brand-design";
+import { normalizeSectionValue, LAYOUT_PRESETS } from "@/components/public/landing-types";
 import {
+  applyBrandRhythm,
   normalizeSectionDesign,
   resolveSectionDesign,
   SECTION_KIND_BY_KEY,
 } from "@/components/public/section-design";
-import type { LandingBody, LandingSectionKey, LandingCardStyle } from "@/components/public/landing-types";
+import type {
+  AfiliadosPageBody,
+  ContenidoPageBody,
+  PageBlock,
+  RegistroPageBody,
+} from "@/components/public/page-bodies";
+import type { SectionDesign } from "@/components/public/landing-types";
+import type {
+  LandingBody,
+  LandingSectionKey,
+  LandingCardStyle,
+  SectionDesignKey,
+} from "@/components/public/landing-types";
 
-import { generateImage, isImageGenConfigured } from "@/integrations/image-gen";
+import {
+  asStyleReference,
+  generateImage,
+  isImageGenConfigured,
+  type ImageSlot,
+} from "@/integrations/image-gen";
 import { isUnsplashConfigured, searchUnsplashPhotos } from "@/integrations/unsplash";
+import { trimLogo } from "@/integrations/logo";
 import { captureScreenshot, captureExternalScreenshot, isDesignReviewConfigured } from "@/integrations/screenshot";
 
 import type { LaunchType, AvatarBrief, BrandPalette, BrandFonts, Launch } from "@/db/schema/launches";
 import type { DesignReviewIssue } from "@/db/schema/assets";
 import { resolvePages, pagePath, type PageConfig, type PageDef, type LegalPageKey } from "@/lib/launch-pages";
+import { bodyFromFields, fieldsForKind } from "@/lib/page-fields";
 import {
   getActiveCampaignClientForOrg,
 } from "@/integrations/activecampaign";
@@ -88,13 +111,34 @@ function extractJson(text: string): unknown {
  * if Magnific isn't configured or fails — so a landing always gets real
  * images without the admin having to fill each slot by hand.
  */
-async function autoResolveImage(prompt: string | undefined | null): Promise<string | undefined> {
+/**
+ * Everything an image needs to belong to this launch rather than merely sit in
+ * it: where it's going (shape, model, resolution), the approved palette as colour
+ * guidance, the art direction, and the mood image as a style reference so the
+ * whole set looks like one shoot.
+ */
+type ImageContext = {
+  slot: ImageSlot;
+  palette?: BrandPalette | null;
+  moodNotes?: string | null;
+  styleReference?: string | null;
+};
+
+async function autoResolveImage(
+  prompt: string | undefined | null,
+  context: ImageContext = { slot: "hero" },
+): Promise<string | undefined> {
   const q = prompt?.trim();
   if (!q) return undefined;
 
   if (isImageGenConfigured()) {
     try {
-      return await generateImage(q);
+      return await generateImage(q, {
+        slot: context.slot,
+        palette: context.palette,
+        moodNotes: context.moodNotes,
+        styleReference: context.styleReference,
+      });
     } catch (err) {
       console.error("auto image generation failed, falling back to Unsplash", err);
     }
@@ -108,8 +152,23 @@ async function autoResolveImage(prompt: string | undefined | null): Promise<stri
   return undefined;
 }
 
+/**
+ * The launch's own art direction, resolved once per generation. The mood image is
+ * fetched as base64 here rather than per image: it's the same reference for all
+ * of them, and downloading it a dozen times would be wasteful.
+ */
+async function imageContextFor(launch: Launch, slot: ImageSlot): Promise<ImageContext> {
+  return {
+    slot,
+    palette: launch.brandPalette,
+    moodNotes: launch.brandMoodNotes,
+    styleReference: await asStyleReference(launch.brandMoodImageUrl),
+  };
+}
+
 const VALID_CARD_STYLES: LandingCardStyle[] = [
   "glass",
+  "liquid",
   "flat",
   "outline",
   "soft",
@@ -125,8 +184,43 @@ const VALID_CARD_STYLES: LandingCardStyle[] = [
  * the admin to read and decide on. Never throws — a failure here must never
  * block the landing itself, which already exists by the time this runs.
  */
-async function runDesignReview(path: string, assetId: string, body: LandingBody): Promise<void> {
-  if (!isDesignReviewConfigured()) return;
+async function runDesignReview(
+  launch: Launch,
+  pageDef: PageDef,
+  assetId: string,
+  body: Record<string, unknown>,
+  /** Measured before any screenshot, so they're stored even with no service. */
+  extraIssues: DesignReviewIssue[] = [],
+): Promise<void> {
+  const path = pagePath(launch.slug, pageDef);
+
+  const audit = auditPageContrast({
+    palette: launch.brandPalette,
+    cardStyle: (body.style as { cardStyle?: string } | undefined)?.cardStyle ?? launch.brandDesign?.cardStyle,
+    ctaStyle: (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ?? launch.brandDesign?.ctaStyle,
+    sectionDesign: (body.sectionDesign ?? (body.design as { blocks?: unknown })?.blocks) as never,
+  });
+  const measured = describeContrastFailures(audit);
+
+  const measuredIssues: DesignReviewIssue[] = measured.map((description) => ({
+    severity: "warning" as const,
+    description,
+  }));
+
+  if (!isDesignReviewConfigured()) {
+    await db
+      .update(assets)
+      .set({
+        designReview: {
+          issues: [...extraIssues, ...measuredIssues],
+          reviewedAt: new Date().toISOString(),
+          worstContrast: audit.worst,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(assets.id, assetId));
+    return;
+  }
 
   try {
     const [mobile, desktop] = await Promise.all([
@@ -134,29 +228,44 @@ async function runDesignReview(path: string, assetId: string, body: LandingBody)
       captureScreenshot(path, { width: 1440, height: 900 }),
     ]);
 
-    const currentCardStyle: LandingCardStyle = body.style?.cardStyle ?? "glass";
+    const currentCardStyle: LandingCardStyle =
+      ((body.style as { cardStyle?: LandingCardStyle } | undefined)?.cardStyle ??
+        launch.brandDesign?.cardStyle) ||
+      "glass";
 
     const { text } = await completeWithImages({
       system: DESIGN_REVIEW_SYSTEM,
-      prompt: designReviewPrompt(currentCardStyle),
+      prompt: designReviewPrompt({
+        pageLabel: pageDef.label,
+        cardStyle: currentCardStyle,
+        ctaStyle: (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ?? launch.brandDesign?.ctaStyle,
+        design: body.sectionDesign ?? body.design,
+        measuredContrast: measured,
+      }),
       images: [mobile, desktop],
-      maxTokens: 1200,
+      maxTokens: 2000,
     });
 
     const parsed = extractJson(text) as {
-      issues?: Array<{ description: string }>;
+      issues?: Array<{ severity?: string; description: string; where?: string }>;
+      suggestedInstruction?: string;
       autoFixCardStyle?: LandingCardStyle | null;
     };
 
-    const issues: DesignReviewIssue[] = (parsed.issues ?? []).map((i) => ({
-      severity: "warning" as const,
-      description: i.description,
-    }));
+    const issues: DesignReviewIssue[] = [
+      ...extraIssues,
+      ...measuredIssues,
+      ...(parsed.issues ?? []).map((i) => ({
+        severity: i.severity === "critical" ? ("critical" as const) : ("warning" as const),
+        description: i.description,
+        where: i.where,
+      })),
+    ];
 
     let updatedBody = body;
     const autoFix = parsed.autoFixCardStyle;
     if (autoFix && VALID_CARD_STYLES.includes(autoFix) && autoFix !== currentCardStyle) {
-      updatedBody = { ...body, style: { ...body.style, cardStyle: autoFix } };
+      updatedBody = { ...body, style: { ...(body.style as object), cardStyle: autoFix } };
       issues.unshift({
         severity: "auto_fixed",
         description: `Estilo de caja cambiado de "${currentCardStyle}" a "${autoFix}" — no encajaba bien con esta paleta.`,
@@ -166,14 +275,87 @@ async function runDesignReview(path: string, assetId: string, body: LandingBody)
     await db
       .update(assets)
       .set({
-        body: updatedBody as Record<string, unknown>,
-        designReview: { issues, reviewedAt: new Date().toISOString() },
+        body: updatedBody,
+        designReview: {
+          issues,
+          reviewedAt: new Date().toISOString(),
+          suggestedInstruction: parsed.suggestedInstruction?.trim() || undefined,
+          worstContrast: audit.worst,
+        },
         updatedAt: new Date(),
       })
       .where(eq(assets.id, assetId));
   } catch (err) {
     console.error("design review failed", err);
+    // A failed review still records what arithmetic found, and says it failed
+    // rather than leaving the previous result looking current.
+    await db
+      .update(assets)
+      .set({
+        designReview: {
+          issues: [
+            ...extraIssues,
+            ...measuredIssues,
+            {
+              severity: "warning" as const,
+              description: "La inspección visual falló (no se pudieron tomar las capturas). Lo medido sí es válido.",
+            },
+          ],
+          reviewedAt: new Date().toISOString(),
+          worstContrast: audit.worst,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(assets.id, assetId));
   }
+}
+
+/**
+ * Inspects one page on demand: takes fresh screenshots, measures its contrast and
+ * reports what to fix. Available on every page, and re-runnable — the old review
+ * only happened at generation, so it went stale as soon as anything was edited.
+ */
+export async function reviewPageDesignAction(launchId: string, pageKey: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  if (!pageDef) throw new Error("page_not_found");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  if (!asset) throw new Error("Genera la página antes de revisarla.");
+
+  await runDesignReview(launch, pageDef, asset.id, (asset.body ?? {}) as Record<string, unknown>);
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+}
+
+/**
+ * Takes the reviewer's own suggested brief and regenerates the page with it —
+ * turning a list of complaints into one click.
+ */
+export async function applyReviewSuggestionAction(launchId: string, pageKey: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  const suggestion = (asset?.designReview as { suggestedInstruction?: string } | null)?.suggestedInstruction;
+  if (!suggestion) throw new Error("La revisión no propuso ningún cambio que aplicar.");
+
+  const form = new FormData();
+  form.set("instruction", suggestion);
+  await regenerateSinglePageAction(launchId, pageKey, form);
 }
 
 /**
@@ -245,18 +427,32 @@ export async function createLaunchAction(formData: FormData) {
 
   const contentDripRaw = String(formData.get("contentDripStartsAt") ?? "").trim();
 
-  await db.insert(launches).values({
-    organizationId,
-    slug,
-    contentDripStartsAt: contentDripRaw ? new Date(contentDripRaw) : null,
-    name: parsed.name,
-    type: parsed.type as LaunchType,
-    status: "draft",
-    brief: parsed.brief,
-    defaultPriceCents: parsed.priceCents ?? null,
-    referenceUrl: parsed.referenceUrl || null,
-    pageConfig,
-  });
+  const [created] = await db
+    .insert(launches)
+    .values({
+      organizationId,
+      slug,
+      contentDripStartsAt: contentDripRaw ? new Date(contentDripRaw) : null,
+      name: parsed.name,
+      type: parsed.type as LaunchType,
+      status: "draft",
+      brief: parsed.brief,
+      defaultPriceCents: parsed.priceCents ?? null,
+      referenceUrl: parsed.referenceUrl || null,
+      pageConfig,
+    })
+    .returning({ id: launches.id });
+
+  // Propose the visual identity straight away: it's the mandatory first step, so
+  // landing on an empty one just means an extra click before anything can happen.
+  // Best-effort — a failed proposal must not lose the launch that was just created.
+  if (created) {
+    try {
+      await generateBrandKitAction(created.id);
+    } catch (err) {
+      console.error("initial brand kit proposal failed", err);
+    }
+  }
 
   revalidatePath("/admin");
   redirect(`/admin/lanzamientos/${slug}`);
@@ -326,6 +522,7 @@ export async function generateBrandKitAction(launchId: string) {
   const json = extractJson(text) as {
     palette: BrandPalette;
     fonts: BrandFonts;
+    design?: unknown;
     moodNotes: string;
     imageMoodPrompt: string;
   };
@@ -333,7 +530,11 @@ export async function generateBrandKitAction(launchId: string) {
   let moodImageUrl: string | null = null;
   if (isImageGenConfigured()) {
     try {
-      moodImageUrl = await generateImage(json.imageMoodPrompt);
+      moodImageUrl = await generateImage(json.imageMoodPrompt, {
+        slot: "hero",
+        palette: json.palette,
+        moodNotes: json.moodNotes,
+      });
     } catch (err) {
       console.error("brand kit mood image generation failed", err);
     }
@@ -344,6 +545,10 @@ export async function generateBrandKitAction(launchId: string) {
     .set({
       brandPalette: json.palette,
       brandFonts: json.fonts,
+      // Validated against the closed catalogues, and corrected for the palette:
+      // the proposal decides the design of every page, so an invented value here
+      // would spread to all of them.
+      brandDesign: normalizeBrandDesign(json.design, json.palette),
       brandMoodNotes: json.moodNotes,
       brandMoodImageUrl: moodImageUrl,
       brandKitStatus: "draft",
@@ -378,16 +583,35 @@ export async function updateBrandKitAction(launchId: string, formData: FormData)
     moodNotes: formData.get("moodNotes") || undefined,
   });
 
+  const palette: BrandPalette = {
+    primary: parsed.primary,
+    accent: parsed.accent,
+    background: parsed.background,
+    foreground: parsed.foreground,
+  };
+
+  // The design decisions come from the same form, validated against the closed
+  // catalogues — the selects can only offer valid values, but the action is what
+  // has to guarantee it.
+  const design = normalizeBrandDesign(
+    {
+      cardStyle: formData.get("cardStyle"),
+      ctaStyle: formData.get("ctaStyle"),
+      density: formData.get("density"),
+      titleFx: formData.get("titleFx"),
+      divider: formData.get("divider"),
+      intensity: formData.get("intensity"),
+      effects: formData.getAll("effects").map(String),
+    },
+    palette,
+  );
+
   await db
     .update(launches)
     .set({
-      brandPalette: {
-        primary: parsed.primary,
-        accent: parsed.accent,
-        background: parsed.background,
-        foreground: parsed.foreground,
-      },
+      brandPalette: palette,
       brandFonts: { display: parsed.displayFont, body: parsed.bodyFont },
+      brandDesign: design,
       brandMoodNotes: parsed.moodNotes ?? launch.brandMoodNotes,
       // Editing a draft doesn't un-approve it silently — but any manual edit
       // after approval means it needs a fresh look before it counts as approved again.
@@ -418,22 +642,56 @@ export async function updateBrandLogoAction(launchId: string, formData: FormData
 
   const imageUrl = String(formData.get("imageUrl") ?? "").trim() || null;
 
+  // Trim the transparent padding now, once, rather than fighting it with CSS on
+  // every page that shows the logo. See integrations/logo.ts for why.
+  let stored = imageUrl;
+  let logoMeta: { logoAspect: number; logoInk: { dark: number; mid: number; light: number } } | null = null;
+  if (imageUrl) {
+    const trimmed = await trimLogo(imageUrl);
+    if (trimmed) {
+      stored = trimmed.url;
+      logoMeta = { logoAspect: trimmed.aspect, logoInk: trimmed.ink };
+    }
+  }
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
   await db
     .update(launches)
-    .set({ brandLogoUrl: imageUrl, updatedAt: new Date() })
+    .set({
+      brandLogoUrl: stored,
+      // Remembered so the layout can give a stacked logo more room than a
+      // horizontal lockup, and put a plate behind it when its ink is too close in
+      // value to the page's own surface to be readable.
+      assetsCache: logoMeta ? { ...cache, ...logoMeta } : cache,
+      updatedAt: new Date(),
+    })
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function generateMarcoCopyAction(launchId: string) {
+export async function generateMarcoCopyAction(launchId: string, formData?: FormData) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.brief) throw new Error("brief_missing");
 
+  // Regenerating without being able to say what to change means rolling the dice
+  // and hoping for something better. Remembered per launch, like the per-page
+  // briefs, so a second pass builds on the first instead of starting over.
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const instruction = typed || (typeof cache.marcoInstruction === "string" ? cache.marcoInstruction : null);
+
+  if (typed !== (cache.marcoInstruction ?? "")) {
+    const next = { ...cache };
+    if (typed) next.marcoInstruction = typed;
+    else delete next.marcoInstruction;
+    await db.update(launches).set({ assetsCache: next, updatedAt: new Date() }).where(eq(launches.id, launchId));
+  }
+
   const { text } = await complete({
     system: MARCO_COPY_SYSTEM,
-    prompt: marcoCopyPrompt(launch.brief),
+    prompt: marcoCopyPrompt(launch.brief, instruction),
     temperature: 0.6,
   });
 
@@ -493,6 +751,9 @@ type PageGenCtx = {
   userId: string;
   launchProducts: Array<{ slug: string; name: string; priceCents: number; currency: string }>;
   referenceSummary: string | null;
+  /** What the admin typed next to the regenerate button for this page. Beats the
+   *  launch-wide instructions, because it's the more specific of the two. */
+  pageInstruction?: string | null;
 };
 
 async function insertPageAsset(
@@ -526,8 +787,13 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       launch.promise!,
       launch.painPoints ?? [],
       launch.benefits ?? [],
-      { palette: launch.brandPalette!, fonts: launch.brandFonts! },
-      launch.landingGeneralInstructions,
+      {
+        palette: launch.brandPalette!,
+        fonts: launch.brandFonts!,
+        moodNotes: launch.brandMoodNotes,
+        design: launch.brandDesign,
+      },
+      [launch.landingGeneralInstructions, ctx.pageInstruction].filter(Boolean).join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
     ),
@@ -537,12 +803,95 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 
   const body = extractJson(text) as LandingBody;
 
+  // ---- Design of the bands -------------------------------------------------
+  //
+  // Two things had to change here. The model was the only source of section
+  // design, and it returned `background: "none", effect: "none"` for everything —
+  // a flat page — because whoever writes the copy has no view of the page as a
+  // whole. And whatever it left unset was filled with generic defaults, which
+  // silently threw away the design system the brand kit had just approved.
+  //
+  // So: the approved system is the baseline, the rhythm is composed
+  // deterministically, and the model's own choices still win over both.
+  const brand = launch.brandDesign;
+  const sectionOrder = (body.sectionOrder?.length
+    ? body.sectionOrder
+    : LAYOUT_PRESETS[launch.type as LaunchType] ?? LAYOUT_PRESETS.plf) as SectionDesignKey[];
+  const orderWithEnds: SectionDesignKey[] = ["hero", ...sectionOrder, "finalCta"];
+
+  const contentLength: Partial<Record<SectionDesignKey, number>> = {};
+  for (const key of orderWithEnds) {
+    contentLength[key] = JSON.stringify(body[key as keyof LandingBody] ?? "").length;
+  }
+
+  const composed = applyBrandRhythm(orderWithEnds, brand, body.sectionDesign ?? {}, contentLength);
+
+  const clean: NonNullable<LandingBody["sectionDesign"]> = {};
+  for (const [key, raw] of Object.entries(composed)) {
+    const sectionKey = key as SectionDesignKey;
+    const kind = SECTION_KIND_BY_KEY[sectionKey];
+    if (!kind) continue;
+
+    // Validated against the closed vocabulary before storing: the same path that
+    // once let an invented `background: {type:"parallax"}` reach the DB and take
+    // the public page down.
+    const { design } = normalizeSectionDesign(raw, {
+      kind,
+      contentLength: contentLength[sectionKey],
+      brand: brand
+        ? {
+            cardStyle: brand.cardStyle,
+            titleFx: brand.titleFx,
+            density: brand.density,
+            divider: brand.divider,
+          }
+        : null,
+    });
+    if (!design) continue;
+
+    if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
+      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
+      if (imageUrl) design.imageUrl = imageUrl;
+      else design.background = "tint";
+    }
+    clean[sectionKey] = design;
+  }
+  body.sectionDesign = Object.keys(clean).length > 0 ? clean : undefined;
+
+  // The box and CTA treatments come from the approved system unless the model
+  // deliberately chose otherwise.
+  if (brand) {
+    body.style = {
+      cardStyle: body.style?.cardStyle ?? brand.cardStyle,
+      ctaStyle: body.style?.ctaStyle ?? brand.ctaStyle,
+    };
+  }
+
   if (isImageGenConfigured() || isUnsplashConfigured()) {
+    // The model sometimes omits imagePrompt entirely — it reads the design
+    // rules' "nothing decorative" line as "no photos". A landing with no hero
+    // image looks unfinished, so derive one instead of shipping without it.
+    if (body.hero && !body.hero.imagePrompt && !body.hero.imageUrl) {
+      body.hero.imagePrompt = `Fotografía editorial para "${launch.name}": ${launch.promise ?? ""}`.trim();
+    }
+
+    // Resolved once and shared: same palette, same art direction, same style
+    // reference for every image on the page.
+    const [heroCtx, portraitCtx, cardCtx] = await Promise.all([
+      imageContextFor(launch, "hero"),
+      imageContextFor(launch, "portrait"),
+      imageContextFor(launch, "card"),
+    ]);
+
     const [heroImageUrl, creatorImageUrl, includeImageUrls, speakerImageUrls] = await Promise.all([
-      autoResolveImage(body.hero?.imagePrompt),
-      typeof body.about === "object" ? autoResolveImage(body.about.creatorImagePrompt) : Promise.resolve(undefined),
-      Promise.all((body.includes ?? []).map((it) => autoResolveImage(it.imagePrompt))),
-      Promise.all((body.speakers ?? []).map((s) => autoResolveImage(s.imagePrompt))),
+      autoResolveImage(body.hero?.imagePrompt, heroCtx),
+      // A face, in portrait: asking for a person at 16:9 is what produced the
+      // cropped headshots.
+      typeof body.about === "object"
+        ? autoResolveImage(body.about.creatorImagePrompt, portraitCtx)
+        : Promise.resolve(undefined),
+      Promise.all((body.includes ?? []).map((it) => autoResolveImage(it.imagePrompt, cardCtx))),
+      Promise.all((body.speakers ?? []).map((sp) => autoResolveImage(sp.imagePrompt, portraitCtx))),
     ]);
 
     if (heroImageUrl && body.hero) body.hero.imageUrl = heroImageUrl;
@@ -555,8 +904,149 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     });
   }
 
+  // Contrast is checked by arithmetic, not by eye: every box, button and band the
+  // page will paint, against the text that goes on it. A page that fails AA says
+  // so in the panel instead of shipping quietly.
+  const audit = auditPageContrast({
+    palette: launch.brandPalette,
+    cardStyle: body.style?.cardStyle,
+    ctaStyle: body.style?.ctaStyle,
+    sectionDesign: body.sectionDesign,
+  });
+  const contrastIssues: DesignReviewIssue[] = describeContrastFailures(audit).map((description) => ({
+    severity: "warning" as const,
+    description,
+  }));
+
   const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
-  await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body);
+  await runDesignReview(launch, pageDef, inserted.id, body as Record<string, unknown>, contrastIssues);
+}
+
+/**
+ * Validates the composable blocks and band design of a non-landing page, and
+ * resolves the images the blocks ask for.
+ *
+ * Same principle as the landing sections: the vocabulary is closed, so a block
+ * type or a design value the renderer can't paint is dropped here rather than
+ * stored and discovered later on the public page.
+ */
+async function normalizePageComposition(
+  launch: Launch,
+  body: {
+    blocks?: unknown;
+    design?: { hero?: unknown; blocks?: unknown[] } | unknown;
+  },
+  /**
+   * What the hero band actually is. A capture page's hero is a FORM band: its job
+   * is the form, and `form` capabilities rule out the orbit and a photo backdrop
+   * for exactly that reason. Normalising it as a generic hero let the orbit
+   * through, and the orbit forces a narrow column — which squeezed the two-column
+   * hero into a strip one word wide.
+   */
+  heroKind: "form" | "hero" = "hero",
+): Promise<void> {
+  const brand = launch.brandDesign;
+  const brandDefaults = brand
+    ? { cardStyle: brand.cardStyle, titleFx: brand.titleFx, density: brand.density, divider: brand.divider }
+    : null;
+
+  // ---- blocks
+  const raw = Array.isArray(body.blocks) ? body.blocks : [];
+  const blocks: PageBlock[] = [];
+
+  for (const item of raw.slice(0, 5)) {
+    if (!item || typeof item !== "object") continue;
+    const b = item as Record<string, unknown>;
+
+    if (b.type === "benefits" && Array.isArray(b.items)) {
+      const items = b.items
+        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .map((i) => ({
+          icon: typeof i.icon === "string" ? i.icon : undefined,
+          title: String(i.title ?? "").trim(),
+          text: typeof i.text === "string" ? i.text.trim() : undefined,
+        }))
+        .filter((i) => i.title.length > 0)
+        .slice(0, 6);
+      if (items.length >= 2) blocks.push({ type: "benefits", title: typeof b.title === "string" ? b.title : undefined, items });
+      continue;
+    }
+
+    if (b.type === "steps" && Array.isArray(b.items)) {
+      const items = b.items
+        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .map((i) => ({
+          title: String(i.title ?? "").trim(),
+          text: typeof i.text === "string" ? i.text.trim() : undefined,
+        }))
+        .filter((i) => i.title.length > 0)
+        .slice(0, 6);
+      if (items.length >= 2) blocks.push({ type: "steps", title: typeof b.title === "string" ? b.title : undefined, items });
+      continue;
+    }
+
+    if (b.type === "imageText") {
+      const block: Extract<PageBlock, { type: "imageText" }> = {
+        type: "imageText",
+        title: typeof b.title === "string" ? b.title : undefined,
+        text: typeof b.text === "string" ? b.text : undefined,
+        ctaLabel: typeof b.ctaLabel === "string" ? b.ctaLabel : undefined,
+        imagePrompt: typeof b.imagePrompt === "string" ? b.imagePrompt : undefined,
+        imageSide: b.imageSide === "right" ? "right" : "left",
+      };
+      // A card-shaped image beside text, not a hero: 4:5 rather than 16:9.
+      if (block.imagePrompt) {
+        const url = await autoResolveImage(block.imagePrompt, await imageContextFor(launch, "card"));
+        if (url) block.imageUrl = url;
+      }
+      if (block.title || block.text) blocks.push(block);
+    }
+  }
+
+  (body as { blocks?: PageBlock[] }).blocks = blocks.length > 0 ? blocks : undefined;
+
+  // ---- band design, hero + one per block
+  const rawDesign = (body.design ?? {}) as { hero?: unknown; blocks?: unknown[] };
+  const design: { hero?: SectionDesign; blocks?: SectionDesign[] } = {};
+
+  const heroResult = normalizeSectionDesign(rawDesign.hero, { kind: heroKind, brand: brandDefaults });
+  if (heroResult.design) {
+    if (heroResult.design.background === "photo" && !heroResult.design.imageUrl && heroResult.design.imagePrompt) {
+      const url = await autoResolveImage(heroResult.design.imagePrompt, await imageContextFor(launch, "band"));
+      if (url) heroResult.design.imageUrl = url;
+      else heroResult.design.background = "tint";
+    }
+    design.hero = heroResult.design;
+
+    // A photo floating beside the form on top of an already-decorated band is
+    // noise competing with the one thing that has to stand out. Drop it, unless
+    // the model deliberately asked to keep it.
+    const decorated =
+      heroResult.design.background !== "none" || heroResult.design.effect !== "none";
+    const b = body as { hideHeroImage?: boolean };
+    if (decorated && b.hideHeroImage === undefined) b.hideHeroImage = true;
+  }
+
+  if (blocks.length > 0) {
+    const perBlock: SectionDesign[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const kind = blocks[i]!.type === "benefits" ? "cards" : blocks[i]!.type === "steps" ? "list" : "media";
+      const { design: d } = normalizeSectionDesign(Array.isArray(rawDesign.blocks) ? rawDesign.blocks[i] : undefined, {
+        kind,
+        brand: brandDefaults,
+      });
+      if (!d) continue;
+      if (d.background === "photo" && !d.imageUrl && d.imagePrompt) {
+        const url = await autoResolveImage(d.imagePrompt, await imageContextFor(launch, "band"));
+        if (url) d.imageUrl = url;
+        else d.background = "tint";
+      }
+      perBlock[i] = d;
+    }
+    if (perBlock.length > 0) design.blocks = perBlock;
+  }
+
+  (body as { design?: typeof design }).design = design.hero || design.blocks ? design : undefined;
 }
 
 async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
@@ -564,20 +1054,23 @@ async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageG
 
   const { text } = await complete({
     system: REGISTRO_SYSTEM,
-    prompt: registroPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, channel),
+    prompt: registroPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, channel, ctx.pageInstruction),
     maxTokens: 2000,
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; subheadline?: string; bullets?: string[]; cta?: string; imagePrompt?: string; imageUrl?: string };
+  const body = extractJson(text) as RegistroPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt);
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
+  // Blocks and band design, validated and with their images resolved.
+  await normalizePageComposition(launch, body, "form");
+
   const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
-  await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body as LandingBody);
+  await runDesignReview(launch, pageDef, inserted.id, body as Record<string, unknown>);
 }
 
 async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
@@ -587,17 +1080,27 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
 
   const { text } = await complete({
     system: CONTENIDO_SYSTEM,
-    prompt: contenidoPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, launch.benefits ?? [], index, total),
+    prompt: contenidoPrompt(
+      launch.name,
+      launch.avatar as AvatarBrief,
+      launch.promise!,
+      launch.benefits ?? [],
+      index,
+      total,
+      ctx.pageInstruction,
+    ),
     maxTokens: 3000,
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; body?: string; ctaLabel?: string; imagePrompt?: string; imageUrl?: string };
+  const body = extractJson(text) as ContenidoPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt);
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
+
+  await normalizePageComposition(launch, body);
 
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
@@ -607,7 +1110,7 @@ async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 
   const { text } = await complete({
     system: LEGAL_SYSTEM,
-    prompt: legalPrompt(orgName, legalKey, launch.name),
+    prompt: legalPrompt(orgName, legalKey, launch.name, ctx.pageInstruction),
     maxTokens: 3000,
     temperature: 0.4,
   });
@@ -619,12 +1122,19 @@ async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 async function generateAfiliadosPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
   const { text } = await complete({
     system: AFILIADOS_SYSTEM,
-    prompt: afiliadosPrompt(launch.name, launch.promise!, launch.affiliateCommissionRate ?? 3000),
+    prompt: afiliadosPrompt(
+      launch.name,
+      launch.promise!,
+      launch.affiliateCommissionRate ?? 3000,
+      ctx.pageInstruction,
+    ),
     maxTokens: 1500,
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; pitch?: string; commissionNote?: string };
+  const body = extractJson(text) as AfiliadosPageBody;
+  await normalizePageComposition(launch, body);
+
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
 
@@ -661,6 +1171,37 @@ async function sharedPageGenContext(launch: Launch, organizationId: string, user
   };
 }
 
+/**
+ * Progress of a multi-page generation, written to the launch as each page lands.
+ *
+ * Without it the admin got a two-second spinner and then silence: the work runs
+ * for minutes, and the only way to know whether it had finished was to reload the
+ * page over and over. Now the run reports itself and the panel can follow along.
+ */
+export type GenerationProgress = {
+  startedAt: string;
+  finishedAt?: string;
+  total: number;
+  done: string[];
+  failed: Array<{ page: string; error: string }>;
+};
+
+async function writeProgress(launchId: string, progress: GenerationProgress) {
+  const [current] = await db
+    .select({ cache: launches.assetsCache })
+    .from(launches)
+    .where(eq(launches.id, launchId))
+    .limit(1);
+
+  await db
+    .update(launches)
+    .set({
+      assetsCache: { ...((current?.cache ?? {}) as Record<string, unknown>), generation: progress },
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+}
+
 /** Generates every page this launch's type/config calls for, in one pass. */
 export async function generateAllPagesAction(launchId: string) {
   const { user, organizationId } = await requireOrgAdmin();
@@ -674,15 +1215,63 @@ export async function generateAllPagesAction(launchId: string) {
   const ctx = await sharedPageGenContext(launch, organizationId, user.id);
   const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
 
-  const results = await runInBatches(pages, 3, (pageDef) => generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name));
-  const failed = results.filter((r) => r.status === "rejected");
-  if (failed.length > 0) console.error(`generateAllPagesAction: ${failed.length}/${pages.length} pages failed`, failed);
+  const progress: GenerationProgress = {
+    startedAt: new Date().toISOString(),
+    total: pages.length,
+    done: [],
+    failed: [],
+  };
+  await writeProgress(launchId, progress);
 
+  const results = await runInBatches(pages, 3, async (pageDef) => {
+    try {
+      await generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name);
+      progress.done.push(pageDef.label);
+    } catch (err) {
+      progress.failed.push({
+        page: pageDef.label,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    } finally {
+      // Written per page, so the panel can show "4 de 9" while the rest run.
+      await writeProgress(launchId, progress).catch(() => {});
+      revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    }
+  });
+
+  progress.finishedAt = new Date().toISOString();
+  await writeProgress(launchId, progress).catch(() => {});
+
+  // Revalidate before reporting: some pages may have been written even if others
+  // failed, and hiding those would be worse than reporting a partial run.
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  for (const pageDef of pages) revalidatePath(pagePath(launch.slug, pageDef));
+
+  // This used to only console.error. Every page could fail and the admin was
+  // shown a successful-looking screen with nothing changed — which is exactly
+  // what it looked like: a couple of seconds of spinner and no explanation.
+  const failed = results
+    .map((r, i) => ({ r, page: pages[i]! }))
+    .filter((x): x is { r: PromiseRejectedResult; page: PageDef } => x.r.status === "rejected");
+
+  if (failed.length > 0) {
+    const detail = failed
+      .map(({ r, page }) => `${page.label}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`)
+      .join(" · ");
+    console.error("generateAllPagesAction failed pages", failed.map((f) => f.r.reason));
+    throw new Error(
+      `No se pudieron generar ${failed.length} de ${pages.length} páginas. ${detail}`,
+    );
+  }
 }
 
 /** Regenerates a single already-existing (or not-yet-existing) page. */
-export async function regenerateSinglePageAction(launchId: string, pageKey: string) {
+export async function regenerateSinglePageAction(
+  launchId: string,
+  pageKey: string,
+  formData?: FormData,
+) {
   const { user, organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
@@ -693,11 +1282,189 @@ export async function regenerateSinglePageAction(launchId: string, pageKey: stri
   const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
+  // Remembered per page in assetsCache, so regenerating twice doesn't mean
+  // retyping the brief — and so you can see what produced what you're looking at.
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const stored = (cache.pageInstructions ?? {}) as Record<string, string>;
+  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const pageInstruction = typed || stored[pageKey] || null;
+
+  if (typed !== (stored[pageKey] ?? "")) {
+    const next = { ...stored };
+    if (typed) next[pageKey] = typed;
+    else delete next[pageKey];
+    await db
+      .update(launches)
+      .set({ assetsCache: { ...cache, pageInstructions: next }, updatedAt: new Date() })
+      .where(eq(launches.id, launchId));
+  }
+
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   const ctx = await sharedPageGenContext(launch, organizationId, user.id);
-  await generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name);
+  await generateSinglePage(launch, pageDef, { ...ctx, pageInstruction }, org?.name ?? launch.name);
 
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
+}
+
+/**
+ * Saves a simple page (registro / contenido / legal / afiliados) from its real
+ * inputs instead of a raw JSON textarea. Any stored key the schema doesn't cover
+ * — a resolved `imageUrl`, say — is preserved, so editing the headline can't
+ * silently drop the photo.
+ */
+export async function updatePageFieldsAction(launchId: string, pageKey: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  if (!pageDef) throw new Error("page_not_found");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  // Creating a page needs the identity approved; editing an existing one doesn't,
+  // since the design is already decided and you may just be fixing a typo.
+  if (!asset && launch.brandKitStatus !== "approved") {
+    throw new Error(
+      "No se puede crear esta página todavía: aprueba primero la identidad visual del lanzamiento.",
+    );
+  }
+
+  const fields = fieldsForKind(pageDef.kind);
+  const body = bodyFromFields(
+    fields,
+    (name) => (formData.has(name) ? String(formData.get(name) ?? "") : null),
+    (asset?.body ?? null) as Record<string, unknown> | null,
+  );
+
+  // A new imagePrompt invalidates the photo resolved from the previous one.
+  const previousPrompt = (asset?.body as Record<string, unknown> | undefined)?.imagePrompt;
+  if (typeof body.imagePrompt === "string" && body.imagePrompt !== previousPrompt) {
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+  if (!body.imagePrompt) delete body.imageUrl;
+
+  if (asset) {
+    await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+  } else {
+    // No asset yet: the admin is writing this page by hand before generating it.
+    await db.insert(assets).values({
+      launchId,
+      organizationId,
+      kind: "landing",
+      title: `${pageDef.label} · ${launch.name}`,
+      pageKey,
+      body,
+    });
+  }
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
+}
+
+/**
+ * Rewrites ONE part of a simple page with Claude, so those pages get the same
+ * per-part editing the sales page has instead of an all-or-nothing regenerate.
+ */
+export async function refinePageFieldAction(launchId: string, pageKey: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  if (!pageDef) throw new Error("page_not_found");
+
+  const fieldName = String(formData.get("field") ?? "");
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!instruction) return;
+
+  const field = fieldsForKind(pageDef.kind).find((f) => f.name === fieldName);
+  if (!field) throw new Error("field_not_found");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  if (!asset) throw new Error("page_not_generated");
+
+  const body = (asset.body ?? {}) as Record<string, unknown>;
+  const current = body[fieldName];
+
+  const { text } = await complete({
+    system: PAGE_FIELD_REFINE_SYSTEM,
+    prompt: pageFieldRefinePrompt({
+      pageLabel: pageDef.label,
+      fieldLabel: field.label,
+      isList: field.type === "list",
+      current,
+      instruction,
+      launchName: launch.name,
+      promise: launch.promise,
+    }),
+    maxTokens: 1500,
+    temperature: 0.7,
+  });
+
+  // The model is asked for a bare value, but it still volunteers a fenced object
+  // now and then — accept both rather than failing the edit.
+  const answer = extractPageFieldValue(text, field.type === "list", fieldName);
+  if (answer === null) throw new Error("La IA no devolvió un valor usable. No se ha guardado nada.");
+
+  body[fieldName] = answer;
+
+  if (fieldName === "imagePrompt" && typeof answer === "string") {
+    const imageUrl = await autoResolveImage(answer, await imageContextFor(launch, "hero"));
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+
+  await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
+}
+
+/** Pulls a string or a list out of the model's answer, however it wrapped it. */
+function extractPageFieldValue(text: string, isList: boolean, fieldName: string): string | string[] | null {
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const raw = (fence ? fence[1] : text).trim();
+
+  let parsed: unknown = raw;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Not JSON at all — a plain sentence, which is fine for a text field.
+  }
+
+  // Unwrap `{ headline: "..." }` / `{ value: [...] }`.
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    const key = [fieldName, "value", "content", "text"].find((k) => k in obj);
+    if (key) parsed = obj[key];
+  }
+
+  if (isList) {
+    if (Array.isArray(parsed)) {
+      const items = parsed.filter((i): i is string => typeof i === "string").map((i) => i.trim()).filter(Boolean);
+      return items.length > 0 ? items : null;
+    }
+    if (typeof parsed === "string") {
+      const items = parsed.split("\n").map((l) => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
+      return items.length > 0 ? items : null;
+    }
+    return null;
+  }
+
+  if (typeof parsed === "string" && parsed.trim()) return parsed.trim();
+  return null;
 }
 
 export async function updatePageBodyAction(launchId: string, pageKey: string, formData: FormData) {
@@ -752,7 +1519,7 @@ export async function applyDesignFixesAction(launchId: string, pageKey: string) 
     .where(eq(assets.id, asset.id));
 
   const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
-  if (pageDef) await runDesignReview(pagePath(launch.slug, pageDef), asset.id, fixedBody);
+  if (pageDef) await runDesignReview(launch, pageDef, asset.id, fixedBody as Record<string, unknown>);
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
@@ -1100,13 +1867,24 @@ export async function scheduleAcCampaignsAction(launchId: string) {
 
 // ---- Landing per-section edits ----
 
-async function loadLandingAsset(launchId: string, organizationId: string) {
+/**
+ * Loads the latest version of ONE page's landing asset.
+ *
+ * `pageKey` is not optional by accident: without it this took the newest landing
+ * asset of any page, so editing a section of the sales page could read the
+ * registro page's body — and the companion save wrote to the `main` default,
+ * which no multi-page launch renders. Every section edit looked like it did
+ * nothing, and the old version reappeared on refresh.
+ */
+async function loadLandingAsset(launchId: string, organizationId: string, pageKey: string) {
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing")))
+    .where(
+      and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -1117,6 +1895,7 @@ async function saveLandingBody(
   launchId: string,
   organizationId: string,
   slug: string,
+  pageKey: string,
   body: LandingBody,
   authorId: string | null,
 ) {
@@ -1124,16 +1903,21 @@ async function saveLandingBody(
     organizationId,
     launchId,
     kind: "landing",
-    title: `Landing`,
+    pageKey,
+    title: `Landing · ${pageKey}`,
     body: body as unknown as Record<string, unknown>,
     authorId: authorId ?? undefined,
   });
   revalidatePath(`/admin/lanzamientos/${slug}`);
+  revalidatePath(`/admin/lanzamientos/${slug}/paginas/${pageKey}`);
+  // The entry page lives at /slug and every other at /slug/pageKey.
   revalidatePath(`/${slug}`);
+  revalidatePath(`/${slug}/${pageKey}`);
 }
 
 export async function refineLandingSectionAction(
   launchId: string,
+  pageKey: string,
   section: LandingSectionKey,
   formData: FormData,
 ) {
@@ -1141,7 +1925,7 @@ export async function refineLandingSectionAction(
   const instruction = String(formData.get("instruction") ?? "").trim();
   if (!instruction) throw new Error("instruction_required");
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
   const body = (asset?.body ?? {}) as LandingBody;
   const currentSection = (body as Record<string, unknown>)[section] ?? null;
 
@@ -1188,14 +1972,14 @@ export async function refineLandingSectionAction(
     // A photo background is useless without an actual image, so resolve it now
     // with the same Magnific → Unsplash path the rest of the generator uses.
     if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-      const imageUrl = await autoResolveImage(design.imagePrompt);
+      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint"; // don't leave an empty photo band
     }
     newBody.sectionDesign = { ...(body.sectionDesign ?? {}), [section]: design };
   }
 
-  await saveLandingBody(launchId, organizationId, launch.slug, newBody, user.id);
+  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
 }
 
 /** Deterministic counterpart to the refine box: the dropdowns in the section
@@ -1203,11 +1987,12 @@ export async function refineLandingSectionAction(
  * the model interpreting it. */
 export async function updateSectionDesignAction(
   launchId: string,
+  pageKey: string,
   section: LandingSectionKey,
   formData: FormData,
 ) {
   const { user, organizationId } = await requireOrgAdmin();
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
   const body = (asset?.body ?? {}) as LandingBody;
 
   const { design } = normalizeSectionDesign(
@@ -1228,7 +2013,7 @@ export async function updateSectionDesignAction(
   if (design) {
     if (design.background === "photo" && !design.imageUrl) {
       const prompt = design.imagePrompt ?? `Fotografía de fondo para "${launch.name}"`;
-      const imageUrl = await autoResolveImage(prompt);
+      const imageUrl = await autoResolveImage(prompt, await imageContextFor(launch, "band"));
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint";
     }
@@ -1251,6 +2036,7 @@ export async function updateSectionDesignAction(
     launchId,
     organizationId,
     launch.slug,
+    pageKey,
     { ...body, sectionDesign: nextDesign },
     user.id,
   );
@@ -1263,6 +2049,7 @@ const ALLOWED_IMAGE_SLOTS = new Set([
 
 export async function setSectionImageAction(
   launchId: string,
+  pageKey: string,
   slotPath: string,
   formData: FormData,
 ) {
@@ -1272,7 +2059,7 @@ export async function setSectionImageAction(
   }
   const imageUrl = String(formData.get("imageUrl") ?? "").trim() || null;
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
   const body = (asset?.body ?? {}) as LandingBody;
 
   const newBody: LandingBody = JSON.parse(JSON.stringify(body));
@@ -1293,11 +2080,12 @@ export async function setSectionImageAction(
     }
   }
 
-  await saveLandingBody(launchId, organizationId, launch.slug, newBody, user.id);
+  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
 }
 
 export async function updateSectionRawAction(
   launchId: string,
+  pageKey: string,
   section: LandingSectionKey,
   formData: FormData,
 ) {
@@ -1310,11 +2098,11 @@ export async function updateSectionRawAction(
     throw new Error("invalid_json");
   }
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
   const body = (asset?.body ?? {}) as LandingBody;
   const newBody: LandingBody = { ...body, [section]: parsed };
 
-  await saveLandingBody(launchId, organizationId, launch.slug, newBody, user.id);
+  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
 }
 
 function wrapEmailHtml(body: string, preheader: string): string {

@@ -15,7 +15,6 @@ import {
   updateMarcoCopyAction,
   generateAllPagesAction,
   regenerateSinglePageAction,
-  updatePageBodyAction,
   updateLandingInstructionsAction,
   generateEmailsAction,
   generateAdsAction,
@@ -24,13 +23,9 @@ import {
   updateReferenceUrlAction,
   updateCartScheduleAction,
   updateContentDripScheduleAction,
-  applyDesignFixesAction,
   provisionActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
   scheduleAcCampaignsAction,
-  refineLandingSectionAction,
-  updateSectionRawAction,
-  setSectionImageAction,
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
@@ -44,14 +39,12 @@ import {
   generateMilestonesAction,
   updateMilestoneAction,
   analyzeCalendarAction,
-  updateSectionDesignAction,
   generateBrandKitAction,
   updateBrandKitAction,
   approveBrandKitAction,
   updateBrandLogoAction,
 } from "@/server/launches";
 import { resolvePages, pagePath } from "@/lib/launch-pages";
-import { SimplePageEditor } from "@/components/admin/simple-page-editor";
 import { ContentDripForm } from "@/components/admin/content-drip-form";
 import { AdsPanel } from "@/components/admin/ads-panel";
 import { AdStaticsGenerator } from "@/components/admin/ad-statics-generator";
@@ -61,10 +54,11 @@ import { listMediaItems } from "@/server/media";
 
 import { WizardStep } from "@/components/admin/wizard-step";
 import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
+import { PageIndex } from "@/components/admin/page-index";
+import { GenerationProgress } from "@/components/admin/generation-progress";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
-import { LandingEditor } from "@/components/admin/landing-editor";
 import { EmailSequence } from "@/components/admin/email-sequence";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
@@ -75,8 +69,6 @@ import { BrandKitPanel } from "@/components/admin/brand-kit-panel";
 import { LandingInstructionsForm } from "@/components/admin/landing-instructions-form";
 import { ReferenceUrlForm } from "@/components/admin/reference-url-form";
 import { CartScheduleForm } from "@/components/admin/cart-schedule-form";
-import { DesignReviewPanel } from "@/components/admin/design-review-panel";
-import type { LandingBody } from "@/components/public/landing-types";
 import { listDomainsForLaunch, addDomainAction, verifyDomainAction, removeDomainAction } from "@/server/domains";
 import { env } from "@/lib/env";
 
@@ -98,7 +90,7 @@ function GroupHeading({ children }: { children: React.ReactNode }) {
 /** Section ids used in `?seccion=` — see LaunchTabs. "todo" shows every step
  *  at once and is the default: grouping gave the hub an order, but defaulting to
  *  a single group hid the other six steps behind a tab you had to know about. */
-const SECTIONS = ["todo", "marca", "paginas", "campana", "conexiones", "registros"] as const;
+const SECTIONS = ["todo", "marca", "paginas", "campana", "conexiones"] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 export default async function LaunchHubPage(props: {
@@ -133,21 +125,6 @@ export default async function LaunchHubPage(props: {
   for (const a of allLandingAssets) {
     if (!latestByPageKey.has(a.pageKey)) latestByPageKey.set(a.pageKey, a);
   }
-
-  // Load all landing versions with author info (no body to keep it light) —
-  // scoped to the venta page specifically.
-  const landingVersions = await db
-    .select({
-      id: assets.id,
-      createdAt: assets.createdAt,
-      generatedByAi: assets.generatedByAi,
-      authorEmail: users.email,
-      authorName: users.name,
-    })
-    .from(assets)
-    .leftJoin(users, eq(assets.authorId, users.id))
-    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, ventaPage.pageKey)))
-    .orderBy(desc(assets.createdAt));
 
   const landingAsset = latestByPageKey.get(ventaPage.pageKey) ?? null;
 
@@ -275,8 +252,6 @@ export default async function LaunchHubPage(props: {
     },
     { id: "campana", label: "Campaña", done: done.campana, total: 2, blocked: !hasMarco },
     { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
-    // Read-only: there is nothing to complete, so it shows no counter.
-    { id: "registros", label: "Registros", done: 0, total: 0 },
   ];
 
 
@@ -298,19 +273,19 @@ export default async function LaunchHubPage(props: {
           </h1>
           <p className="mt-1 text-sm text-zinc-400">
             {meta?.label ?? launch.type} · slug{" "}
-            <code className="text-[--color-red-bright]">/{launch.slug}</code> ·{" "}
+            <code className="text-[var(--color-red-bright)]">/{launch.slug}</code> ·{" "}
             <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-widest">
               {launch.status}
             </span>
           </p>
         </div>
+        {/* No single "view public page" link: a launch has up to nine URLs, so
+            each one is opened from the page index instead. */}
         <Link
-          href={`/${launch.slug}`}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[--color-red]"
+          href={`/admin/lanzamientos/${launch.slug}?seccion=paginas`}
+          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[var(--color-red)]"
         >
-          Ver landing pública ↗
+          Ver sus {pages.length} páginas →
         </Link>
       </header>
 
@@ -331,6 +306,7 @@ export default async function LaunchHubPage(props: {
           status={launch.brandKitStatus}
           palette={launch.brandPalette}
           fonts={launch.brandFonts}
+          design={launch.brandDesign}
           moodNotes={launch.brandMoodNotes}
           moodImageUrl={launch.brandMoodImageUrl}
           logoUrl={launch.brandLogoUrl}
@@ -348,13 +324,29 @@ export default async function LaunchHubPage(props: {
         subtitle="Avatar, promesa, dolores y beneficios desde el brief inicial."
         status={hasMarco ? "ready" : "empty"}
         action={
-          <form action={generateMarcoCopyAction.bind(null, launch.id)}>
+          <form action={generateMarcoCopyAction.bind(null, launch.id)} className="w-full max-w-md space-y-2">
             <AiGeneratingOverlay
               messages={["Leyendo el brief…", "Perfilando al avatar…", "Encontrando los dolores reales…", "Escribiendo la promesa…"]}
             />
-            <SubmitButton variant={hasMarco ? "outline" : "primary"} pendingLabel="Generando…">
-              {hasMarco ? "Regenerar con Claude" : "Generar con Claude"}
-            </SubmitButton>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-widest text-zinc-400">
+                Qué quieres cambiar (opcional)
+              </span>
+              <textarea
+                name="instruction"
+                rows={2}
+                defaultValue={
+                  ((launch.assetsCache as Record<string, unknown> | null)?.marcoInstruction as string) ?? ""
+                }
+                placeholder="El avatar es más senior de lo que has puesto, y la promesa demasiado genérica."
+                className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <div className="flex justify-end">
+              <SubmitButton variant={hasMarco ? "outline" : "primary"} pendingLabel="Generando…">
+                {hasMarco ? "Regenerar con Claude" : "Generar con Claude"}
+              </SubmitButton>
+            </div>
           </form>
         }
       >
@@ -440,72 +432,44 @@ export default async function LaunchHubPage(props: {
           />
         )}
 
-        {pages.length > 1 && (
-          <div className="mb-6 space-y-2">
-            <div className="text-xs uppercase tracking-widest text-zinc-400">Otras páginas</div>
-            {pages
-              .filter((p) => p.pageKey !== ventaPage.pageKey)
-              .map((p) => (
-                <SimplePageEditor
-                  key={p.pageKey}
-                  launchId={launch.id}
-                  pageKey={p.pageKey}
-                  label={p.label}
-                  kind={p.kind}
-                  href={pagePath(launch.slug, p)}
-                  hasContent={latestByPageKey.has(p.pageKey)}
-                  body={(latestByPageKey.get(p.pageKey)?.body as Record<string, unknown>) ?? null}
-                  regenerateAction={regenerateSinglePageAction}
-                  updateAction={updatePageBodyAction}
-                />
-              ))}
-          </div>
-        )}
+        {/* Follows the run and refreshes on its own until it finishes. */}
+        <GenerationProgress
+          progress={
+            ((launch.assetsCache as Record<string, unknown> | null)?.generation as
+              | Parameters<typeof GenerationProgress>[0]["progress"]
+              | undefined) ?? null
+          }
+        />
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs uppercase tracking-widest text-zinc-400">
-            {ventaPage.label} — edición detallada
-          </div>
-          <Link
-            href={pagePath(launch.slug, ventaPage)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-100 transition hover:border-[--color-red] hover:bg-white/15"
-          >
-            Ver {ventaPage.label.toLowerCase()} ↗
-          </Link>
-        </div>
-        <DesignReviewPanel
-          review={landingAsset?.designReview}
-          launchId={launch.id}
-          pageKey={ventaPage.pageKey}
-          fixAction={applyDesignFixesAction}
-        />
-        <ReferenceUrlForm
-          launchId={launch.id}
-          currentUrl={launch.referenceUrl}
-          saveAction={updateReferenceUrlAction}
-        />
-        <CartScheduleForm
-          launchId={launch.id}
-          currentCartClosesAt={launch.cartClosesAt}
-          saveAction={updateCartScheduleAction}
-        />
-        <LandingInstructionsForm
-          launchId={launch.id}
-          currentInstructions={launch.landingGeneralInstructions}
-          saveAction={updateLandingInstructionsAction}
-        />
-        <LandingEditor
-          launchId={launch.id}
+        <PageIndex
+          pages={pages}
           launchSlug={launch.slug}
-          body={(landingAsset?.body ?? null) as LandingBody | null}
-          versions={landingVersions}
-          refineAction={refineLandingSectionAction}
-          rawUpdateAction={updateSectionRawAction}
-          imageSaveAction={setSectionImageAction}
-          designAction={updateSectionDesignAction}
+          generatedKeys={new Set(latestByPageKey.keys())}
+          dripStartsAt={launch.contentDripStartsAt}
         />
+
+        {/* Generation inputs: they steer every page, so they belong with the
+            index rather than inside one page's editor. */}
+        <div className="mt-6 space-y-3 border-t border-white/5 pt-5">
+          <div className="text-xs uppercase tracking-widest text-zinc-400">
+            Cómo se generan las páginas
+          </div>
+          <ReferenceUrlForm
+            launchId={launch.id}
+            currentUrl={launch.referenceUrl}
+            saveAction={updateReferenceUrlAction}
+          />
+          <CartScheduleForm
+            launchId={launch.id}
+            currentCartClosesAt={launch.cartClosesAt}
+            saveAction={updateCartScheduleAction}
+          />
+          <LandingInstructionsForm
+            launchId={launch.id}
+            currentInstructions={launch.landingGeneralInstructions}
+            saveAction={updateLandingInstructionsAction}
+          />
+        </div>
       </WizardStep>
 
       </>
@@ -695,80 +659,6 @@ export default async function LaunchHubPage(props: {
       </>
       )}
 
-      {(active === "todo" || active === "registros") && (
-      <>
-      {active === "todo" && <GroupHeading>Registros</GroupHeading>}
-      {/* Step 10 — Registros */}
-      <WizardStep
-        index={10}
-        title="Registros"
-        subtitle="Leads, ventas y eventos registrados en este lanzamiento."
-        status={recentEvents.length > 0 ? "ready" : "empty"}
-      >
-        {/* Counters */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            { label: "Visitas", key: "visit", color: "text-zinc-300" },
-            { label: "Leads", key: "lead", color: "text-blue-300" },
-            { label: "Ventas", key: "sale", color: "text-emerald-300" },
-            { label: "Seminarios", key: "seminar", color: "text-amber-300" },
-          ].map(({ label, key, color }) => (
-            <div key={key} className="rounded-lg border border-white/5 bg-black/30 p-4 text-center">
-              <div className={`text-2xl font-bold ${color}`}>{statsMap[key] ?? 0}</div>
-              <div className="mt-1 text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Recent events table */}
-        {recentEvents.length > 0 ? (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-white/5">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-white/5 bg-black/40 text-[10px] uppercase tracking-widest text-zinc-500">
-                  <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Nombre</th>
-                  <th className="px-3 py-2">Fuente</th>
-                  <th className="px-3 py-2">Pais</th>
-                  <th className="px-3 py-2">Monto</th>
-                  <th className="px-3 py-2">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentEvents.map((ev) => (
-                  <tr key={ev.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                    <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
-                        ev.type === "lead" ? "bg-blue-500/10 text-blue-300" :
-                        ev.type === "sale" ? "bg-emerald-500/10 text-emerald-300" :
-                        ev.type === "visit" ? "bg-zinc-800 text-zinc-400" :
-                        "bg-amber-500/10 text-amber-300"
-                      }`}>
-                        {ev.type}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-300">{ev.email ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-400">{ev.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-500">{ev.utmSource ?? "directo"}</td>
-                    <td className="px-3 py-2 text-zinc-500">{ev.country ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-300">
-                      {ev.amountCents ? `${(ev.amountCents / 100).toFixed(2)} ${ev.currency ?? ""}` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-500">
-                      {ev.occurredAt.toLocaleDateString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-500">Aun no hay eventos registrados para este lanzamiento.</p>
-        )}
-      </WizardStep>
-      </>
-      )}
     </div>
   );
 }

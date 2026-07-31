@@ -130,7 +130,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
               value={previewUrl}
               onChange={(e) => setPreviewUrl(e.target.value)}
               placeholder="https://..."
-              className="mt-1 w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+              className="mt-1 w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
             />
           </label>
 
@@ -156,7 +156,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
               type="button"
               onClick={generateAiImage}
               disabled={generating}
-              className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-200 transition hover:border-[--color-red] hover:bg-white/15 hover:text-white disabled:opacity-50"
+              className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-200 transition hover:border-[var(--color-red)] hover:bg-white/15 hover:text-white disabled:opacity-50"
             >
               {generating ? "Generando IA…" : "✨ Generar con IA"}
             </button>
@@ -197,7 +197,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
               onChange={(e) => setUnsplashQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchUnsplash()}
               placeholder="Buscar en Unsplash…"
-              className="flex-1 rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm text-white outline-none focus:border-[--color-red]"
+              className="flex-1 rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm text-white outline-none focus:border-[var(--color-red)]"
             />
             <button
               type="button"
@@ -220,7 +220,7 @@ export function ImagePicker({ currentUrl, imagePrompt, saveAction, label = "Imag
                     setPreviewUrl(photo.regularUrl);
                     setUnsplashOpen(false);
                   }}
-                  className="group relative aspect-video overflow-hidden rounded-lg border border-white/10 transition hover:border-[--color-red]"
+                  className="group relative aspect-video overflow-hidden rounded-lg border border-white/10 transition hover:border-[var(--color-red)]"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img

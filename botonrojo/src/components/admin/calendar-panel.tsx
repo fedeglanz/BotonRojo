@@ -98,7 +98,7 @@ export function CalendarPanel({
               name="primaryCountry"
               value={selectedPrimary}
               onChange={(e) => setSelectedPrimary(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
             >
               <option value="">Seleccionar...</option>
               {Object.entries(COUNTRIES).map(([code, name]) => (
@@ -126,7 +126,7 @@ export function CalendarPanel({
                     }}
                     className={`rounded-full border px-3 py-1 text-xs transition ${
                       allSelected
-                        ? "border-[--color-red]/40 bg-[--color-red]/10 text-[--color-red-bright]"
+                        ? "border-[var(--color-red)]/40 bg-[var(--color-red)]/10 text-[var(--color-red-bright)]"
                         : "border-white/10 text-zinc-400 hover:border-white/20"
                     }`}
                   >
@@ -157,7 +157,7 @@ export function CalendarPanel({
                           setSelectedCountries((prev) => prev.filter((c) => c !== code));
                         }
                       }}
-                      className="accent-[--color-red]"
+                      className="accent-[var(--color-red)]"
                     />
                     {name}
                   </label>
@@ -204,11 +204,11 @@ export function CalendarPanel({
               type="date"
               name="anchorDate"
               defaultValue={anchorDate ?? ""}
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
               required
             />
           </div>
-          <SubmitButton className="rounded-lg bg-[--color-red]/80 hover:bg-[--color-red] px-4 py-2 text-sm font-semibold text-white" pendingLabel="Generando...">
+          <SubmitButton className="rounded-lg bg-[var(--color-red)]/80 hover:bg-[var(--color-red)] px-4 py-2 text-sm font-semibold text-white" pendingLabel="Generando...">
             Generar fechas
           </SubmitButton>
         </form>
@@ -346,7 +346,7 @@ function MilestoneCard({
               type="date"
               name="startsAt"
               defaultValue={milestone.startsAt}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[--color-red]"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[var(--color-red)]"
             />
           </div>
           <div>
@@ -355,7 +355,7 @@ function MilestoneCard({
               type="date"
               name="endsAt"
               defaultValue={milestone.endsAt}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[--color-red]"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[var(--color-red)]"
             />
           </div>
           <div className="flex-1">
@@ -364,7 +364,7 @@ function MilestoneCard({
               type="text"
               name="label"
               defaultValue={milestone.label}
-              className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[--color-red]"
+              className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-[var(--color-red)]"
             />
           </div>
           <SubmitButton className="rounded bg-white/5 border border-white/10 px-3 py-1 text-xs hover:bg-white/10" pendingLabel="...">

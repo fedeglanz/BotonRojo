@@ -78,7 +78,7 @@ export default async function MisEnlacesPage() {
 function Tag({ label, value }: { label: string; value: string }) {
   return (
     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-[family-name:var(--font-mono)]">
-      {label}=<span className="text-[--color-red-bright]">{value}</span>
+      {label}=<span className="text-[var(--color-red-bright)]">{value}</span>
     </span>
   );
 }

@@ -54,7 +54,7 @@ export default async function AfiliadosPage() {
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-zinc-500">
                   Aún no hay afiliados.{" "}
-                  <Link href="/admin/afiliados/nuevo" className="text-[--color-red-bright] hover:underline">
+                  <Link href="/admin/afiliados/nuevo" className="text-[var(--color-red-bright)] hover:underline">
                     Crea el primero
                   </Link>
                   .
@@ -67,7 +67,7 @@ export default async function AfiliadosPage() {
                   <div className="text-white">{o.user.name ?? "—"}</div>
                   <div className="text-xs text-zinc-500">{o.user.email}</div>
                 </td>
-                <td className="px-4 py-3 font-[family-name:var(--font-mono)] text-[--color-red-bright]">
+                <td className="px-4 py-3 font-[family-name:var(--font-mono)] text-[var(--color-red-bright)]">
                   ?ref={o.user.affiliateCode}
                 </td>
                 <td className="px-4 py-3 text-right text-zinc-300">
@@ -81,7 +81,7 @@ export default async function AfiliadosPage() {
                   {formatPrice(o.balanceCents)}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/admin/afiliados/${o.user.id}`} className="text-[--color-red-bright] hover:underline">
+                  <Link href={`/admin/afiliados/${o.user.id}`} className="text-[var(--color-red-bright)] hover:underline">
                     Abrir →
                   </Link>
                 </td>

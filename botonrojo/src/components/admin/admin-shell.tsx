@@ -41,7 +41,7 @@ export function AdminShell({ children, isSuperAdmin }: { children: React.ReactNo
                 >
                   {active && (
                     <span
-                      className="absolute -left-4 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[--color-red-bright] shadow-[0_0_10px_var(--color-red-glow)]"
+                      className="absolute -left-4 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[var(--color-red-bright)] shadow-[0_0_10px_var(--color-red-glow)]"
                       aria-hidden
                     />
                   )}
