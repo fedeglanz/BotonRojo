@@ -28,6 +28,7 @@ import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
+import { usableDivider } from "@/components/public/section-design";
 
 import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
@@ -217,7 +218,8 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
           has a design (background / effect / full height / width) set. */}
       {landing &&
         (landing.sectionOrder?.length ? landing.sectionOrder : LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf).map(
-          (key) => {
+          (key, index, all) => {
+            const previousKey = index > 0 ? all[index - 1] : undefined;
             const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
               // The section's own box style wins over the page default.
               cardStyle: usableCardStyle(palette, landing.sectionDesign?.[key]?.style as LandingCardStyle),
@@ -225,8 +227,14 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
               cartClosesAt: launch.cartClosesAt,
             });
             if (!rendered) return null;
+            // Repaired on read: a shape divider against a painted neighbour shows
+            // a wedge of page background between the two colours.
+            const own = landing.sectionDesign?.[key];
+            const design = own
+              ? { ...own, divider: usableDivider(own, landing.sectionDesign?.[previousKey!]) }
+              : own;
             return (
-              <SectionShell key={key} design={landing.sectionDesign?.[key]}>
+              <SectionShell key={key} design={design}>
                 {rendered}
               </SectionShell>
             );

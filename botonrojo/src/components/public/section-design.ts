@@ -595,27 +595,48 @@ export function applyBrandRhythm(
     out[key] = design;
   });
 
-  // Dividers, decided from the neighbours rather than per section.
+  // Dividers, decided from the neighbours. This OVERRIDES whatever was asked for,
+  // including by the model: a shape divider isn't a preference, it has a
+  // precondition.
   //
-  // A shape divider (angle, curve) works by cutting the band's paint so the band
-  // ABOVE shows through the cut. That only reads as a transition when there is
-  // something plain above it: between two coloured bands the cut looks like a
-  // mistake, and on a band with no paint at all there is nothing to cut.
+  // `angle` and `curve` work by cutting the band's own paint. What shows through
+  // the cut is the PAGE background — each band's paint is confined to its own
+  // wrapper, so it can't reveal the band above. That reads as a transition only
+  // when the band above is unpainted, because then the revealed colour matches
+  // what's already there. Between two painted bands it appears as a wedge of
+  // page background wedged between two colours, which is what it was doing:
+  // a white triangle sitting between a green band and a dark one.
+  const SHAPE_DIVIDERS = new Set<SectionDesign["divider"]>(["angle", "curve"]);
+
   order.forEach((key, index) => {
     const current = out[key]!;
     const previous = index > 0 ? out[order[index - 1]!] : undefined;
     const hasPaint = Boolean(current.background && current.background !== "none");
     const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
 
-    if (stated[key]?.divider) return;
-
+    // No paint, nothing to shape.
     if (!hasPaint) {
       current.divider = "none";
-    } else if (previousHasPaint) {
-      // Two colours meeting: fade one into the other, never cut.
-      current.divider = "fade";
+      return;
     }
-    // A painted band under a plain one keeps whatever the brand chose.
+
+    if (previousHasPaint) {
+      // Two colours meeting: a clean edge.
+      //
+      // Neither a cut nor a fade works here, and for the same reason: what sits
+      // behind a band's paint is the PAGE background, not the band above it.
+      // A cut showed a wedge of page background between the two colours; a fade
+      // ramps the paint over that background instead of over the neighbour, so a
+      // dark band under a green one faded through grey. Two solid colours meeting
+      // edge to edge is honest and always reads correctly.
+      current.divider = "none";
+      return;
+    }
+
+    // Plain band above: a cut is safe. Keep what was asked for, and if nothing
+    // was, leave whatever the brand's default put there.
+    if (stated[key]?.divider) current.divider = stated[key]!.divider;
+    else if (SHAPE_DIVIDERS.has(current.divider) && index === 0) current.divider = "none";
   });
 
   // The single protagonist. Prefer the sections built to carry one.
@@ -650,6 +671,28 @@ export function applyBrandRhythm(
   }
 
   return out;
+}
+
+/**
+ * The divider a band can actually use, given what sits above it. Exported so the
+ * renderer applies it too: pages generated before this rule existed have an
+ * `angle` stored against a painted neighbour, and repairing them on read is
+ * better than making the client regenerate every page.
+ */
+export function usableDivider(
+  design: SectionDesign | undefined,
+  previous: SectionDesign | undefined,
+): SectionDesign["divider"] {
+  const hasPaint = Boolean(design?.background && design.background !== "none");
+  if (!hasPaint) return "none";
+
+  // Anything that shapes or ramps the paint reveals the page background, not the
+  // band above — so between two painted bands the only correct answer is a clean
+  // edge. See the same reasoning in applyBrandRhythm.
+  const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
+  if (previousHasPaint) return "none";
+
+  return design?.divider ?? "none";
 }
 
 /* --------------------------------------------------------------- resolve */

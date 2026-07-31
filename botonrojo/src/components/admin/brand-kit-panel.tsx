@@ -3,6 +3,7 @@
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { ImagePicker } from "@/components/admin/image-picker";
+import { BrandPreview } from "@/components/admin/brand-preview";
 import { googleFontsUrl } from "@/lib/brand-kit";
 import type { BrandPalette, BrandFonts, BrandKitStatus, BrandDesign } from "@/db/schema/launches";
 import { BRAND_DESIGN_LABELS, BRAND_DESIGN_OPTIONS, defaultBrandDesign } from "@/lib/design/brand-design";
@@ -177,36 +178,13 @@ export function BrandKitPanel({
             </SubmitButton>
           </form>
 
-          {/* Live preview */}
-          <div
-            className="glass hud-corners space-y-4 p-6"
-            style={{
-              "--color-red": palette.primary,
-              "--color-red-bright": palette.primary,
-              background: palette.background,
-              color: palette.foreground,
-            } as React.CSSProperties}
-          >
-            <link rel="stylesheet" href={googleFontsUrl(fonts)} />
-            <div className="text-xs uppercase tracking-widest opacity-60">Vista previa</div>
-            <div style={{ fontFamily: `"${fonts.display}", sans-serif` }} className="text-3xl font-extrabold">
-              Un solo botón. Tu lanzamiento entero.
-            </div>
-            <div style={{ fontFamily: `"${fonts.body}", sans-serif` }} className="max-w-xl text-sm opacity-80">
-              Así se vería el cuerpo de texto de esta landing con la tipografía elegida.
-            </div>
-            <button
-              type="button"
-              className="rounded-full px-6 py-3 text-sm font-bold uppercase tracking-wide text-white"
-              style={{ background: palette.primary }}
-            >
-              Botón de ejemplo
-            </button>
-            {moodImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={moodImageUrl} alt="Mood" className="mt-2 max-h-48 w-full rounded-lg object-cover" />
-            )}
-          </div>
+          {/* Previews the whole system, not just the palette — see BrandPreview. */}
+          <BrandPreview
+            palette={palette}
+            fonts={fonts}
+            design={effectiveDesign}
+            moodImageUrl={moodImageUrl}
+          />
 
           <ImagePicker currentUrl={logoUrl} saveAction={logoSaveAction} label="Logo (sube el tuyo — no se genera con IA)" />
 
