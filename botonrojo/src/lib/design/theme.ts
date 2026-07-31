@@ -54,6 +54,38 @@ export function readableTextOn(bg: string): string {
   return contrastRatio(bg, "#ffffff") >= contrastRatio(bg, "#000000") ? "#ffffff" : "#111111";
 }
 
+/**
+ * Resolves `color-mix(in srgb, a p%, b)` numerically. The CSS does this in the
+ * browser, but a contrast check has to know the resulting colour *before*
+ * shipping the page, so the same mix is computed here.
+ */
+export function mix(a: string, b: string, percentA: number): string {
+  const ca = parseHex(a);
+  const cb = parseHex(b);
+  if (!ca || !cb) return a;
+  const t = Math.min(100, Math.max(0, percentA)) / 100;
+  const ch = (x: number, y: number) => Math.round(x * t + y * (1 - t));
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(ch(ca.r, cb.r))}${hex(ch(ca.g, cb.g))}${hex(ch(ca.b, cb.b))}`;
+}
+
+/**
+ * Flattens `rgba(r,g,b,a)` over an opaque backdrop. Translucent text and
+ * surfaces are everywhere in this design system, and their *effective* colour is
+ * what the eye judges — measuring the unflattened value overstates contrast.
+ */
+export function flatten(color: string, backdrop: string): string {
+  const m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(color.trim());
+  if (!m) return color;
+  const [, r, g, b, a] = m;
+  const alpha = a === undefined ? 1 : Number(a);
+  const bd = parseHex(backdrop);
+  if (!bd) return color;
+  const ch = (x: string, y: number) => Math.round(Number(x) * alpha + y * (1 - alpha));
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(ch(r!, bd.r))}${hex(ch(g!, bd.g))}${hex(ch(b!, bd.b))}`;
+}
+
 /* ------------------------------------------------------------- theme mode */
 
 /**
@@ -183,6 +215,11 @@ export function themeToCssVars(theme: ThemeContext): Record<string, string> {
     "--color-text-muted": c.textMuted,
     "--color-text-subtle": c.textSubtle,
     "--color-text-on-accent": c.textOnAccent,
+    // Both were missing, so every preset that fills with --color-primary (the
+    // "solid" and "pill-arrow" CTAs) fell back to the @theme default red — a
+    // red button in the middle of a blue brand.
+    "--color-primary": c.primary,
+    "--color-primary-hover": c.primaryHover,
     "--color-accent": c.accent,
     "--color-accent-soft": c.accentSoft,
     "--color-border": c.border,

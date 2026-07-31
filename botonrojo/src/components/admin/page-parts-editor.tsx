@@ -132,7 +132,7 @@ function PartBlock({
       {showAi && (
         <form
           action={refineAction.bind(null, launchId, pageKey)}
-          className="mt-3 space-y-2 rounded-lg border border-[--color-red]/25 bg-[--color-red]/5 p-3"
+          className="mt-3 space-y-2 rounded-lg border border-[var(--color-red)]/25 bg-[var(--color-red)]/5 p-3"
         >
           <input type="hidden" name="field" value={field.name} />
           <label className="block">

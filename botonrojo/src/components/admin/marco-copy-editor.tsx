@@ -98,7 +98,7 @@ function Field({ label, name, defaultValue }: { label: string; name: string; def
         type="text"
         name={name}
         defaultValue={defaultValue}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );
@@ -112,7 +112,7 @@ function Textarea({ label, name, defaultValue, rows = 4 }: { label: string; name
         name={name}
         defaultValue={defaultValue}
         rows={rows}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );

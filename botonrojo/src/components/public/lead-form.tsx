@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { SubmitButton } from "@/components/admin/submit-button";
-import { resolveVisualStyle } from "@/lib/design/presets";
-import type { LandingCardStyle } from "@/components/public/landing-types";
+import { resolveCtaStyle, resolveVisualStyle } from "@/lib/design/presets";
+import type { LandingCardStyle, LandingCtaStyle } from "@/components/public/landing-types";
 
 type Props = {
   launchSlug: string;
@@ -13,6 +13,7 @@ type Props = {
   /** Tighter padding/spacing for the hero, where the form must fit above the fold. */
   compact?: boolean;
   cardStyle?: LandingCardStyle;
+  ctaStyle?: LandingCtaStyle;
 };
 
 /**
@@ -26,20 +27,20 @@ type Props = {
  * style derives its text/input colors from the page's own foreground instead,
  * since the box itself is no longer guaranteed to be dark.
  */
-export function LeadForm({ launchSlug, buttonLabel, action, affiliateRef, compact = false, cardStyle }: Props) {
+export function LeadForm({ launchSlug, buttonLabel, action, affiliateRef, compact = false, cardStyle, ctaStyle }: Props) {
   const card = resolveVisualStyle(cardStyle);
   const isGlass = (cardStyle ?? "glass") === "glass";
 
   // Field labels are actionable, not decorative — need more contrast than
   // the general "muted" tone (--color-muted-2 read as too low-contrast in
   // review on light card styles).
-  const labelClass = isGlass ? "text-zinc-400" : "text-[--color-text-muted]";
+  const labelClass = isGlass ? "text-zinc-400" : "text-[var(--color-text-muted)]";
   const inputClass = isGlass
     ? "field-input text-white"
-    : "rounded-[--radius-field] border border-[--color-border] bg-[--color-surface] outline-none transition focus:border-[--color-focus]";
+    : "rounded-[var(--radius-field)] border border-[var(--color-border)] bg-[var(--color-surface)] outline-none transition focus:border-[var(--color-focus)]";
   const checkboxClass = isGlass
     ? "border-white/20 bg-black/40"
-    : "border-[--color-border-strong] bg-transparent";
+    : "border-[var(--color-border-strong)] bg-transparent";
 
   return (
     <form
@@ -77,11 +78,11 @@ export function LeadForm({ launchSlug, buttonLabel, action, affiliateRef, compac
             type="checkbox"
             name="privacyAccepted"
             required
-            className={`mt-0.5 h-4 w-4 shrink-0 rounded accent-[--color-red-bright] ${checkboxClass}`}
+            className={`mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-red-bright)] ${checkboxClass}`}
           />
           <span>
             He leído y acepto la{" "}
-            <Link href="/privacidad" target="_blank" className="text-[--color-red-bright] hover:underline">
+            <Link href="/privacidad" target="_blank" className="text-[var(--color-red-bright)] hover:underline">
               política de privacidad
             </Link>
             .
@@ -93,13 +94,13 @@ export function LeadForm({ launchSlug, buttonLabel, action, affiliateRef, compac
             type="checkbox"
             name="marketingConsent"
             required
-            className={`mt-0.5 h-4 w-4 shrink-0 rounded accent-[--color-red-bright] ${checkboxClass}`}
+            className={`mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-red-bright)] ${checkboxClass}`}
           />
           <span>Sí, quiero recibir comunicaciones por email.</span>
         </label>
       </div>
 
-      <SubmitButton className="big-red-button w-full" pendingLabel="Apuntándote…">
+      <SubmitButton variant="none" className={`${resolveCtaStyle(ctaStyle)} w-full`} pendingLabel="Apuntándote…">
         {buttonLabel}
       </SubmitButton>
     </form>

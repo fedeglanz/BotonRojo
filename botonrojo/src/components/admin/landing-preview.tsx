@@ -49,7 +49,7 @@ export function LandingPreview({ body, slug }: { body: LandingBody | null; slug:
             {body.painBlocks.map((b, i) => (
               <div key={i} className="rounded-lg border border-white/5 bg-black/30 p-4 text-sm">
                 <div className="text-zinc-400">{b.pain}</div>
-                <div className="mt-2 text-[--color-red-bright]">→ {b.solution}</div>
+                <div className="mt-2 text-[var(--color-red-bright)]">→ {b.solution}</div>
               </div>
             ))}
           </div>
@@ -98,7 +98,7 @@ export function LandingPreview({ body, slug }: { body: LandingBody | null; slug:
       )}
 
       <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4 text-xs text-zinc-500">
-        Vista pública: <code className="text-[--color-red-bright]">/{slug}</code>
+        Vista pública: <code className="text-[var(--color-red-bright)]">/{slug}</code>
       </div>
     </div>
   );

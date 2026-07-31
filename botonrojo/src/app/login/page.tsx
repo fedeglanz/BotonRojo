@@ -87,7 +87,7 @@ export default async function LoginPage(props: { searchParams: SearchParams }) {
 
         <p className="mt-6 text-center text-xs text-zinc-500">
           ¿No tienes cuenta?{" "}
-          <Link href="/registro-afiliado" className="text-[--color-red-bright] hover:underline">
+          <Link href="/registro-afiliado" className="text-[var(--color-red-bright)] hover:underline">
             Hazte afiliado →
           </Link>
         </p>

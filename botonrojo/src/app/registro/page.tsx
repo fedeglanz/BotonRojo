@@ -68,7 +68,7 @@ export default function SignUpPage() {
 
         <p className="mt-6 text-center text-xs text-zinc-500">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-[--color-red-bright] hover:underline">
+          <Link href="/login" className="text-[var(--color-red-bright)] hover:underline">
             Accede →
           </Link>
         </p>

@@ -63,5 +63,21 @@ export function brandThemeMode(palette: BrandPalette | null): "light" | "dark" {
  * `soft` is the light-mode equivalent: same weight, follows the palette.
  */
 export function defaultCardStyleFor(palette: BrandPalette | null): LandingCardStyle {
-  return brandThemeMode(palette) === "light" ? "soft" : "glass";
+  return brandThemeMode(palette) === "light" ? "liquid" : "glass";
+}
+
+/**
+ * Coerces a stored or AI-chosen box style into one that can actually work on
+ * this palette. `glass` is a fixed dark card with its own light-on-dark text: on
+ * a white page it renders as a grey slab with unreadable copy. That must not
+ * depend on the model remembering — it's a property of the preset, so it's
+ * enforced here, which also repairs pages already stored with it.
+ */
+export function usableCardStyle(
+  palette: BrandPalette | null,
+  style: LandingCardStyle | undefined,
+): LandingCardStyle {
+  if (!style) return defaultCardStyleFor(palette);
+  if (style === "glass" && brandThemeMode(palette) === "light") return "liquid";
+  return style;
 }

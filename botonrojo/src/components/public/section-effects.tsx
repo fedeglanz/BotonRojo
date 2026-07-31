@@ -106,5 +106,9 @@ export function SectionEffectLayer({ effect }: { effect: SectionEffect }) {
   if (effect === "grid") return <div className="fx-grid" aria-hidden />;
   if (effect === "geometry") return <Geometry />;
   if (effect === "orbit") return <SectionOrbitBackdrop />;
+  // Both already existed as classes in globals.css with nothing able to ask for
+  // them — the dot lattice for content-heavy bands, the grain for photo bands.
+  if (effect === "dots") return <div className="fx-dot-grid" aria-hidden />;
+  if (effect === "noise") return <div className="fx-noise" aria-hidden />;
   return null;
 }

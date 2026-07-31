@@ -1,5 +1,5 @@
 import Script from "next/script";
-import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
+import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import { LeadForm } from "@/components/public/lead-form";
@@ -27,14 +27,14 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
           </h1>
 
           {subheadline && (
-            <p className="mt-4 text-balance text-base text-[--color-muted-1] lg:text-lg">{subheadline}</p>
+            <p className="mt-4 text-balance text-base text-[var(--color-muted-1)] lg:text-lg">{subheadline}</p>
           )}
 
           {body?.bullets && body.bullets.length > 0 && (
             <Reveal className="mx-auto mt-6 max-w-md space-y-2 text-left lg:mx-0">
               {body.bullets.map((b, i) => (
-                <RevealItem key={i} className="flex gap-2 text-sm text-[--color-muted-1] lg:text-base">
-                  <span className="text-[--color-accent]">✓</span>
+                <RevealItem key={i} className="flex gap-2 text-sm text-[var(--color-muted-1)] lg:text-base">
+                  <span className="text-[var(--color-accent)]">✓</span>
                   <span>{b}</span>
                 </RevealItem>
               ))}
@@ -44,7 +44,7 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
 
         <Reveal className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-none" id="cta">
           {body?.imageUrl && (
-            <div className="mb-6 aspect-[4/3] overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
+            <div className="mb-6 aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={body.imageUrl} alt={headline} className="h-full w-full object-cover" />
             </div>
@@ -54,7 +54,7 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
             buttonLabel={body?.cta ?? "Apúntame"}
             action={captureLeadAction}
             compact
-            cardStyle={defaultCardStyleFor(launch.brandPalette)}
+            cardStyle={usableCardStyle(launch.brandPalette, undefined)}
           />
         </Reveal>
       </section>

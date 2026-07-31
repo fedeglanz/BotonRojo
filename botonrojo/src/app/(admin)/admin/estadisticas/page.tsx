@@ -173,7 +173,7 @@ export default async function EstadisticasPage(props: { searchParams: SearchPara
                     <td className="py-2 pr-4 text-zinc-400">{a.visits.toLocaleString("es-ES")}</td>
                     <td className="py-2 pr-4 text-zinc-400">{a.leads.toLocaleString("es-ES")}</td>
                     <td className="py-2 pr-4 text-zinc-400">{a.sales.toLocaleString("es-ES")}</td>
-                    <td className="py-2 pr-4 text-[--color-red-bright]">{formatEuros(a.revenueCents)}</td>
+                    <td className="py-2 pr-4 text-[var(--color-red-bright)]">{formatEuros(a.revenueCents)}</td>
                   </tr>
                 ))}
               </tbody>

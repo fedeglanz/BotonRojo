@@ -3,7 +3,8 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { LeadForm } from "@/components/public/lead-form";
-import type { LandingCardStyle } from "@/components/public/landing-types";
+import type { LandingCardStyle, LandingCtaStyle } from "@/components/public/landing-types";
+import { resolveCtaStyle } from "@/lib/design/presets";
 
 type Props = {
   launchSlug: string;
@@ -15,6 +16,7 @@ type Props = {
   /** Tighter vertical padding for the hero, where the form must fit above the fold. */
   compact?: boolean;
   cardStyle?: LandingCardStyle;
+  ctaStyle?: LandingCtaStyle;
 };
 
 export function CtaBlock({
@@ -26,6 +28,7 @@ export function CtaBlock({
   captureLeadAction,
   compact = false,
   cardStyle,
+  ctaStyle,
 }: Props) {
   const reduced = useReducedMotion();
 
@@ -49,14 +52,14 @@ export function CtaBlock({
       {hasStripeProduct && productSlug ? (
         <form action={startCheckoutAction} className="space-y-4">
           <input type="hidden" name="productSlug" value={productSlug} />
-          <SubmitButton className="big-red-button" pendingLabel="Redirigiendo…">
+          <SubmitButton variant="none" className={resolveCtaStyle(ctaStyle)} pendingLabel="Redirigiendo…">
             {buttonLabel}
           </SubmitButton>
-          <p className="text-xs text-[--color-muted-3]">Pago seguro con Stripe</p>
+          <p className="text-xs text-[var(--color-muted-3)]">Pago seguro con Stripe</p>
         </form>
       ) : (
         <div className="space-y-3">
-          <p className="text-center text-sm text-[--color-muted-2]">
+          <p className="text-center text-sm text-[var(--color-muted-2)]">
             Apúntate para enterarte cuando se abra el carrito
           </p>
           <LeadForm
@@ -65,6 +68,7 @@ export function CtaBlock({
             action={captureLeadAction}
             compact={compact}
             cardStyle={cardStyle}
+            ctaStyle={ctaStyle}
           />
         </div>
       )}

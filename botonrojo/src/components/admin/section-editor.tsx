@@ -167,7 +167,7 @@ export function SectionEditor({
                 required
                 minLength={3}
                 placeholder={`Ej: ${SUGGESTIONS[section][0] ?? "Reescribe esta sección"}`}
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
               />
             </label>
 
@@ -210,7 +210,7 @@ export function SectionEditor({
                 rows={14}
                 required
                 defaultValue={JSON.stringify(currentJson ?? null, null, 2)}
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 p-3 font-[family-name:var(--font-mono)] text-xs text-white outline-none focus:border-[--color-red]"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 p-3 font-[family-name:var(--font-mono)] text-xs text-white outline-none focus:border-[var(--color-red)]"
               />
             </label>
             <div className="flex justify-end">
@@ -301,7 +301,7 @@ function SuggestionChip({ label }: { label: string }) {
           ta.focus();
         }
       }}
-      className="rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs text-zinc-200 transition hover:border-[--color-red] hover:bg-white/10 hover:text-white"
+      className="rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs text-zinc-200 transition hover:border-[var(--color-red)] hover:bg-white/10 hover:text-white"
     >
       {label}
     </button>

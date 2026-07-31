@@ -64,7 +64,7 @@ export function DomainPanel({
       {domains.length === 0 && (
         <p className="text-sm text-zinc-500">
           Aún no hay ningún dominio conectado a este lanzamiento. La landing sigue disponible en{" "}
-          <code className="text-[--color-red-bright]">/{launchSlug}</code>.
+          <code className="text-[var(--color-red-bright)]">/{launchSlug}</code>.
         </p>
       )}
 
@@ -106,7 +106,7 @@ export function DomainPanel({
                     <br />
                     <span className="text-zinc-500">Nombre:</span> @ &nbsp;
                     <span className="text-zinc-500">Valor:</span>{" "}
-                    <span className="text-[--color-red-bright]">
+                    <span className="text-[var(--color-red-bright)]">
                       {serverIpv4 || "(configura SERVER_IPV4 en el servidor)"}
                     </span>
                   </>
@@ -116,7 +116,7 @@ export function DomainPanel({
                     <br />
                     <span className="text-zinc-500">Nombre:</span> {d.hostname.split(".")[0]} &nbsp;
                     <span className="text-zinc-500">Valor:</span>{" "}
-                    <span className="text-[--color-red-bright]">{appHostname}</span>
+                    <span className="text-[var(--color-red-bright)]">{appHostname}</span>
                   </>
                 )}
                 {d.lastError && <div className="mt-2 text-red-300">{d.lastError}</div>}

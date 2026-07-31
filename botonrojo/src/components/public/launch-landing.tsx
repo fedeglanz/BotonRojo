@@ -23,7 +23,7 @@ import {
   type PricingProduct,
 } from "@/components/public/landing-sections";
 import type { LandingBody, LandingCardStyle } from "@/components/public/landing-types";
-import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
+import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
@@ -172,7 +172,8 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const palette = launch.brandPalette;
   // The generator may not set a box style; the fallback has to follow the
   // brand, since `glass` is always a dark card.
-  const cardStyle = landing?.style?.cardStyle ?? defaultCardStyleFor(palette);
+  const cardStyle = usableCardStyle(palette, landing?.style?.cardStyle);
+  const ctaStyle = landing?.style?.ctaStyle;
   const fonts = launch.brandFonts;
 
   return (
@@ -198,7 +199,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
         </h1>
 
         {heroSubheadline && (
-          <p className="mt-2 max-w-2xl text-balance text-sm text-[--color-muted-1] sm:mt-4 sm:text-base md:text-lg">
+          <p className="mt-2 max-w-2xl text-balance text-sm text-[var(--color-muted-1)] sm:mt-4 sm:text-base md:text-lg">
             {heroSubheadline}
           </p>
         )}
@@ -217,6 +218,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             captureLeadAction={captureLeadAction}
             compact
             cardStyle={cardStyle}
+            ctaStyle={ctaStyle}
           />
         </div>
       </section>
@@ -233,9 +235,10 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
         (landing.sectionOrder?.length ? landing.sectionOrder : LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf).map(
           (key) => {
             const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
+              // The section's own box style wins over the page default.
+              cardStyle: usableCardStyle(palette, landing.sectionDesign?.[key]?.style as LandingCardStyle),
               products: activeProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
               cartClosesAt: launch.cartClosesAt,
-              cardStyle,
             });
             if (!rendered) return null;
             return (
@@ -254,7 +257,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             {finalCtaHeadline}
           </h2>
           {landing?.finalCta?.subheadline && (
-            <p className="mx-auto mt-4 max-w-xl text-balance text-[--color-muted-1]">
+            <p className="mx-auto mt-4 max-w-xl text-balance text-[var(--color-muted-1)]">
               {landing.finalCta.subheadline}
             </p>
           )}
@@ -267,6 +270,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
               startCheckoutAction={startCheckoutAction}
               captureLeadAction={captureLeadAction}
               cardStyle={cardStyle}
+              ctaStyle={ctaStyle}
             />
           </div>
         </section>

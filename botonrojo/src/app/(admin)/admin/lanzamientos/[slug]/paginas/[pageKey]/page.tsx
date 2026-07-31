@@ -106,7 +106,7 @@ export default async function LaunchPageEditor(props: {
               {pageDef.label}
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
-              <code className="text-[--color-red-bright]">{publicPath}</code>
+              <code className="text-[var(--color-red-bright)]">{publicPath}</code>
               {" · "}
               {hasContent ? "Generada" : "Sin generar"}
               {pageDef.kind === "legal" &&
@@ -120,7 +120,7 @@ export default async function LaunchPageEditor(props: {
               href={publicPath}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[--color-red]"
+              className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[var(--color-red)]"
             >
               Ver esta página ↗
             </a>
@@ -132,7 +132,7 @@ export default async function LaunchPageEditor(props: {
             you asked the first time instead of from nothing. */}
         <form
           action={regenerateSinglePageAction.bind(null, launch.id, pageKey)}
-          className="space-y-2 rounded-xl border border-[--color-red]/25 bg-[--color-red]/5 p-4"
+          className="space-y-2 rounded-xl border border-[var(--color-red)]/25 bg-[var(--color-red)]/5 p-4"
         >
           <AiGeneratingOverlay
             messages={[`Escribiendo ${pageDef.label.toLowerCase()}…`, "Ajustando el tono…", "Repasando la estructura…"]}

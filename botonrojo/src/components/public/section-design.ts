@@ -14,6 +14,7 @@ import type {
   SectionDesignKey,
   SectionEffect,
   SectionHeight,
+  SectionTitleFx,
   SectionWidth,
 } from "./landing-types";
 
@@ -70,6 +71,7 @@ export type NormalizedSectionDesign = {
   density: DensityTokens;
   style: VisualStylePreset;
   divider: DividerPreset;
+  titleFx: SectionTitleFx;
   imageUrl?: string;
   imagePrompt?: string;
   orbitItems?: Array<{ label: string; href?: string }>;
@@ -84,6 +86,8 @@ export type ResolvedSectionDesign = {
   dividerClass: string;
   background: SectionBackground;
   effect: SectionEffect;
+  /** Box treatment for this section specifically, when it overrides the page. */
+  style: VisualStylePreset;
   needsPhoto: boolean;
   forcesLightText: boolean;
   imageUrl?: string;
@@ -120,13 +124,30 @@ export type DesignCapabilityMap = Record<
 
 /* ----------------------------------------------------------- vocabularies */
 
-const BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
-const EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid"];
+const BACKGROUNDS: SectionBackground[] = [
+  "none",
+  "tint",
+  "accent",
+  "dark",
+  "photo",
+  "gradient",
+  "spotlight",
+];
+const EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid", "dots", "noise"];
+const TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
 const HEIGHTS: SectionHeight[] = ["auto", "full"];
 const WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 const ALIGNMENTS: AlignmentTokens[] = ["start", "center", "end"];
 const DENSITIES: DensityTokens[] = ["compact", "normal", "spacious"];
-const STYLES: VisualStylePreset[] = ["glass", "flat", "outline", "soft", "brutal", "editorial"];
+const STYLES: VisualStylePreset[] = [
+  "glass",
+  "liquid",
+  "flat",
+  "outline",
+  "soft",
+  "brutal",
+  "editorial",
+];
 const DIVIDERS: DividerPreset[] = ["none", "line", "fade", "angle", "curve", "dots"];
 
 /** Deprecated keys and values kept working, so nothing already stored breaks. */
@@ -145,13 +166,37 @@ const ALIASES: Record<string, string> = {
 export const DESIGN_CAPABILITIES: DesignCapabilityMap = {
   hero: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   statement: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
-  list: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "aurora", "grid"], allowFullHeight: false },
-  cards: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "aurora", "grid"], allowFullHeight: false },
-  media: { backgrounds: ["none", "tint", "dark"], effects: ["none", "aurora"], allowFullHeight: true },
+  list: {
+    backgrounds: ["none", "tint", "accent", "dark", "gradient", "spotlight"],
+    effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
+    allowFullHeight: false,
+  },
+  cards: {
+    backgrounds: ["none", "tint", "accent", "dark", "gradient", "spotlight"],
+    effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
+    allowFullHeight: false,
+  },
+  media: {
+    backgrounds: ["none", "tint", "dark", "gradient", "spotlight"],
+    effects: ["none", "aurora", "noise"],
+    allowFullHeight: true,
+  },
   // A form needs maximum legibility: no photo behind it, no orbit stealing focus.
-  form: { backgrounds: ["none", "tint", "dark"], effects: ["none", "aurora", "grid"], allowFullHeight: true },
-  pricing: { backgrounds: ["none", "tint", "accent", "dark"], effects: ["none", "geometry", "grid"], allowFullHeight: false },
-  faq: { backgrounds: ["none", "tint", "dark"], effects: ["none", "grid"], allowFullHeight: false },
+  form: {
+    backgrounds: ["none", "tint", "dark", "gradient"],
+    effects: ["none", "aurora", "grid", "noise"],
+    allowFullHeight: true,
+  },
+  pricing: {
+    backgrounds: ["none", "tint", "accent", "dark", "gradient"],
+    effects: ["none", "geometry", "grid", "dots"],
+    allowFullHeight: false,
+  },
+  faq: {
+    backgrounds: ["none", "tint", "dark", "gradient"],
+    effects: ["none", "grid", "dots"],
+    allowFullHeight: false,
+  },
   cta: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   // Legal pages are documents: decoration would only hurt reading.
   legal: { backgrounds: ["none"], effects: ["none"], allowFullHeight: false },
@@ -271,6 +316,7 @@ export function normalizeSectionDesign(
   const density = track("density", DENSITIES) ?? defaults.density ?? "normal";
   const style = track("style", STYLES) ?? defaults.style ?? "glass";
   const divider = track("divider", DIVIDERS) ?? defaults.divider ?? "none";
+  const titleFx = track("titleFx", TITLE_FX) ?? defaults.titleFx ?? "none";
 
   // Per-kind capability: valid in the abstract, not allowed here.
   if (!caps.backgrounds.includes(background)) {
@@ -308,6 +354,7 @@ export function normalizeSectionDesign(
     density,
     style,
     divider,
+    titleFx,
   };
 
   if (background === "photo") {
@@ -360,6 +407,7 @@ export function inferMissingDesign(
       density: "normal",
       style: "glass",
       divider: "none",
+      titleFx: "none",
     }
   );
 }
@@ -463,6 +511,13 @@ const ALIGN_CLASSES: Record<AlignmentTokens, string> = {
   end: "text-right",
 };
 
+/** Applied on the wrapper; the CSS targets the section's own headings. */
+const TITLE_FX_CLASSES: Record<SectionTitleFx, string> = {
+  none: "",
+  gradient: "section-title-gradient",
+  outline: "section-title-outline",
+};
+
 const DENSITY_CLASSES: Record<DensityTokens, string> = {
   compact: "[&_section]:!py-12",
   normal: "",
@@ -487,6 +542,7 @@ export function resolveSectionDesign(
   const align = d?.align ?? "start";
   const density = d?.density ?? options.theme?.density ?? "normal";
   const divider = d?.divider ?? "none";
+  const titleFx = d?.titleFx ?? "none";
 
   const isDefault =
     background === "none" &&
@@ -495,7 +551,8 @@ export function resolveSectionDesign(
     width === "normal" &&
     align === "start" &&
     density === "normal" &&
-    divider === "none";
+    divider === "none" &&
+    titleFx === "none";
 
   const bg = resolveBackground(background as BackgroundPreset);
 
@@ -514,6 +571,7 @@ export function resolveSectionDesign(
       widthClass,
       DENSITY_CLASSES[density],
       ALIGN_CLASSES[align],
+      TITLE_FX_CLASSES[titleFx],
     ]
       .filter(Boolean)
       .join(" "),
@@ -521,6 +579,7 @@ export function resolveSectionDesign(
     dividerClass: resolveDivider(divider as DividerPreset),
     background,
     effect,
+    style: (d?.style as VisualStylePreset) ?? "glass",
     needsPhoto: bg.needsPhoto,
     forcesLightText: bg.forcesLightText,
     imageUrl: d?.imageUrl,

@@ -35,7 +35,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                   aria-hidden
                 />
                 <div
-                  className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-[--color-red] opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-20"
+                  className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-[var(--color-red)] opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-20"
                   aria-hidden
                 />
                 <div className="flex items-center gap-3">
@@ -57,7 +57,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                 </p>
                 <Link
                   href={`/admin/lanzamientos/nuevo?type=${key}`}
-                  className="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-[--color-red] hover:text-white"
+                  className="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-[var(--color-red)] hover:text-white"
                 >
                   Crear {t.label.toLowerCase()} →
                 </Link>
@@ -99,7 +99,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/admin/lanzamientos/${l.slug}`} className="text-[--color-red-bright] hover:underline">
+                    <Link href={`/admin/lanzamientos/${l.slug}`} className="text-[var(--color-red-bright)] hover:underline">
                       Abrir →
                     </Link>
                   </td>

@@ -56,7 +56,7 @@ export default async function AffiliateDashboardPage() {
           <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
             Por lanzamiento
           </h2>
-          <Link href="/afiliado/enlaces" className="text-xs text-[--color-red-bright] hover:underline">
+          <Link href="/afiliado/enlaces" className="text-xs text-[var(--color-red-bright)] hover:underline">
             + Crear enlace →
           </Link>
         </div>
@@ -78,7 +78,7 @@ export default async function AffiliateDashboardPage() {
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
                     Aún no hay tráfico atribuido. Crea tu primer enlace en{" "}
-                    <Link href="/afiliado/enlaces" className="text-[--color-red-bright] hover:underline">
+                    <Link href="/afiliado/enlaces" className="text-[var(--color-red-bright)] hover:underline">
                       Mis enlaces
                     </Link>
                     .
@@ -99,7 +99,7 @@ export default async function AffiliateDashboardPage() {
                     <td className="px-4 py-3 text-right text-zinc-300">{r.leads.toLocaleString("es-ES")}</td>
                     <td className="px-4 py-3 text-right text-white">{r.sales.toLocaleString("es-ES")}</td>
                     <td className="px-4 py-3 text-right text-zinc-300">{formatPrice(r.salesAmountCents)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-[--color-red-bright]">{formatPrice(commission)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-[var(--color-red-bright)]">{formatPrice(commission)}</td>
                   </tr>
                 );
               })}

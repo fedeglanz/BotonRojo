@@ -42,6 +42,12 @@ export function SectionShell({
 
       <SectionEffectLayer effect={resolved.effect} />
 
+      {/* The divider was resolved and then never painted, so six presets were
+          dead. It sits on top of the band's own top edge. */}
+      {resolved.dividerClass && (
+        <div aria-hidden className={`absolute inset-x-0 top-0 h-12 ${resolved.dividerClass}`} />
+      )}
+
       {/* Content sits above the background and decoration layers. */}
       <div className="relative z-10 w-full">{children}</div>
 

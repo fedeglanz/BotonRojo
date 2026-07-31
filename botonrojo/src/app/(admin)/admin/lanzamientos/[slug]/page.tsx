@@ -274,7 +274,7 @@ export default async function LaunchHubPage(props: {
           </h1>
           <p className="mt-1 text-sm text-zinc-400">
             {meta?.label ?? launch.type} · slug{" "}
-            <code className="text-[--color-red-bright]">/{launch.slug}</code> ·{" "}
+            <code className="text-[var(--color-red-bright)]">/{launch.slug}</code> ·{" "}
             <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-widest">
               {launch.status}
             </span>
@@ -284,7 +284,7 @@ export default async function LaunchHubPage(props: {
             each one is opened from the page index instead. */}
         <Link
           href={`/admin/lanzamientos/${launch.slug}?seccion=paginas`}
-          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[--color-red]"
+          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[var(--color-red)]"
         >
           Ver sus {pages.length} páginas →
         </Link>

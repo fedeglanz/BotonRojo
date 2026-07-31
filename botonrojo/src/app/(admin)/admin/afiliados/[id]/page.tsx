@@ -48,7 +48,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
           </h1>
           <p className="mt-1 text-sm text-zinc-400">
             {overview.user.email} ·{" "}
-            <span className="font-[family-name:var(--font-mono)] text-[--color-red-bright]">
+            <span className="font-[family-name:var(--font-mono)] text-[var(--color-red-bright)]">
               ?ref={overview.user.affiliateCode}
             </span>
           </p>
@@ -82,7 +82,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
               max={100}
               step={1}
               defaultValue={rate}
-              className="w-24 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+              className="w-24 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
             />
             <SubmitButton variant="outline" pendingLabel="Guardando…">
               Actualizar
@@ -101,7 +101,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
               <span className="block text-xs uppercase tracking-widest text-zinc-400">Lanzamiento (opc.)</span>
               <select
                 name="launchId"
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
               >
                 <option value="">—</option>
                 {availableLaunches.map((l) => (
@@ -155,7 +155,7 @@ export default async function AffiliateDetailPage(props: { params: Promise<{ id:
                     <td className="px-4 py-3 text-right text-zinc-300">{r.leads}</td>
                     <td className="px-4 py-3 text-right text-white">{r.sales}</td>
                     <td className="px-4 py-3 text-right text-zinc-300">{formatPrice(r.salesAmountCents)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-[--color-red-bright]">{formatPrice(commission)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-[var(--color-red-bright)]">{formatPrice(commission)}</td>
                   </tr>
                 );
               })}
@@ -215,7 +215,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
       <span className="block text-xs uppercase tracking-widest text-zinc-400">{label}</span>
       <input
         {...rest}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );

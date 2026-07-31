@@ -77,10 +77,21 @@ export type LandingAgendaItem = { time: string; topic: string };
  * Resolved by `resolveVisualStyle` in lib/design/presets.ts, which is also
  * where the padding-by-density and hover treatments live.
  */
-export type LandingCardStyle = "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+export type LandingCardStyle =
+  | "glass"
+  | "liquid"
+  | "flat"
+  | "outline"
+  | "soft"
+  | "brutal"
+  | "editorial";
+
+export type LandingCtaStyle = "solid" | "glow" | "outline" | "ghost" | "pill-arrow";
 
 export type LandingStyle = {
   cardStyle?: LandingCardStyle;
+  /** Resolved by `resolveCtaStyle` in lib/design/presets.ts. */
+  ctaStyle?: LandingCtaStyle;
 };
 
 /**
@@ -90,8 +101,20 @@ export type LandingStyle = {
  * parallax/overlay) and that took the whole public page down — see
  * normalizeSectionDesign.
  */
-export type SectionBackground = "none" | "tint" | "accent" | "dark" | "photo";
-export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid";
+// "gradient" and "spotlight" already existed in BACKGROUND_PRESETS but no
+// vocabulary exposed them, so nothing could ever ask for them.
+export type SectionBackground =
+  | "none"
+  | "tint"
+  | "accent"
+  | "dark"
+  | "photo"
+  | "gradient"
+  | "spotlight";
+export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise";
+/** Display treatment for the section's heading — the size/shape contrast the
+ *  client keeps asking for, without touching the section components. */
+export type SectionTitleFx = "none" | "gradient" | "outline";
 export type SectionHeight = "auto" | "full";
 export type SectionWidth = "normal" | "wide" | "full";
 
@@ -106,8 +129,9 @@ export type SectionDesign = {
   width?: SectionWidth;
   align?: "start" | "center" | "end";
   density?: "compact" | "normal" | "spacious";
-  style?: "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+  style?: LandingCardStyle;
   divider?: "none" | "line" | "fade" | "angle" | "curve" | "dots";
+  titleFx?: SectionTitleFx;
   /** Only meaningful with `background: "photo"`. */
   imageUrl?: string;
   imagePrompt?: string;
@@ -115,8 +139,25 @@ export type SectionDesign = {
   orbitItems?: SectionOrbitItem[];
 };
 
-export const SECTION_BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
-export const SECTION_EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid"];
+export const SECTION_BACKGROUNDS: SectionBackground[] = [
+  "none",
+  "tint",
+  "accent",
+  "dark",
+  "photo",
+  "gradient",
+  "spotlight",
+];
+export const SECTION_EFFECTS: SectionEffect[] = [
+  "none",
+  "orbit",
+  "geometry",
+  "aurora",
+  "grid",
+  "dots",
+  "noise",
+];
+export const SECTION_TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
 export const SECTION_HEIGHTS: SectionHeight[] = ["auto", "full"];
 export const SECTION_WIDTHS: SectionWidth[] = ["normal", "wide", "full"];
 

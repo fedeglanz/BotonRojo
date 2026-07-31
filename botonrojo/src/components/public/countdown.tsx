@@ -42,7 +42,7 @@ export function Countdown({ targetDate }: { targetDate: string }) {
       {units.map(([unit, value]) => (
         <div key={unit}>
           {String(value).padStart(2, "0")}
-          <span className="ml-1 text-sm text-[--color-muted-3]">{unit}</span>
+          <span className="ml-1 text-sm text-[var(--color-muted-3)]">{unit}</span>
         </div>
       ))}
     </div>

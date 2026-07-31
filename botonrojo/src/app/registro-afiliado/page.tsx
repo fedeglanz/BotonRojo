@@ -26,7 +26,7 @@ export default async function AffiliateSignupPage(props: { searchParams: SearchP
 
       <div className="glass mt-6 p-8">
         <div className="flex items-center gap-3">
-          <span className="inline-block h-3 w-3 rounded-full bg-[--color-red] shadow-[0_0_18px_var(--color-red-glow)]" />
+          <span className="inline-block h-3 w-3 rounded-full bg-[var(--color-red)] shadow-[0_0_18px_var(--color-red-glow)]" />
           <span className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.2em]">
             Programa de afiliados
           </span>
@@ -36,7 +36,7 @@ export default async function AffiliateSignupPage(props: { searchParams: SearchP
           Conviértete en afiliado
         </h1>
         <p className="mt-2 text-zinc-400">
-          Te damos un código <code className="text-[--color-red-bright]">?ref=...</code> propio.
+          Te damos un código <code className="text-[var(--color-red-bright)]">?ref=...</code> propio.
           Cobras comisión por cada venta atribuida a tu enlace. Reportes en tiempo real, pagos
           manuales por lanzamiento.
         </p>
@@ -70,7 +70,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
       <span className="block text-xs uppercase tracking-widest text-zinc-400">{label}</span>
       <input
         {...rest}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );

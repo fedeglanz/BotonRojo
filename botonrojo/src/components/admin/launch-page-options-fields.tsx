@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 
 const fieldClass =
-  "mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-[--color-red]";
+  "mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-[var(--color-red)]";
 
 /**
  * The "Tipo" select plus whatever extra questions that type needs to resolve
@@ -77,7 +77,7 @@ export function LaunchPageOptionsFields({ defaultType }: { defaultType: LaunchTy
             <input
               type="checkbox"
               name="includeAffiliateRegistro"
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[--color-red-bright]"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-red-bright)]"
             />
             <span>
               <span className="block text-sm text-white">Incluir página de registro de afiliados</span>
@@ -91,15 +91,15 @@ export function LaunchPageOptionsFields({ defaultType }: { defaultType: LaunchTy
         <span className="block text-xs uppercase tracking-widest text-zinc-400">Páginas legales a incluir</span>
         <div className="mt-2 space-y-2 rounded-lg border border-white/10 bg-black/30 p-4">
           <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" name="legalPrivacidad" defaultChecked className="h-4 w-4 accent-[--color-red-bright]" />
+            <input type="checkbox" name="legalPrivacidad" defaultChecked className="h-4 w-4 accent-[var(--color-red-bright)]" />
             Política de privacidad
           </label>
           <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" name="legalTerminos" defaultChecked className="h-4 w-4 accent-[--color-red-bright]" />
+            <input type="checkbox" name="legalTerminos" defaultChecked className="h-4 w-4 accent-[var(--color-red-bright)]" />
             Términos y condiciones
           </label>
           <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" name="legalCookies" className="h-4 w-4 accent-[--color-red-bright]" />
+            <input type="checkbox" name="legalCookies" className="h-4 w-4 accent-[var(--color-red-bright)]" />
             Política de cookies
           </label>
         </div>

@@ -59,7 +59,7 @@ export function LandingEditor({
         <Link
           href={`/${launchSlug}`}
           target="_blank"
-          className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 uppercase tracking-widest text-zinc-100 transition hover:border-[--color-red] hover:bg-white/15"
+          className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 uppercase tracking-widest text-zinc-100 transition hover:border-[var(--color-red)] hover:bg-white/15"
         >
           Ver landing pública ↗
         </Link>
@@ -227,7 +227,7 @@ function renderPreview(section: LandingSectionKey, sectionJson: unknown, body: L
         {blocks?.map((b, i) => (
           <div key={i} className="rounded-lg border border-white/5 bg-black/30 p-3 text-xs">
             <div className="text-zinc-400">{b.icon} {b.pain}</div>
-            <div className="mt-1 text-[--color-red-bright]">→ {b.solution}</div>
+            <div className="mt-1 text-[var(--color-red-bright)]">→ {b.solution}</div>
           </div>
         ))}
       </div>
@@ -331,7 +331,7 @@ function renderPreview(section: LandingSectionKey, sectionJson: unknown, body: L
       <ul className="space-y-1 text-sm">
         {items?.map((a, i) => (
           <li key={i}>
-            <span className="font-[family-name:var(--font-mono)] text-[--color-red-bright]">{a.time}</span>{" "}
+            <span className="font-[family-name:var(--font-mono)] text-[var(--color-red-bright)]">{a.time}</span>{" "}
             <span className="text-zinc-300">— {a.topic}</span>
           </li>
         ))}
@@ -346,7 +346,7 @@ function renderPreview(section: LandingSectionKey, sectionJson: unknown, body: L
         {items?.map((t, i) => (
           <div key={i} className="rounded-lg border border-white/5 bg-black/30 p-3 text-xs">
             <div className="font-bold text-white">{t.productSlug}</div>
-            {t.highlight && <div className="text-[--color-red-bright]">{t.highlight}</div>}
+            {t.highlight && <div className="text-[var(--color-red-bright)]">{t.highlight}</div>}
             <ul className="mt-1 space-y-0.5 text-zinc-400">
               {t.bullets?.map((b, j) => <li key={j}>· {b}</li>)}
             </ul>

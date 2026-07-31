@@ -9,7 +9,7 @@ type Props = {
 
 const ACCENTS = {
   default: "from-white/[0.06] to-white/0",
-  red: "from-[--color-red]/20 to-[--color-red]/0",
+  red: "from-[var(--color-red)]/20 to-[var(--color-red)]/0",
   amber: "from-amber-500/20 to-amber-500/0",
   emerald: "from-emerald-500/20 to-emerald-500/0",
 };

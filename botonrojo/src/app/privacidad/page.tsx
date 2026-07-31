@@ -9,7 +9,7 @@ export default function PrivacidadPage() {
         finalidad de gestionar tu inscripción a este lanzamiento y, si nos has dado tu consentimiento,
         enviarte comunicaciones comerciales relacionadas por email. Puedes darte de baja en cualquier
         momento desde el enlace incluido en cada email o escribiéndonos a{" "}
-        <a href="mailto:hola@escuelanomadadigital.com" className="text-[--color-red-bright] hover:underline">
+        <a href="mailto:hola@escuelanomadadigital.com" className="text-[var(--color-red-bright)] hover:underline">
           hola@escuelanomadadigital.com
         </a>
         .

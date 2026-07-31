@@ -104,7 +104,7 @@ export default async function AnunciosPage() {
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/admin/lanzamientos/${l.slug}`}
-                      className="text-[--color-red-bright] hover:underline"
+                      className="text-[var(--color-red-bright)] hover:underline"
                     >
                       Abrir →
                     </Link>

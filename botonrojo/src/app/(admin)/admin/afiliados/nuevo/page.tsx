@@ -12,7 +12,7 @@ export default function NuevoAfiliadoPage() {
         <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-bold">Nuevo afiliado</h1>
         <p className="mt-1 text-sm text-zinc-400">
           Crea la cuenta del afiliado y compártele el email y la contraseña inicial. El sistema
-          le genera automáticamente un código <code className="text-[--color-red-bright]">?ref=</code>.
+          le genera automáticamente un código <code className="text-[var(--color-red-bright)]">?ref=</code>.
         </p>
       </div>
 
@@ -51,7 +51,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
       <span className="block text-xs uppercase tracking-widest text-zinc-400">{label}</span>
       <input
         {...rest}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );

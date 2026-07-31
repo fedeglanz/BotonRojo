@@ -23,6 +23,7 @@ import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
 import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
 import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
+import { auditPageContrast, describeContrastFailures } from "@/lib/design/contrast-audit";
 import { normalizeSectionValue } from "@/components/public/landing-types";
 import {
   normalizeSectionDesign,
@@ -112,6 +113,7 @@ async function autoResolveImage(prompt: string | undefined | null): Promise<stri
 
 const VALID_CARD_STYLES: LandingCardStyle[] = [
   "glass",
+  "liquid",
   "flat",
   "outline",
   "soft",
@@ -127,8 +129,22 @@ const VALID_CARD_STYLES: LandingCardStyle[] = [
  * the admin to read and decide on. Never throws — a failure here must never
  * block the landing itself, which already exists by the time this runs.
  */
-async function runDesignReview(path: string, assetId: string, body: LandingBody): Promise<void> {
-  if (!isDesignReviewConfigured()) return;
+async function runDesignReview(
+  path: string,
+  assetId: string,
+  body: LandingBody,
+  /** Measured before any screenshot, so they're stored even with no service. */
+  extraIssues: DesignReviewIssue[] = [],
+): Promise<void> {
+  if (!isDesignReviewConfigured()) {
+    if (extraIssues.length > 0) {
+      await db
+        .update(assets)
+        .set({ designReview: { issues: extraIssues, reviewedAt: new Date().toISOString() }, updatedAt: new Date() })
+        .where(eq(assets.id, assetId));
+    }
+    return;
+  }
 
   try {
     const [mobile, desktop] = await Promise.all([
@@ -150,10 +166,13 @@ async function runDesignReview(path: string, assetId: string, body: LandingBody)
       autoFixCardStyle?: LandingCardStyle | null;
     };
 
-    const issues: DesignReviewIssue[] = (parsed.issues ?? []).map((i) => ({
-      severity: "warning" as const,
-      description: i.description,
-    }));
+    const issues: DesignReviewIssue[] = [
+      ...extraIssues,
+      ...(parsed.issues ?? []).map((i) => ({
+        severity: "warning" as const,
+        description: i.description,
+      })),
+    ];
 
     let updatedBody = body;
     const autoFix = parsed.autoFixCardStyle;
@@ -531,7 +550,7 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       launch.promise!,
       launch.painPoints ?? [],
       launch.benefits ?? [],
-      { palette: launch.brandPalette!, fonts: launch.brandFonts! },
+      { palette: launch.brandPalette!, fonts: launch.brandFonts!, moodNotes: launch.brandMoodNotes },
       [launch.landingGeneralInstructions, ctx.pageInstruction].filter(Boolean).join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
@@ -541,6 +560,32 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
   });
 
   const body = extractJson(text) as LandingBody;
+
+  // The model now designs the bands too. Validate each one against the closed
+  // vocabulary before storing: this is the same path that once let an invented
+  // `background: {type:"parallax"}` reach the DB and crash the public page.
+  if (body.sectionDesign && typeof body.sectionDesign === "object") {
+    const clean: NonNullable<LandingBody["sectionDesign"]> = {};
+    for (const [key, raw] of Object.entries(body.sectionDesign)) {
+      const sectionKey = key as keyof typeof SECTION_KIND_BY_KEY;
+      const kind = SECTION_KIND_BY_KEY[sectionKey];
+      if (!kind) continue;
+
+      const { design } = normalizeSectionDesign(raw, {
+        kind,
+        contentLength: JSON.stringify(body[sectionKey as keyof LandingBody] ?? "").length,
+      });
+      if (!design || resolveSectionDesign(design).isDefault) continue;
+
+      if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
+        const imageUrl = await autoResolveImage(design.imagePrompt);
+        if (imageUrl) design.imageUrl = imageUrl;
+        else design.background = "tint";
+      }
+      clean[sectionKey] = design;
+    }
+    body.sectionDesign = Object.keys(clean).length > 0 ? clean : undefined;
+  }
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
     // The model sometimes omits imagePrompt entirely — it reads the design
@@ -567,8 +612,22 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     });
   }
 
+  // Contrast is checked by arithmetic, not by eye: every box, button and band the
+  // page will paint, against the text that goes on it. A page that fails AA says
+  // so in the panel instead of shipping quietly.
+  const audit = auditPageContrast({
+    palette: launch.brandPalette,
+    cardStyle: body.style?.cardStyle,
+    ctaStyle: body.style?.ctaStyle,
+    sectionDesign: body.sectionDesign,
+  });
+  const contrastIssues: DesignReviewIssue[] = describeContrastFailures(audit).map((description) => ({
+    severity: "warning" as const,
+    description,
+  }));
+
   const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
-  await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body);
+  await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body, contrastIssues);
 }
 
 async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {

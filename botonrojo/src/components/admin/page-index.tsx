@@ -76,7 +76,7 @@ export function PageIndex({
 
               <Link
                 href={`/admin/lanzamientos/${launchSlug}/paginas/${page.pageKey}`}
-                className="shrink-0 rounded-md border border-[--color-red]/40 bg-[--color-red]/10 px-2.5 py-1 text-[11px] uppercase tracking-widest text-[--color-red-bright] transition hover:bg-[--color-red]/20"
+                className="shrink-0 rounded-md border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-2.5 py-1 text-[11px] uppercase tracking-widest text-[var(--color-red-bright)] transition hover:bg-[var(--color-red)]/20"
               >
                 Editar
               </Link>

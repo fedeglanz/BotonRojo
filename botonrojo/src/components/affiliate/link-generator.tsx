@@ -17,7 +17,7 @@ export function LinkGenerator({ launches, action }: Props) {
         <select
           name="launchSlug"
           required
-          className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
         >
           <option value="">— elige uno —</option>
           {launches.map((l) => (
@@ -50,7 +50,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
       <input
         {...rest}
         type="text"
-        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[--color-red]"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
       />
     </label>
   );

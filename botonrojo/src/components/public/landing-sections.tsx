@@ -24,7 +24,7 @@ export type PricingProduct = { slug: string; name: string; priceCents: number; c
 export function HeroImage({ url, alt }: { url: string; alt: string }) {
   return (
     <Reveal className="mx-auto mt-12 max-w-4xl">
-      <div className="overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
+      <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={alt} className="h-full w-full object-cover" />
       </div>
@@ -38,26 +38,26 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
       <SectionLabel>Para quién</SectionLabel>
       <Reveal className="mt-8 grid gap-5 md:grid-cols-2 xl:gap-6">
         <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_8%,transparent)] p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[--color-success]">
+          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-success)]">
             Sí, esto es para ti si…
           </div>
-          <ul className="mt-4 space-y-2 text-[--color-muted-1]">
+          <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
             {data.yes?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-[--color-success]">✓</span>
+                <span className="mt-1 text-[var(--color-success)]">✓</span>
                 <span>{p}</span>
               </li>
             ))}
           </ul>
         </RevealItem>
         <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[--color-danger]">
+          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-danger)]">
             No es para ti si…
           </div>
-          <ul className="mt-4 space-y-2 text-[--color-muted-1]">
+          <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
             {data.no?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-[--color-danger]">✗</span>
+                <span className="mt-1 text-[var(--color-danger)]">✗</span>
                 <span>{p}</span>
               </li>
             ))}
@@ -96,10 +96,10 @@ export function PainSolutionSection({
         {blocks.map((b, i) => (
           <RevealItem key={i} className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal} space-y-3`}>
             {b.icon && <div className="text-3xl">{b.icon}</div>}
-            <div className="text-sm uppercase tracking-widest text-[--color-danger]">El problema</div>
-            <p className="text-[--color-muted-1]">{b.pain}</p>
-            <div className="pt-3 border-t border-[--color-border]" />
-            <div className="text-sm uppercase tracking-widest text-[--color-success]">→ Cómo lo resolvemos</div>
+            <div className="text-sm uppercase tracking-widest text-[var(--color-danger)]">El problema</div>
+            <p className="text-[var(--color-muted-1)]">{b.pain}</p>
+            <div className="pt-3 border-t border-[var(--color-border)]" />
+            <div className="text-sm uppercase tracking-widest text-[var(--color-success)]">→ Cómo lo resolvemos</div>
             <p>{b.solution}</p>
           </RevealItem>
         ))}
@@ -126,7 +126,7 @@ export function IncludesSection({
             className={`group overflow-hidden ${card.box} ${card.hover}`}
           >
             {it.imageUrl && (
-              <div className="aspect-video w-full overflow-hidden bg-[--color-surface]">
+              <div className="aspect-video w-full overflow-hidden bg-[var(--color-surface)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={it.imageUrl}
@@ -136,7 +136,7 @@ export function IncludesSection({
               </div>
             )}
             <div className="flex items-start gap-3 p-5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] font-[family-name:var(--font-mono)] text-xs text-[--color-accent]">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] font-[family-name:var(--font-mono)] text-xs text-[var(--color-accent)]">
                 {String(i + 1).padStart(2, "0")}
               </div>
               <div>
@@ -144,7 +144,7 @@ export function IncludesSection({
                   {it.icon && <span className="mr-2">{it.icon}</span>}
                   {it.title}
                 </div>
-                <p className="mt-1 text-sm text-[--color-muted-2]">{it.description}</p>
+                <p className="mt-1 text-sm text-[var(--color-muted-2)]">{it.description}</p>
               </div>
             </div>
           </RevealItem>
@@ -160,7 +160,7 @@ export function AboutSection({ data }: { data: LandingAbout }) {
       <section className="mx-auto max-w-3xl px-6 py-20">
         <SectionLabel>Sobre el creador</SectionLabel>
         <Reveal>
-          <p className="mt-6 whitespace-pre-line text-lg text-[--color-muted-1]">{data}</p>
+          <p className="mt-6 whitespace-pre-line text-lg text-[var(--color-muted-1)]">{data}</p>
         </Reveal>
       </section>
     );
@@ -171,7 +171,7 @@ export function AboutSection({ data }: { data: LandingAbout }) {
       <SectionLabel>Sobre el creador</SectionLabel>
       <Reveal className="mt-8 flex flex-col items-center gap-10 md:flex-row md:items-start">
         {data.creatorImageUrl && (
-          <RevealItem className="relative aspect-[3/4] w-64 shrink-0 overflow-hidden rounded-2xl border border-[--color-border] shadow-[0_20px_50px_-15px_var(--color-red-glow)]">
+          <RevealItem className="relative aspect-[3/4] w-64 shrink-0 overflow-hidden rounded-2xl border border-[var(--color-border)] shadow-[0_20px_50px_-15px_var(--color-red-glow)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={data.creatorImageUrl} alt={data.creatorName ?? ""} className="h-full w-full object-cover" />
           </RevealItem>
@@ -183,9 +183,9 @@ export function AboutSection({ data }: { data: LandingAbout }) {
             </div>
           )}
           {data.creatorRole && (
-            <div className="text-xs uppercase tracking-widest text-[--color-accent]">{data.creatorRole}</div>
+            <div className="text-xs uppercase tracking-widest text-[var(--color-accent)]">{data.creatorRole}</div>
           )}
-          <p className="mt-4 whitespace-pre-line text-lg text-[--color-muted-1]">{data.text}</p>
+          <p className="mt-4 whitespace-pre-line text-lg text-[var(--color-muted-1)]">{data.text}</p>
         </RevealItem>
       </Reveal>
     </section>
@@ -206,24 +206,24 @@ export function TestimonialsSection({
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {items.map((t, i) => (
           <RevealItem key={i} className={`${card.box} ${card.padding.normal}`}>
-            <div className="font-[family-name:var(--font-display)] text-3xl leading-none text-[--color-accent]">
+            <div className="font-[family-name:var(--font-display)] text-3xl leading-none text-[var(--color-accent)]">
               &ldquo;
             </div>
-            <p className="-mt-2 text-lg italic text-[--color-muted-1]">{t.quote}</p>
+            <p className="-mt-2 text-lg italic text-[var(--color-muted-1)]">{t.quote}</p>
             <footer className="mt-4 flex items-center gap-3">
               {t.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={t.imageUrl}
                   alt=""
-                  className="h-10 w-10 rounded-full border-2 border-[--color-accent] object-cover"
+                  className="h-10 w-10 rounded-full border-2 border-[var(--color-accent)] object-cover"
                 />
               ) : (
                 <div className="h-10 w-10 rounded-full bg-zinc-700" />
               )}
               <div>
                 <div className="text-sm font-bold">{t.author}</div>
-                {t.role && <div className="text-xs text-[--color-muted-3]">{t.role}</div>}
+                {t.role && <div className="text-xs text-[var(--color-muted-3)]">{t.role}</div>}
               </div>
             </footer>
           </RevealItem>
@@ -240,14 +240,14 @@ export function SpeakersSection({ items }: { items: LandingSpeaker[] }) {
       <Reveal className="mt-8 grid gap-5 grid-cols-2 lg:grid-cols-4 xl:gap-6">
         {items.map((s, i) => (
           <RevealItem key={i} className="text-center">
-            <div className="mx-auto aspect-square w-full max-w-[160px] overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface]">
+            <div className="mx-auto aspect-square w-full max-w-[160px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
               {s.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={s.imageUrl} alt={s.name} className="h-full w-full object-cover" />
               )}
             </div>
             <div className="mt-3 font-bold">{s.name}</div>
-            {s.role && <div className="text-xs text-[--color-muted-2]">{s.role}</div>}
+            {s.role && <div className="text-xs text-[var(--color-muted-2)]">{s.role}</div>}
           </RevealItem>
         ))}
       </Reveal>
@@ -261,11 +261,11 @@ export function AgendaSection({ items }: { items: LandingAgendaItem[] }) {
       <SectionLabel>Agenda</SectionLabel>
       <Reveal className="mt-8 space-y-3">
         {items.map((a, i) => (
-          <RevealItem key={i} className="flex gap-4 border-l-2 border-[--color-accent]/40 pl-4">
-            <div className="w-16 shrink-0 font-[family-name:var(--font-mono)] text-sm text-[--color-accent]">
+          <RevealItem key={i} className="flex gap-4 border-l-2 border-[var(--color-accent)]/40 pl-4">
+            <div className="w-16 shrink-0 font-[family-name:var(--font-mono)] text-sm text-[var(--color-accent)]">
               {a.time}
             </div>
-            <div className="text-[--color-muted-1]">{a.topic}</div>
+            <div className="text-[var(--color-muted-1)]">{a.topic}</div>
           </RevealItem>
         ))}
       </Reveal>
@@ -297,7 +297,7 @@ export function PricingTiersSection({
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Elige tu entrada</SectionLabel>
       {scarcityNote && (
-        <p className="mt-3 text-center text-sm font-semibold text-[--color-red-bright]">{scarcityNote}</p>
+        <p className="mt-3 text-center text-sm font-semibold text-[var(--color-red-bright)]">{scarcityNote}</p>
       )}
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {rows.map(({ tier, product }) => (
@@ -306,18 +306,18 @@ export function PricingTiersSection({
             className={`flex flex-col ${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal}`}
           >
             {tier.highlight && (
-              <div className="mb-2 inline-block self-start rounded-full bg-[--color-accent] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-black">
+              <div className="mb-2 inline-block self-start rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-black">
                 {tier.highlight}
               </div>
             )}
             <div className="font-[family-name:var(--font-display)] text-lg font-bold">{product.name}</div>
-            <div className="mt-2 font-[family-name:var(--font-mono)] text-3xl font-bold text-[--color-red-bright]">
+            <div className="mt-2 font-[family-name:var(--font-mono)] text-3xl font-bold text-[var(--color-red-bright)]">
               {formatPrice(product.priceCents, product.currency)}
             </div>
-            <ul className="mt-4 flex-1 space-y-2 text-sm text-[--color-muted-1]">
+            <ul className="mt-4 flex-1 space-y-2 text-sm text-[var(--color-muted-1)]">
               {tier.bullets?.map((b, j) => (
                 <li key={j} className="flex gap-2">
-                  <span className="text-[--color-accent]">✓</span>
+                  <span className="text-[var(--color-accent)]">✓</span>
                   <span>{b}</span>
                 </li>
               ))}
@@ -338,7 +338,7 @@ export function PricingTiersSection({
 export function CountdownSection({ targetDate, label }: { targetDate: string; label?: string }) {
   return (
     <section className="mx-auto max-w-3xl px-6 py-14 text-center">
-      <p className="text-xs uppercase tracking-widest text-[--color-muted-2]">{label ?? "El precio sube en"}</p>
+      <p className="text-xs uppercase tracking-widest text-[var(--color-muted-2)]">{label ?? "El precio sube en"}</p>
       <div className="mt-3">
         <Countdown targetDate={targetDate} />
       </div>
@@ -358,7 +358,7 @@ export function GuaranteeSection({ text, cardStyle }: { text: string; cardStyle?
           <div className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold">
             Garantía
           </div>
-          <p className="mt-3 text-[--color-muted-1]">{text}</p>
+          <p className="mt-3 text-[var(--color-muted-1)]">{text}</p>
         </div>
       </Reveal>
     </section>
@@ -378,9 +378,9 @@ export function FaqSection({ items, cardStyle }: { items: LandingFaq[]; cardStyl
             <details className={`group ${card.box} ${card.padding.compact}`}>
               <summary className="flex cursor-pointer items-center justify-between">
                 <span className="font-semibold">{q.q}</span>
-                <span className="text-[--color-red-bright] transition group-open:rotate-45">+</span>
+                <span className="text-[var(--color-red-bright)] transition group-open:rotate-45">+</span>
               </summary>
-              <p className="mt-4 text-[--color-muted-2]">{q.a}</p>
+              <p className="mt-4 text-[var(--color-muted-2)]">{q.a}</p>
             </details>
           </RevealItem>
         ))}
@@ -391,7 +391,7 @@ export function FaqSection({ items, cardStyle }: { items: LandingFaq[]; cardStyl
 
 export function PriceTag({ priceCents, currency }: { priceCents: number; currency: string }) {
   return (
-    <div className="mt-3 font-[family-name:var(--font-mono)] text-xs uppercase tracking-widest text-[--color-muted-2]">
+    <div className="mt-3 font-[family-name:var(--font-mono)] text-xs uppercase tracking-widest text-[var(--color-muted-2)]">
       Inversión: <span className="font-semibold">{formatPrice(priceCents, currency)}</span>
     </div>
   );
@@ -399,8 +399,8 @@ export function PriceTag({ priceCents, currency }: { priceCents: number; currenc
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-center font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.3em] text-[--color-muted-3]">
-      <span className="text-[--color-accent]">●</span> {children} <span className="text-[--color-accent]">●</span>
+    <div className="text-center font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.3em] text-[var(--color-muted-3)]">
+      <span className="text-[var(--color-accent)]">●</span> {children} <span className="text-[var(--color-accent)]">●</span>
     </div>
   );
 }
