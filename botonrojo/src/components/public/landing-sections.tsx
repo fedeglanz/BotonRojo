@@ -37,29 +37,54 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Para quién</SectionLabel>
-      <Reveal className="mt-8 grid gap-5 md:grid-cols-2 xl:gap-6">
-        <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_8%,transparent)] p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-success)]">
-            Sí, esto es para ti si…
+      {/* Two panels of the same weight read as a menu of equal options. This is
+          a filter, not a comparison: the "yes" side is the one that has to pull,
+          so it gets the accent edge, the icon plate and the stronger type, and
+          the "no" side deliberately recedes. */}
+      <Reveal className="mt-8 grid gap-5 md:grid-cols-5 xl:gap-6">
+        <RevealItem className="relative overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--color-success)_38%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_9%,transparent)] p-7 md:col-span-3">
+          {/* A light source in the corner, so the panel has a direction. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[color-mix(in_srgb,var(--color-success)_22%,transparent)] blur-3xl"
+          />
+          <div className="relative">
+            <div className="flex items-center gap-3">
+              <BrandIcon name="diana" size="md" plate />
+              <div className="font-[family-name:var(--font-display)] text-xl font-extrabold tracking-tight text-[var(--color-text)] sm:text-2xl">
+                Sí, esto es para ti si…
+              </div>
+            </div>
+            <ul className="mt-6 space-y-3.5">
+              {data.yes?.map((p, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <BrandIcon
+                    name="check"
+                    size="sm"
+                    treatment="plain"
+                    className="mt-0.5 text-[var(--color-success)]"
+                  />
+                  <span className="leading-snug text-[var(--color-text)]">{p}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
-            {data.yes?.map((p, i) => (
-              <li key={i} className="flex gap-3">
-                <BrandIcon name="check" size="sm" treatment="plain" className="mt-0.5 text-[var(--color-success)]" />
-                <span>{p}</span>
-              </li>
-            ))}
-          </ul>
         </RevealItem>
-        <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-danger)]">
+
+        <RevealItem className="rounded-3xl border border-[var(--color-border)] p-7 md:col-span-2">
+          <div className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-muted-2)]">
             No es para ti si…
           </div>
-          <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
+          <ul className="mt-5 space-y-3">
             {data.no?.map((p, i) => (
-              <li key={i} className="flex gap-3">
-                <BrandIcon name="cerrar" size="sm" treatment="plain" className="mt-0.5 text-[var(--color-danger)]" />
-                <span>{p}</span>
+              <li key={i} className="flex items-start gap-3">
+                <BrandIcon
+                  name="cerrar"
+                  size="sm"
+                  treatment="plain"
+                  className="mt-0.5 text-[var(--color-muted-3)]"
+                />
+                <span className="text-sm leading-snug text-[var(--color-muted-2)]">{p}</span>
               </li>
             ))}
           </ul>
@@ -103,13 +128,50 @@ export function PainSolutionSection({
       <SectionLabel>Antes y después</SectionLabel>
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {blocks.map((b, i) => (
-          <RevealItem key={i} className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal} space-y-3`}>
-            {b.icon && <BrandIcon name={b.icon} size="lg" plate className="mb-1" />}
-            <div className="text-sm uppercase tracking-widest text-[var(--color-danger)]">El problema</div>
-            <p className="text-[var(--color-muted-1)]">{b.pain}</p>
-            <div className="pt-3 border-t border-[var(--color-border)]" />
-            <div className="text-sm uppercase tracking-widest text-[var(--color-success)]">→ Cómo lo resolvemos</div>
-            <p>{b.solution}</p>
+          // The block's job is to make a turn visible: the problem recedes, the
+          // solution steps forward. Same size and same grey for both — which is
+          // what this was — reads as one flat paragraph and the turn is lost.
+          <RevealItem
+            key={i}
+            className={`relative overflow-hidden ${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal} ${card.hover}`}
+          >
+            {/* Big faint index. Cheap depth, and it numbers the argument. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-3 right-3 font-[family-name:var(--font-display)] text-7xl font-extrabold leading-none text-[color-mix(in_srgb,var(--color-fg)_7%,transparent)]"
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
+
+            <div className="relative space-y-4">
+              {b.icon && <BrandIcon name={b.icon} size="lg" plate />}
+
+              {/* The problem: quieter, smaller, and marked in the danger colour so
+                  the eye reads it as the "before". */}
+              <div>
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[var(--color-danger)]">
+                  <span aria-hidden className="h-1 w-1 rounded-full bg-[var(--color-danger)]" />
+                  El problema
+                </div>
+                <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-muted-2)]">{b.pain}</p>
+              </div>
+
+              {/* The turn, drawn: a rule in the accent that stops short, rather
+                  than a full-width hairline that just divides two greys. */}
+              <div
+                aria-hidden
+                className="h-px w-12 bg-[linear-gradient(to_right,var(--color-accent),transparent)]"
+              />
+
+              <div>
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[var(--color-success)]">
+                  <BrandIcon name="check" size="sm" treatment="plain" />
+                  Cómo lo resolvemos
+                </div>
+                {/* The payoff, at full contrast and a size up. */}
+                <p className="mt-1.5 font-medium leading-snug text-[var(--color-text)]">{b.solution}</p>
+              </div>
+            </div>
           </RevealItem>
         ))}
       </Reveal>

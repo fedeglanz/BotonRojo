@@ -370,6 +370,17 @@ export function normalizeSectionDesign(
     });
     effect = "none";
   }
+  // Same reason as above, one level up: these sections are lists and grids, so
+  // a centred alignment is never the right call for them.
+  const CENTRED_KINDS_FORBIDDEN: SectionKind[] = ["list", "cards", "faq", "pricing", "legal"];
+  if (align === "center" && CENTRED_KINDS_FORBIDDEN.includes(kind)) {
+    issues.push({
+      field: "align",
+      kind: "incompatible",
+      message: `una sección de tipo "${kind}" no debe centrarse: son listas o rejillas`,
+    });
+  }
+
   if (height === "full" && !caps.allowFullHeight) {
     issues.push({
       field: "height",
@@ -385,7 +396,7 @@ export function normalizeSectionDesign(
     effect,
     height,
     width,
-    align,
+    align: align === "center" && CENTRED_KINDS_FORBIDDEN.includes(kind) ? "start" : align,
     density,
     style,
     divider,
@@ -584,6 +595,29 @@ export function applyBrandRhythm(
     out[key] = design;
   });
 
+  // Dividers, decided from the neighbours rather than per section.
+  //
+  // A shape divider (angle, curve) works by cutting the band's paint so the band
+  // ABOVE shows through the cut. That only reads as a transition when there is
+  // something plain above it: between two coloured bands the cut looks like a
+  // mistake, and on a band with no paint at all there is nothing to cut.
+  order.forEach((key, index) => {
+    const current = out[key]!;
+    const previous = index > 0 ? out[order[index - 1]!] : undefined;
+    const hasPaint = Boolean(current.background && current.background !== "none");
+    const previousHasPaint = Boolean(previous?.background && previous.background !== "none");
+
+    if (stated[key]?.divider) return;
+
+    if (!hasPaint) {
+      current.divider = "none";
+    } else if (previousHasPaint) {
+      // Two colours meeting: fade one into the other, never cut.
+      current.divider = "fade";
+    }
+    // A painted band under a plain one keeps whatever the brand chose.
+  });
+
   // The single protagonist. Prefer the sections built to carry one.
   if (effects.length > 0) {
     const candidates: SectionDesignKey[] = ["amplifiedPromise", "finalCta", "guarantee", "hero"];
@@ -633,7 +667,10 @@ const WIDTH_CLASSES: Record<SectionWidth, string> = {
 
 const ALIGN_CLASSES: Record<AlignmentTokens, string> = {
   start: "",
-  center: "text-center",
+  // Lists and card bodies are forced back to the left even inside a centred
+  // band: centring them removes the left edge the eye returns to on every line.
+  // Only short display copy — a heading, a promise, a CTA — survives centring.
+  center: "text-center [&_li]:text-left [&_ul]:text-left [&_ol]:text-left",
   end: "text-right",
 };
 

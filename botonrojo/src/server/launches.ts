@@ -39,7 +39,12 @@ import type {
   SectionDesignKey,
 } from "@/components/public/landing-types";
 
-import { generateImage, isImageGenConfigured } from "@/integrations/image-gen";
+import {
+  asStyleReference,
+  generateImage,
+  isImageGenConfigured,
+  type ImageSlot,
+} from "@/integrations/image-gen";
 import { isUnsplashConfigured, searchUnsplashPhotos } from "@/integrations/unsplash";
 import { captureScreenshot, captureExternalScreenshot, isDesignReviewConfigured } from "@/integrations/screenshot";
 
@@ -98,13 +103,34 @@ function extractJson(text: string): unknown {
  * if Magnific isn't configured or fails — so a landing always gets real
  * images without the admin having to fill each slot by hand.
  */
-async function autoResolveImage(prompt: string | undefined | null): Promise<string | undefined> {
+/**
+ * Everything an image needs to belong to this launch rather than merely sit in
+ * it: where it's going (shape, model, resolution), the approved palette as colour
+ * guidance, the art direction, and the mood image as a style reference so the
+ * whole set looks like one shoot.
+ */
+type ImageContext = {
+  slot: ImageSlot;
+  palette?: BrandPalette | null;
+  moodNotes?: string | null;
+  styleReference?: string | null;
+};
+
+async function autoResolveImage(
+  prompt: string | undefined | null,
+  context: ImageContext = { slot: "hero" },
+): Promise<string | undefined> {
   const q = prompt?.trim();
   if (!q) return undefined;
 
   if (isImageGenConfigured()) {
     try {
-      return await generateImage(q);
+      return await generateImage(q, {
+        slot: context.slot,
+        palette: context.palette,
+        moodNotes: context.moodNotes,
+        styleReference: context.styleReference,
+      });
     } catch (err) {
       console.error("auto image generation failed, falling back to Unsplash", err);
     }
@@ -116,6 +142,20 @@ async function autoResolveImage(prompt: string | undefined | null): Promise<stri
   }
 
   return undefined;
+}
+
+/**
+ * The launch's own art direction, resolved once per generation. The mood image is
+ * fetched as base64 here rather than per image: it's the same reference for all
+ * of them, and downloading it a dozen times would be wasteful.
+ */
+async function imageContextFor(launch: Launch, slot: ImageSlot): Promise<ImageContext> {
+  return {
+    slot,
+    palette: launch.brandPalette,
+    moodNotes: launch.brandMoodNotes,
+    styleReference: await asStyleReference(launch.brandMoodImageUrl),
+  };
 }
 
 const VALID_CARD_STYLES: LandingCardStyle[] = [
@@ -376,7 +416,11 @@ export async function generateBrandKitAction(launchId: string) {
   let moodImageUrl: string | null = null;
   if (isImageGenConfigured()) {
     try {
-      moodImageUrl = await generateImage(json.imageMoodPrompt);
+      moodImageUrl = await generateImage(json.imageMoodPrompt, {
+        slot: "hero",
+        palette: json.palette,
+        moodNotes: json.moodNotes,
+      });
     } catch (err) {
       console.error("brand kit mood image generation failed", err);
     }
@@ -658,7 +702,7 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     if (!design) continue;
 
     if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-      const imageUrl = await autoResolveImage(design.imagePrompt);
+      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint";
     }
@@ -683,11 +727,23 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       body.hero.imagePrompt = `Fotografía editorial para "${launch.name}": ${launch.promise ?? ""}`.trim();
     }
 
+    // Resolved once and shared: same palette, same art direction, same style
+    // reference for every image on the page.
+    const [heroCtx, portraitCtx, cardCtx] = await Promise.all([
+      imageContextFor(launch, "hero"),
+      imageContextFor(launch, "portrait"),
+      imageContextFor(launch, "card"),
+    ]);
+
     const [heroImageUrl, creatorImageUrl, includeImageUrls, speakerImageUrls] = await Promise.all([
-      autoResolveImage(body.hero?.imagePrompt),
-      typeof body.about === "object" ? autoResolveImage(body.about.creatorImagePrompt) : Promise.resolve(undefined),
-      Promise.all((body.includes ?? []).map((it) => autoResolveImage(it.imagePrompt))),
-      Promise.all((body.speakers ?? []).map((s) => autoResolveImage(s.imagePrompt))),
+      autoResolveImage(body.hero?.imagePrompt, heroCtx),
+      // A face, in portrait: asking for a person at 16:9 is what produced the
+      // cropped headshots.
+      typeof body.about === "object"
+        ? autoResolveImage(body.about.creatorImagePrompt, portraitCtx)
+        : Promise.resolve(undefined),
+      Promise.all((body.includes ?? []).map((it) => autoResolveImage(it.imagePrompt, cardCtx))),
+      Promise.all((body.speakers ?? []).map((sp) => autoResolveImage(sp.imagePrompt, portraitCtx))),
     ]);
 
     if (heroImageUrl && body.hero) body.hero.imageUrl = heroImageUrl;
@@ -731,7 +787,7 @@ async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageG
   const body = extractJson(text) as { headline?: string; subheadline?: string; bullets?: string[]; cta?: string; imagePrompt?: string; imageUrl?: string };
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt);
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
@@ -762,7 +818,7 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
   const body = extractJson(text) as { headline?: string; body?: string; ctaLabel?: string; imagePrompt?: string; imageUrl?: string };
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt);
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
@@ -833,6 +889,37 @@ async function sharedPageGenContext(launch: Launch, organizationId: string, user
   };
 }
 
+/**
+ * Progress of a multi-page generation, written to the launch as each page lands.
+ *
+ * Without it the admin got a two-second spinner and then silence: the work runs
+ * for minutes, and the only way to know whether it had finished was to reload the
+ * page over and over. Now the run reports itself and the panel can follow along.
+ */
+export type GenerationProgress = {
+  startedAt: string;
+  finishedAt?: string;
+  total: number;
+  done: string[];
+  failed: Array<{ page: string; error: string }>;
+};
+
+async function writeProgress(launchId: string, progress: GenerationProgress) {
+  const [current] = await db
+    .select({ cache: launches.assetsCache })
+    .from(launches)
+    .where(eq(launches.id, launchId))
+    .limit(1);
+
+  await db
+    .update(launches)
+    .set({
+      assetsCache: { ...((current?.cache ?? {}) as Record<string, unknown>), generation: progress },
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+}
+
 /** Generates every page this launch's type/config calls for, in one pass. */
 export async function generateAllPagesAction(launchId: string) {
   const { user, organizationId } = await requireOrgAdmin();
@@ -846,7 +933,33 @@ export async function generateAllPagesAction(launchId: string) {
   const ctx = await sharedPageGenContext(launch, organizationId, user.id);
   const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
 
-  const results = await runInBatches(pages, 3, (pageDef) => generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name));
+  const progress: GenerationProgress = {
+    startedAt: new Date().toISOString(),
+    total: pages.length,
+    done: [],
+    failed: [],
+  };
+  await writeProgress(launchId, progress);
+
+  const results = await runInBatches(pages, 3, async (pageDef) => {
+    try {
+      await generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name);
+      progress.done.push(pageDef.label);
+    } catch (err) {
+      progress.failed.push({
+        page: pageDef.label,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    } finally {
+      // Written per page, so the panel can show "4 de 9" while the rest run.
+      await writeProgress(launchId, progress).catch(() => {});
+      revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    }
+  });
+
+  progress.finishedAt = new Date().toISOString();
+  await writeProgress(launchId, progress).catch(() => {});
 
   // Revalidate before reporting: some pages may have been written even if others
   // failed, and hiding those would be worse than reporting a partial run.
@@ -951,7 +1064,7 @@ export async function updatePageFieldsAction(launchId: string, pageKey: string, 
   // A new imagePrompt invalidates the photo resolved from the previous one.
   const previousPrompt = (asset?.body as Record<string, unknown> | undefined)?.imagePrompt;
   if (typeof body.imagePrompt === "string" && body.imagePrompt !== previousPrompt) {
-    const imageUrl = await autoResolveImage(body.imagePrompt);
+    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
   if (!body.imagePrompt) delete body.imageUrl;
@@ -1027,7 +1140,7 @@ export async function refinePageFieldAction(launchId: string, pageKey: string, f
   body[fieldName] = answer;
 
   if (fieldName === "imagePrompt" && typeof answer === "string") {
-    const imageUrl = await autoResolveImage(answer);
+    const imageUrl = await autoResolveImage(answer, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
@@ -1560,7 +1673,7 @@ export async function refineLandingSectionAction(
     // A photo background is useless without an actual image, so resolve it now
     // with the same Magnific → Unsplash path the rest of the generator uses.
     if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-      const imageUrl = await autoResolveImage(design.imagePrompt);
+      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint"; // don't leave an empty photo band
     }
@@ -1600,7 +1713,7 @@ export async function updateSectionDesignAction(
   if (design) {
     if (design.background === "photo" && !design.imageUrl) {
       const prompt = design.imagePrompt ?? `Fotografía de fondo para "${launch.name}"`;
-      const imageUrl = await autoResolveImage(prompt);
+      const imageUrl = await autoResolveImage(prompt, await imageContextFor(launch, "band"));
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint";
     }

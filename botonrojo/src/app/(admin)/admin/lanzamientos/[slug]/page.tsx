@@ -55,6 +55,7 @@ import { listMediaItems } from "@/server/media";
 import { WizardStep } from "@/components/admin/wizard-step";
 import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
 import { PageIndex } from "@/components/admin/page-index";
+import { GenerationProgress } from "@/components/admin/generation-progress";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
@@ -416,6 +417,15 @@ export default async function LaunchHubPage(props: {
             saveAction={updateContentDripScheduleAction}
           />
         )}
+
+        {/* Follows the run and refreshes on its own until it finishes. */}
+        <GenerationProgress
+          progress={
+            ((launch.assetsCache as Record<string, unknown> | null)?.generation as
+              | Parameters<typeof GenerationProgress>[0]["progress"]
+              | undefined) ?? null
+          }
+        />
 
         <PageIndex
           pages={pages}
