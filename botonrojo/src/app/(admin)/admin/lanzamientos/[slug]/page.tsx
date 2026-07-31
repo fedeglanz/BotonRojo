@@ -462,6 +462,7 @@ export default async function LaunchHubPage(props: {
           <CartScheduleForm
             launchId={launch.id}
             currentCartClosesAt={launch.cartClosesAt}
+            currentRegistrationClosesAt={launch.registrationClosesAt}
             saveAction={updateCartScheduleAction}
           />
           <LandingInstructionsForm
