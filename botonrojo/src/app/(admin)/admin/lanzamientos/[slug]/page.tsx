@@ -307,6 +307,7 @@ export default async function LaunchHubPage(props: {
           status={launch.brandKitStatus}
           palette={launch.brandPalette}
           fonts={launch.brandFonts}
+          design={launch.brandDesign}
           moodNotes={launch.brandMoodNotes}
           moodImageUrl={launch.brandMoodImageUrl}
           logoUrl={launch.brandLogoUrl}

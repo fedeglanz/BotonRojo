@@ -4,13 +4,15 @@ import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { ImagePicker } from "@/components/admin/image-picker";
 import { googleFontsUrl } from "@/lib/brand-kit";
-import type { BrandPalette, BrandFonts, BrandKitStatus } from "@/db/schema/launches";
+import type { BrandPalette, BrandFonts, BrandKitStatus, BrandDesign } from "@/db/schema/launches";
+import { BRAND_DESIGN_LABELS, BRAND_DESIGN_OPTIONS, defaultBrandDesign } from "@/lib/design/brand-design";
 
 type Props = {
   launchId: string;
   status: BrandKitStatus;
   palette: BrandPalette | null;
   fonts: BrandFonts | null;
+  design: BrandDesign | null;
   moodNotes: string | null;
   moodImageUrl: string | null;
   logoUrl: string | null;
@@ -32,6 +34,7 @@ export function BrandKitPanel({
   status,
   palette,
   fonts,
+  design,
   moodNotes,
   moodImageUrl,
   logoUrl,
@@ -41,6 +44,10 @@ export function BrandKitPanel({
   logoSaveAction,
 }: Props) {
   const hasKit = Boolean(palette && fonts);
+  // A kit generated before these decisions existed has no design yet; fall back
+  // to the palette-appropriate default so the controls always show something
+  // truthful rather than empty.
+  const effectiveDesign = design ?? defaultBrandDesign(palette);
 
   return (
     <div className="space-y-6">
@@ -115,6 +122,46 @@ export function BrandKitPanel({
               </label>
             </div>
 
+            {/* The design system: decided once here and applied to every page of
+                the launch, instead of each generation improvising it. */}
+            <div className="space-y-3 border-t border-white/10 pt-5">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-zinc-400">Sistema de diseño</div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Se aplica a todas las páginas del lanzamiento. La IA propone; tú decides.
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <DesignChoice name="cardStyle" label="Cajas" current={effectiveDesign.cardStyle} group="cardStyle" />
+                <DesignChoice name="ctaStyle" label="Botón principal" current={effectiveDesign.ctaStyle} group="ctaStyle" />
+                <DesignChoice name="density" label="Densidad" current={effectiveDesign.density} group="density" />
+                <DesignChoice name="titleFx" label="Titulares" current={effectiveDesign.titleFx} group="titleFx" />
+                <DesignChoice name="divider" label="Transición entre bandas" current={effectiveDesign.divider} group="divider" />
+                <DesignChoice name="intensity" label="Nivel de decoración" current={effectiveDesign.intensity} group="intensity" />
+              </div>
+
+              <fieldset>
+                <legend className="text-xs uppercase tracking-widest text-zinc-400">
+                  Efectos que encajan con esta marca
+                </legend>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {BRAND_DESIGN_OPTIONS.effects.map((effect) => (
+                    <label key={effect} className="flex items-center gap-2 text-sm text-zinc-300">
+                      <input
+                        type="checkbox"
+                        name="effects"
+                        value={effect}
+                        defaultChecked={effectiveDesign.effects.includes(effect)}
+                        className="h-4 w-4 rounded border-white/20 bg-black/40"
+                      />
+                      {BRAND_DESIGN_LABELS.effects[effect]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+
             <label className="block">
               <span className="block text-xs uppercase tracking-widest text-zinc-400">Mood / dirección de imagen</span>
               <textarea
@@ -180,5 +227,42 @@ export function BrandKitPanel({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * One design decision. A select rather than a swatch grid on purpose: the labels
+ * say what each option does, which matters more than a thumbnail when the choice
+ * is "how loud is this page".
+ */
+function DesignChoice<K extends "cardStyle" | "ctaStyle" | "density" | "titleFx" | "divider" | "intensity">({
+  name,
+  label,
+  current,
+  group,
+}: {
+  name: string;
+  label: string;
+  current: string;
+  group: K;
+}) {
+  const options = BRAND_DESIGN_OPTIONS[group] as readonly string[];
+  const labels = BRAND_DESIGN_LABELS[group] as Record<string, string>;
+
+  return (
+    <label className="block">
+      <span className="block text-xs uppercase tracking-widest text-zinc-400">{label}</span>
+      <select
+        name={name}
+        defaultValue={current}
+        className="field-input mt-2 w-full px-3 py-2 text-sm text-white"
+      >
+        {options.map((option) => (
+          <option key={option} value={option} className="bg-zinc-900">
+            {labels[option] ?? option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

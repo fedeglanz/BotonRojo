@@ -114,15 +114,30 @@ export function auditPageContrast(input: {
     { label: "Texto secundario sobre el fondo", foreground: c.textMuted, background: page.bg },
   ];
 
-  // The CTA: its fill and the label the presets put on it.
+  // The CTA: its fill and the label the presets actually put on it.
+  //
+  // This check used to read `textOnAccent` for a fill of `primary`, which is the
+  // very bug it was supposed to catch — it mirrored the implementation's wrong
+  // assumption, so it always agreed with itself. A button came out with black
+  // text on dark blue and the audit reported no problem. The pair measured here
+  // has to be the pair the CSS paints, taken from the presets:
+  //   solid / pill-arrow / glow -> fill primary, text textOnPrimary
+  //   outline                   -> fill page,    text accent
+  //   ghost                     -> fill page,    text textMuted
   const ctaFill = input.ctaStyle === "outline" || input.ctaStyle === "ghost" ? page.bg : c.primary;
   const ctaText =
     input.ctaStyle === "outline"
       ? c.accent
       : input.ctaStyle === "ghost"
         ? c.textMuted
-        : c.textOnAccent;
+        : c.textOnPrimary;
   targets.push({ label: "Texto del botón principal sobre su relleno", foreground: ctaText, background: ctaFill, large: true });
+
+  // Measured independently of any preset: if the palette itself can't carry
+  // readable text on its two brand fills, every button and badge built from it
+  // inherits the problem, whichever preset is chosen.
+  targets.push({ label: "Texto sobre un relleno del color primario", foreground: c.textOnPrimary, background: c.primary, large: true });
+  targets.push({ label: "Texto sobre un relleno del color de acento", foreground: c.textOnAccent, background: page.accent, large: true });
 
   // The page's default box. Only `glass` carries its own text colour; every
   // other preset inherits the page's, which is what has to be measured.

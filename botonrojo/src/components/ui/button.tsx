@@ -12,7 +12,7 @@ const VARIANTS: Record<Variant, string> = {
   // where the colour has to follow the launch's palette. The @theme defaults
   // keep the admin red.
   primary:
-    "bg-[var(--color-primary)] text-[var(--color-text-on-accent)] shadow-[0_0_24px_-4px_var(--color-accent-glow)] hover:brightness-110",
+    "bg-[var(--color-primary)] text-[var(--color-text-on-primary)] shadow-[0_0_24px_-4px_var(--color-accent-glow)] hover:brightness-110",
   ghost: "border border-white/15 bg-white/10 text-zinc-100 hover:border-white/25 hover:bg-white/15",
   outline: "border border-white/20 bg-white/[0.04] text-zinc-100 hover:border-white/40 hover:bg-white/10",
   danger: "bg-red-950 text-red-200 hover:bg-red-900",

@@ -95,13 +95,13 @@ export const CTA_STYLE_PRESETS: Record<CTAStylePreset, string> = {
   // The existing hero button, kept as-is.
   glow: "big-red-button",
   solid:
-    "inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-8 py-4 font-[family-name:var(--font-display)] text-base font-extrabold uppercase tracking-wide text-[var(--color-text-on-accent)] transition hover:brightness-110",
+    "inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-8 py-4 font-[family-name:var(--font-display)] text-base font-extrabold uppercase tracking-wide text-[var(--color-text-on-primary)] transition hover:brightness-110",
   outline:
     "inline-flex items-center justify-center gap-2 rounded-full border-2 border-[var(--color-accent)] px-8 py-4 font-[family-name:var(--font-display)] text-base font-extrabold uppercase tracking-wide text-[var(--color-accent)] transition hover:bg-[var(--color-accent-soft)]",
   ghost:
     "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]",
   "pill-arrow":
-    "group inline-flex items-center justify-center gap-3 rounded-full bg-[var(--color-primary)] px-8 py-4 font-[family-name:var(--font-display)] text-base font-extrabold uppercase tracking-wide text-[var(--color-text-on-accent)] transition hover:gap-4",
+    "group inline-flex items-center justify-center gap-3 rounded-full bg-[var(--color-primary)] px-8 py-4 font-[family-name:var(--font-display)] text-base font-extrabold uppercase tracking-wide text-[var(--color-text-on-primary)] transition hover:gap-4",
 };
 
 export function resolveCtaStyle(preset?: CTAStylePreset | null): string {

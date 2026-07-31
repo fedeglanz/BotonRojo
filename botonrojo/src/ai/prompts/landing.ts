@@ -1,4 +1,5 @@
-import type { AvatarBrief, BrandPalette, BrandFonts } from "@/db/schema/launches";
+import type { AvatarBrief, BrandPalette, BrandFonts, BrandDesign } from "@/db/schema/launches";
+import { describeBrandDesign } from "@/lib/design/brand-design";
 import { DESIGN_RULES } from "./design-rules";
 
 export const LANDING_SYSTEM = `Eres un copywriter + director de arte de landings de lanzamientos digitales.
@@ -43,7 +44,12 @@ export function landingPrompt(
   promise: string,
   pains: string[],
   benefits: string[],
-  brandKit: { palette: BrandPalette; fonts: BrandFonts; moodNotes?: string | null },
+  brandKit: {
+    palette: BrandPalette;
+    fonts: BrandFonts;
+    moodNotes?: string | null;
+    design?: BrandDesign | null;
+  },
   generalInstructions?: string | null,
   products?: Array<{ slug: string; name: string; priceCents: number; currency: string }>,
   referenceSummary?: string | null,

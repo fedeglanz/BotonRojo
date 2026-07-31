@@ -86,6 +86,13 @@ export default async function LaunchPageEditor(props: {
       | Record<string, string>
       | undefined)?.[pageKey] ?? "";
 
+  // No page can be created before the visual identity is approved: it decides
+  // the palette, the fonts and the whole design system the page is built from.
+  const brandApproved =
+    launch.brandKitStatus === "approved" && Boolean(launch.brandPalette) && Boolean(launch.brandFonts);
+  const hasMarco = Boolean(launch.promise && launch.avatar);
+  const canGenerate = brandApproved && hasMarco;
+
   const index = pages.findIndex((p) => p.pageKey === pageKey);
   const prev = pages[index - 1];
   const next = pages[index + 1];
@@ -153,8 +160,30 @@ export default async function LaunchPageEditor(props: {
               del lanzamiento.
             </span>
           </label>
-          <div className="flex justify-end">
-            <SubmitButton variant={hasContent ? "outline" : "primary"} pendingLabel="Generando…">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {!canGenerate && (
+              <p className="mr-auto text-xs text-amber-300">
+                {!brandApproved ? (
+                  <>
+                    Aprueba primero la{" "}
+                    <Link
+                      href={`/admin/lanzamientos/${launch.slug}?seccion=marca`}
+                      className="underline underline-offset-2"
+                    >
+                      identidad visual
+                    </Link>
+                    : decide la paleta, las tipografías y el sistema de diseño de esta página.
+                  </>
+                ) : (
+                  <>Genera antes el marco de copy (avatar y promesa).</>
+                )}
+              </p>
+            )}
+            <SubmitButton
+              variant={hasContent ? "outline" : "primary"}
+              pendingLabel="Generando…"
+              disabled={!canGenerate}
+            >
               {hasContent ? "Regenerar entera" : "Generar con Claude"}
             </SubmitButton>
           </div>
@@ -190,8 +219,9 @@ export default async function LaunchPageEditor(props: {
 
       {!hasContent && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
-          Esta página aún no tiene contenido. Genérala con Claude, o escribe sus partes a mano
-          y guarda: se crea igual.
+          {brandApproved
+            ? "Esta página aún no tiene contenido. Genérala con Claude, o escribe sus partes a mano y guarda: se crea igual."
+            : "Esta página no se puede crear todavía: falta aprobar la identidad visual del lanzamiento."}
         </p>
       )}
 

@@ -145,6 +145,7 @@ export function resolveSemanticColors(
     textMuted: mute(0.82),
     textSubtle: mute(0.58),
     textOnAccent: readableTextOn(accent),
+    textOnPrimary: readableTextOn(primary),
     primary,
     primaryHover: `color-mix(in srgb, ${primary} 85%, ${foreground})`,
     accent,
@@ -215,6 +216,7 @@ export function themeToCssVars(theme: ThemeContext): Record<string, string> {
     "--color-text-muted": c.textMuted,
     "--color-text-subtle": c.textSubtle,
     "--color-text-on-accent": c.textOnAccent,
+    "--color-text-on-primary": c.textOnPrimary,
     // Both were missing, so every preset that fills with --color-primary (the
     // "solid" and "pill-arrow" CTAs) fell back to the @theme default red — a
     // red button in the middle of a blue brand.

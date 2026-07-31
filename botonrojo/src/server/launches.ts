@@ -24,6 +24,7 @@ import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixP
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
 import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
 import { auditPageContrast, describeContrastFailures } from "@/lib/design/contrast-audit";
+import { describeBrandDesign, normalizeBrandDesign } from "@/lib/design/brand-design";
 import { normalizeSectionValue } from "@/components/public/landing-types";
 import {
   normalizeSectionDesign,
@@ -266,18 +267,32 @@ export async function createLaunchAction(formData: FormData) {
 
   const contentDripRaw = String(formData.get("contentDripStartsAt") ?? "").trim();
 
-  await db.insert(launches).values({
-    organizationId,
-    slug,
-    contentDripStartsAt: contentDripRaw ? new Date(contentDripRaw) : null,
-    name: parsed.name,
-    type: parsed.type as LaunchType,
-    status: "draft",
-    brief: parsed.brief,
-    defaultPriceCents: parsed.priceCents ?? null,
-    referenceUrl: parsed.referenceUrl || null,
-    pageConfig,
-  });
+  const [created] = await db
+    .insert(launches)
+    .values({
+      organizationId,
+      slug,
+      contentDripStartsAt: contentDripRaw ? new Date(contentDripRaw) : null,
+      name: parsed.name,
+      type: parsed.type as LaunchType,
+      status: "draft",
+      brief: parsed.brief,
+      defaultPriceCents: parsed.priceCents ?? null,
+      referenceUrl: parsed.referenceUrl || null,
+      pageConfig,
+    })
+    .returning({ id: launches.id });
+
+  // Propose the visual identity straight away: it's the mandatory first step, so
+  // landing on an empty one just means an extra click before anything can happen.
+  // Best-effort — a failed proposal must not lose the launch that was just created.
+  if (created) {
+    try {
+      await generateBrandKitAction(created.id);
+    } catch (err) {
+      console.error("initial brand kit proposal failed", err);
+    }
+  }
 
   revalidatePath("/admin");
   redirect(`/admin/lanzamientos/${slug}`);
@@ -347,6 +362,7 @@ export async function generateBrandKitAction(launchId: string) {
   const json = extractJson(text) as {
     palette: BrandPalette;
     fonts: BrandFonts;
+    design?: unknown;
     moodNotes: string;
     imageMoodPrompt: string;
   };
@@ -365,6 +381,10 @@ export async function generateBrandKitAction(launchId: string) {
     .set({
       brandPalette: json.palette,
       brandFonts: json.fonts,
+      // Validated against the closed catalogues, and corrected for the palette:
+      // the proposal decides the design of every page, so an invented value here
+      // would spread to all of them.
+      brandDesign: normalizeBrandDesign(json.design, json.palette),
       brandMoodNotes: json.moodNotes,
       brandMoodImageUrl: moodImageUrl,
       brandKitStatus: "draft",
@@ -399,16 +419,35 @@ export async function updateBrandKitAction(launchId: string, formData: FormData)
     moodNotes: formData.get("moodNotes") || undefined,
   });
 
+  const palette: BrandPalette = {
+    primary: parsed.primary,
+    accent: parsed.accent,
+    background: parsed.background,
+    foreground: parsed.foreground,
+  };
+
+  // The design decisions come from the same form, validated against the closed
+  // catalogues — the selects can only offer valid values, but the action is what
+  // has to guarantee it.
+  const design = normalizeBrandDesign(
+    {
+      cardStyle: formData.get("cardStyle"),
+      ctaStyle: formData.get("ctaStyle"),
+      density: formData.get("density"),
+      titleFx: formData.get("titleFx"),
+      divider: formData.get("divider"),
+      intensity: formData.get("intensity"),
+      effects: formData.getAll("effects").map(String),
+    },
+    palette,
+  );
+
   await db
     .update(launches)
     .set({
-      brandPalette: {
-        primary: parsed.primary,
-        accent: parsed.accent,
-        background: parsed.background,
-        foreground: parsed.foreground,
-      },
+      brandPalette: palette,
       brandFonts: { display: parsed.displayFont, body: parsed.bodyFont },
+      brandDesign: design,
       brandMoodNotes: parsed.moodNotes ?? launch.brandMoodNotes,
       // Editing a draft doesn't un-approve it silently — but any manual edit
       // after approval means it needs a fresh look before it counts as approved again.
@@ -550,7 +589,12 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       launch.promise!,
       launch.painPoints ?? [],
       launch.benefits ?? [],
-      { palette: launch.brandPalette!, fonts: launch.brandFonts!, moodNotes: launch.brandMoodNotes },
+      {
+        palette: launch.brandPalette!,
+        fonts: launch.brandFonts!,
+        moodNotes: launch.brandMoodNotes,
+        design: launch.brandDesign,
+      },
       [launch.landingGeneralInstructions, ctx.pageInstruction].filter(Boolean).join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
@@ -759,10 +803,28 @@ export async function generateAllPagesAction(launchId: string) {
   const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
 
   const results = await runInBatches(pages, 3, (pageDef) => generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name));
-  const failed = results.filter((r) => r.status === "rejected");
-  if (failed.length > 0) console.error(`generateAllPagesAction: ${failed.length}/${pages.length} pages failed`, failed);
 
+  // Revalidate before reporting: some pages may have been written even if others
+  // failed, and hiding those would be worse than reporting a partial run.
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  for (const pageDef of pages) revalidatePath(pagePath(launch.slug, pageDef));
+
+  // This used to only console.error. Every page could fail and the admin was
+  // shown a successful-looking screen with nothing changed — which is exactly
+  // what it looked like: a couple of seconds of spinner and no explanation.
+  const failed = results
+    .map((r, i) => ({ r, page: pages[i]! }))
+    .filter((x): x is { r: PromiseRejectedResult; page: PageDef } => x.r.status === "rejected");
+
+  if (failed.length > 0) {
+    const detail = failed
+      .map(({ r, page }) => `${page.label}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`)
+      .join(" · ");
+    console.error("generateAllPagesAction failed pages", failed.map((f) => f.r.reason));
+    throw new Error(
+      `No se pudieron generar ${failed.length} de ${pages.length} páginas. ${detail}`,
+    );
+  }
 }
 
 /** Regenerates a single already-existing (or not-yet-existing) page. */
@@ -826,6 +888,14 @@ export async function updatePageFieldsAction(launchId: string, pageKey: string, 
     .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
     .orderBy(desc(assets.createdAt))
     .limit(1);
+
+  // Creating a page needs the identity approved; editing an existing one doesn't,
+  // since the design is already decided and you may just be fixing a typo.
+  if (!asset && launch.brandKitStatus !== "approved") {
+    throw new Error(
+      "No se puede crear esta página todavía: aprueba primero la identidad visual del lanzamiento.",
+    );
+  }
 
   const fields = fieldsForKind(pageDef.kind);
   const body = bodyFromFields(
