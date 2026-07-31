@@ -33,6 +33,13 @@ import {
   SECTION_KIND_BY_KEY,
 } from "@/components/public/section-design";
 import type {
+  AfiliadosPageBody,
+  ContenidoPageBody,
+  PageBlock,
+  RegistroPageBody,
+} from "@/components/public/page-bodies";
+import type { SectionDesign } from "@/components/public/landing-types";
+import type {
   LandingBody,
   LandingSectionKey,
   LandingCardStyle,
@@ -536,14 +543,28 @@ export async function updateBrandLogoAction(launchId: string, formData: FormData
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function generateMarcoCopyAction(launchId: string) {
+export async function generateMarcoCopyAction(launchId: string, formData?: FormData) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.brief) throw new Error("brief_missing");
 
+  // Regenerating without being able to say what to change means rolling the dice
+  // and hoping for something better. Remembered per launch, like the per-page
+  // briefs, so a second pass builds on the first instead of starting over.
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const instruction = typed || (typeof cache.marcoInstruction === "string" ? cache.marcoInstruction : null);
+
+  if (typed !== (cache.marcoInstruction ?? "")) {
+    const next = { ...cache };
+    if (typed) next.marcoInstruction = typed;
+    else delete next.marcoInstruction;
+    await db.update(launches).set({ assetsCache: next, updatedAt: new Date() }).where(eq(launches.id, launchId));
+  }
+
   const { text } = await complete({
     system: MARCO_COPY_SYSTEM,
-    prompt: marcoCopyPrompt(launch.brief),
+    prompt: marcoCopyPrompt(launch.brief, instruction),
     temperature: 0.6,
   });
 
@@ -774,6 +795,133 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
   await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body, contrastIssues);
 }
 
+/**
+ * Validates the composable blocks and band design of a non-landing page, and
+ * resolves the images the blocks ask for.
+ *
+ * Same principle as the landing sections: the vocabulary is closed, so a block
+ * type or a design value the renderer can't paint is dropped here rather than
+ * stored and discovered later on the public page.
+ */
+async function normalizePageComposition(
+  launch: Launch,
+  body: {
+    blocks?: unknown;
+    design?: { hero?: unknown; blocks?: unknown[] } | unknown;
+  },
+  /**
+   * What the hero band actually is. A capture page's hero is a FORM band: its job
+   * is the form, and `form` capabilities rule out the orbit and a photo backdrop
+   * for exactly that reason. Normalising it as a generic hero let the orbit
+   * through, and the orbit forces a narrow column — which squeezed the two-column
+   * hero into a strip one word wide.
+   */
+  heroKind: "form" | "hero" = "hero",
+): Promise<void> {
+  const brand = launch.brandDesign;
+  const brandDefaults = brand
+    ? { cardStyle: brand.cardStyle, titleFx: brand.titleFx, density: brand.density, divider: brand.divider }
+    : null;
+
+  // ---- blocks
+  const raw = Array.isArray(body.blocks) ? body.blocks : [];
+  const blocks: PageBlock[] = [];
+
+  for (const item of raw.slice(0, 5)) {
+    if (!item || typeof item !== "object") continue;
+    const b = item as Record<string, unknown>;
+
+    if (b.type === "benefits" && Array.isArray(b.items)) {
+      const items = b.items
+        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .map((i) => ({
+          icon: typeof i.icon === "string" ? i.icon : undefined,
+          title: String(i.title ?? "").trim(),
+          text: typeof i.text === "string" ? i.text.trim() : undefined,
+        }))
+        .filter((i) => i.title.length > 0)
+        .slice(0, 6);
+      if (items.length >= 2) blocks.push({ type: "benefits", title: typeof b.title === "string" ? b.title : undefined, items });
+      continue;
+    }
+
+    if (b.type === "steps" && Array.isArray(b.items)) {
+      const items = b.items
+        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .map((i) => ({
+          title: String(i.title ?? "").trim(),
+          text: typeof i.text === "string" ? i.text.trim() : undefined,
+        }))
+        .filter((i) => i.title.length > 0)
+        .slice(0, 6);
+      if (items.length >= 2) blocks.push({ type: "steps", title: typeof b.title === "string" ? b.title : undefined, items });
+      continue;
+    }
+
+    if (b.type === "imageText") {
+      const block: Extract<PageBlock, { type: "imageText" }> = {
+        type: "imageText",
+        title: typeof b.title === "string" ? b.title : undefined,
+        text: typeof b.text === "string" ? b.text : undefined,
+        ctaLabel: typeof b.ctaLabel === "string" ? b.ctaLabel : undefined,
+        imagePrompt: typeof b.imagePrompt === "string" ? b.imagePrompt : undefined,
+        imageSide: b.imageSide === "right" ? "right" : "left",
+      };
+      // A card-shaped image beside text, not a hero: 4:5 rather than 16:9.
+      if (block.imagePrompt) {
+        const url = await autoResolveImage(block.imagePrompt, await imageContextFor(launch, "card"));
+        if (url) block.imageUrl = url;
+      }
+      if (block.title || block.text) blocks.push(block);
+    }
+  }
+
+  (body as { blocks?: PageBlock[] }).blocks = blocks.length > 0 ? blocks : undefined;
+
+  // ---- band design, hero + one per block
+  const rawDesign = (body.design ?? {}) as { hero?: unknown; blocks?: unknown[] };
+  const design: { hero?: SectionDesign; blocks?: SectionDesign[] } = {};
+
+  const heroResult = normalizeSectionDesign(rawDesign.hero, { kind: heroKind, brand: brandDefaults });
+  if (heroResult.design) {
+    if (heroResult.design.background === "photo" && !heroResult.design.imageUrl && heroResult.design.imagePrompt) {
+      const url = await autoResolveImage(heroResult.design.imagePrompt, await imageContextFor(launch, "band"));
+      if (url) heroResult.design.imageUrl = url;
+      else heroResult.design.background = "gradient";
+    }
+    design.hero = heroResult.design;
+
+    // A photo floating beside the form on top of an already-decorated band is
+    // noise competing with the one thing that has to stand out. Drop it, unless
+    // the model deliberately asked to keep it.
+    const decorated =
+      heroResult.design.background !== "none" || heroResult.design.effect !== "none";
+    const b = body as { hideHeroImage?: boolean };
+    if (decorated && b.hideHeroImage === undefined) b.hideHeroImage = true;
+  }
+
+  if (blocks.length > 0) {
+    const perBlock: SectionDesign[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const kind = blocks[i]!.type === "benefits" ? "cards" : blocks[i]!.type === "steps" ? "list" : "media";
+      const { design: d } = normalizeSectionDesign(Array.isArray(rawDesign.blocks) ? rawDesign.blocks[i] : undefined, {
+        kind,
+        brand: brandDefaults,
+      });
+      if (!d) continue;
+      if (d.background === "photo" && !d.imageUrl && d.imagePrompt) {
+        const url = await autoResolveImage(d.imagePrompt, await imageContextFor(launch, "band"));
+        if (url) d.imageUrl = url;
+        else d.background = "tint";
+      }
+      perBlock[i] = d;
+    }
+    if (perBlock.length > 0) design.blocks = perBlock;
+  }
+
+  (body as { design?: typeof design }).design = design.hero || design.blocks ? design : undefined;
+}
+
 async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
   const channel = pageDef.label.startsWith("Registro — ") ? pageDef.label.replace("Registro — ", "") : "General";
 
@@ -784,12 +932,15 @@ async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageG
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; subheadline?: string; bullets?: string[]; cta?: string; imagePrompt?: string; imageUrl?: string };
+  const body = extractJson(text) as RegistroPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
     const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
+
+  // Blocks and band design, validated and with their images resolved.
+  await normalizePageComposition(launch, body, "form");
 
   const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
   await runDesignReview(pagePath(launch.slug, pageDef), inserted.id, body as LandingBody);
@@ -815,12 +966,14 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; body?: string; ctaLabel?: string; imagePrompt?: string; imageUrl?: string };
+  const body = extractJson(text) as ContenidoPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
     const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
     if (imageUrl) body.imageUrl = imageUrl;
   }
+
+  await normalizePageComposition(launch, body);
 
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
@@ -852,7 +1005,9 @@ async function generateAfiliadosPage(launch: Launch, pageDef: PageDef, ctx: Page
     temperature: 0.7,
   });
 
-  const body = extractJson(text) as { headline?: string; pitch?: string; commissionNote?: string };
+  const body = extractJson(text) as AfiliadosPageBody;
+  await normalizePageComposition(launch, body);
+
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
 

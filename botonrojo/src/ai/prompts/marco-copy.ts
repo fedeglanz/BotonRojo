@@ -29,10 +29,15 @@ Devuelve SIEMPRE JSON válido con esta forma exacta:
   "benefits": ["...", "..."]
 }`;
 
-export function marcoCopyPrompt(brief: string): string {
+export function marcoCopyPrompt(brief: string, instruction?: string | null): string {
+  const extra = instruction?.trim();
   return `Brief del lanzamiento:
 
 ${brief}
-
+${
+  extra
+    ? `\nQUÉ QUIERE CAMBIAR EL CLIENTE — manda sobre el brief si entran en conflicto:\n"""\n${extra}\n"""\n`
+    : ""
+}
 Devuelve únicamente el JSON.`;
 }

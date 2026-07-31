@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Script from "next/script";
-import { BrandStyle } from "@/components/public/brand-style";
+import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
+import { PageBlocks } from "@/components/public/page-blocks";
 import { Reveal } from "@/components/public/reveal";
 import { Countdown } from "@/components/public/countdown";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -113,9 +114,17 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
         </aside>
       </div>
 
+      <PageBlocks
+        blocks={body?.blocks}
+        designs={body?.design?.blocks}
+        cardStyle={usableCardStyle(launch.brandPalette, launch.brandDesign?.cardStyle)}
+        ctaStyle={launch.brandDesign?.ctaStyle}
+      />
+
       <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
+        logoUrl={launch.brandLogoUrl}
         targetDate={nextUnlockDate ? nextUnlockDate.toISOString() : null}
         countdownLabel="Siguiente entrega en"
         ctaLabel="Acceder ahora"

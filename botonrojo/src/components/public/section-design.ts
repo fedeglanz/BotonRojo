@@ -363,12 +363,21 @@ export function normalizeSectionDesign(
     background = "none";
   }
   if (!caps.effects.includes(effect)) {
+    // Substitute rather than strip. Asking for "a background with movement" and
+    // getting a bare band because the orbit happened to be disallowed here loses
+    // the intent; the nearest allowed effect keeps it. Ordered by how close each
+    // is to ambient movement.
+    const substitute = (["aurora", "gradient", "dots", "grid", "noise", "geometry"] as SectionEffect[]).find(
+      (candidate) => caps.effects.includes(candidate),
+    );
     issues.push({
       field: "effect",
       kind: "incompatible",
-      message: `el efecto "${effect}" no está permitido en una sección de tipo "${kind}"`,
+      message: substitute
+        ? `el efecto "${effect}" no encaja en una sección de tipo "${kind}"; se usa "${substitute}"`
+        : `el efecto "${effect}" no está permitido en una sección de tipo "${kind}"`,
     });
-    effect = "none";
+    effect = substitute ?? "none";
   }
   // Same reason as above, one level up: these sections are lists and grids, so
   // a centred alignment is never the right call for them.

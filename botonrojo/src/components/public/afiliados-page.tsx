@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { BrandStyle } from "@/components/public/brand-style";
+import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
+import { PageBlocks } from "@/components/public/page-blocks";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import type { Launch } from "@/db/schema/launches";
 import type { AfiliadosPageBody } from "@/components/public/page-bodies";
@@ -54,6 +55,13 @@ export function AfiliadosPage({
           </div>
         </Reveal>
       </div>
+
+      <PageBlocks
+        blocks={body?.blocks}
+        designs={body?.design?.blocks}
+        cardStyle={usableCardStyle(launch.brandPalette, launch.brandDesign?.cardStyle)}
+        ctaStyle={launch.brandDesign?.ctaStyle}
+      />
 
       <PublicFooter launch={launch} />
     </main>

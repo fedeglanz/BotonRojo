@@ -90,7 +90,7 @@ function GroupHeading({ children }: { children: React.ReactNode }) {
 /** Section ids used in `?seccion=` — see LaunchTabs. "todo" shows every step
  *  at once and is the default: grouping gave the hub an order, but defaulting to
  *  a single group hid the other six steps behind a tab you had to know about. */
-const SECTIONS = ["todo", "marca", "paginas", "campana", "conexiones", "registros"] as const;
+const SECTIONS = ["todo", "marca", "paginas", "campana", "conexiones"] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 export default async function LaunchHubPage(props: {
@@ -252,8 +252,6 @@ export default async function LaunchHubPage(props: {
     },
     { id: "campana", label: "Campaña", done: done.campana, total: 2, blocked: !hasMarco },
     { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
-    // Read-only: there is nothing to complete, so it shows no counter.
-    { id: "registros", label: "Registros", done: 0, total: 0 },
   ];
 
 
@@ -326,13 +324,29 @@ export default async function LaunchHubPage(props: {
         subtitle="Avatar, promesa, dolores y beneficios desde el brief inicial."
         status={hasMarco ? "ready" : "empty"}
         action={
-          <form action={generateMarcoCopyAction.bind(null, launch.id)}>
+          <form action={generateMarcoCopyAction.bind(null, launch.id)} className="w-full max-w-md space-y-2">
             <AiGeneratingOverlay
               messages={["Leyendo el brief…", "Perfilando al avatar…", "Encontrando los dolores reales…", "Escribiendo la promesa…"]}
             />
-            <SubmitButton variant={hasMarco ? "outline" : "primary"} pendingLabel="Generando…">
-              {hasMarco ? "Regenerar con Claude" : "Generar con Claude"}
-            </SubmitButton>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-widest text-zinc-400">
+                Qué quieres cambiar (opcional)
+              </span>
+              <textarea
+                name="instruction"
+                rows={2}
+                defaultValue={
+                  ((launch.assetsCache as Record<string, unknown> | null)?.marcoInstruction as string) ?? ""
+                }
+                placeholder="El avatar es más senior de lo que has puesto, y la promesa demasiado genérica."
+                className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <div className="flex justify-end">
+              <SubmitButton variant={hasMarco ? "outline" : "primary"} pendingLabel="Generando…">
+                {hasMarco ? "Regenerar con Claude" : "Generar con Claude"}
+              </SubmitButton>
+            </div>
           </form>
         }
       >
@@ -645,80 +659,6 @@ export default async function LaunchHubPage(props: {
       </>
       )}
 
-      {(active === "todo" || active === "registros") && (
-      <>
-      {active === "todo" && <GroupHeading>Registros</GroupHeading>}
-      {/* Step 10 — Registros */}
-      <WizardStep
-        index={10}
-        title="Registros"
-        subtitle="Leads, ventas y eventos registrados en este lanzamiento."
-        status={recentEvents.length > 0 ? "ready" : "empty"}
-      >
-        {/* Counters */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            { label: "Visitas", key: "visit", color: "text-zinc-300" },
-            { label: "Leads", key: "lead", color: "text-blue-300" },
-            { label: "Ventas", key: "sale", color: "text-emerald-300" },
-            { label: "Seminarios", key: "seminar", color: "text-amber-300" },
-          ].map(({ label, key, color }) => (
-            <div key={key} className="rounded-lg border border-white/5 bg-black/30 p-4 text-center">
-              <div className={`text-2xl font-bold ${color}`}>{statsMap[key] ?? 0}</div>
-              <div className="mt-1 text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Recent events table */}
-        {recentEvents.length > 0 ? (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-white/5">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-white/5 bg-black/40 text-[10px] uppercase tracking-widest text-zinc-500">
-                  <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Nombre</th>
-                  <th className="px-3 py-2">Fuente</th>
-                  <th className="px-3 py-2">Pais</th>
-                  <th className="px-3 py-2">Monto</th>
-                  <th className="px-3 py-2">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentEvents.map((ev) => (
-                  <tr key={ev.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                    <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
-                        ev.type === "lead" ? "bg-blue-500/10 text-blue-300" :
-                        ev.type === "sale" ? "bg-emerald-500/10 text-emerald-300" :
-                        ev.type === "visit" ? "bg-zinc-800 text-zinc-400" :
-                        "bg-amber-500/10 text-amber-300"
-                      }`}>
-                        {ev.type}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-300">{ev.email ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-400">{ev.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-500">{ev.utmSource ?? "directo"}</td>
-                    <td className="px-3 py-2 text-zinc-500">{ev.country ?? "—"}</td>
-                    <td className="px-3 py-2 text-zinc-300">
-                      {ev.amountCents ? `${(ev.amountCents / 100).toFixed(2)} ${ev.currency ?? ""}` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-500">
-                      {ev.occurredAt.toLocaleDateString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-500">Aun no hay eventos registrados para este lanzamiento.</p>
-        )}
-      </WizardStep>
-      </>
-      )}
     </div>
   );
 }

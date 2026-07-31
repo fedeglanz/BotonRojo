@@ -271,6 +271,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
       <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
+        logoUrl={launch.brandLogoUrl}
         targetDate={launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null}
         countdownLabel="El carrito cierra en"
         ctaLabel={hasStripeProduct ? "Acceder ahora" : "Registrarse ahora"}
