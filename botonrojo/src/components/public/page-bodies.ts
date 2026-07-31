@@ -32,6 +32,22 @@ export type PageBlock =
       title?: string;
       /** Numbered sequence — what happens after you sign up. */
       items: Array<{ title: string; text?: string }>;
+    }
+  | {
+      type: "faq";
+      title?: string;
+      items: Array<{ q: string; a: string }>;
+    }
+  | {
+      type: "testimonials";
+      title?: string;
+      items: Array<{ quote: string; author: string; role?: string }>;
+    }
+  | {
+      type: "cta";
+      title?: string;
+      text?: string;
+      ctaLabel?: string;
     };
 
 export type RegistroPageBody = {

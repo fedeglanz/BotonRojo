@@ -8,6 +8,7 @@ import { ContenidoPage } from "@/components/public/contenido-page";
 import { LegalPage } from "@/components/public/legal-page";
 import { AfiliadosPage } from "@/components/public/afiliados-page";
 import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
+import { canEditLaunch, EDIT_DISABLED, type EditContext } from "@/components/public/edit-mode";
 import type { Launch } from "@/db/schema/launches";
 import type {
   RegistroPageBody,
@@ -18,7 +19,20 @@ import type {
 
 /** Central "which component renders this page kind" dispatch — the only
  * place that needs to know all 5 kinds exist. */
-export async function renderLaunchPage(launch: Launch, pageDef: PageDef, allPages: PageDef[]) {
+export async function renderLaunchPage(
+  launch: Launch,
+  pageDef: PageDef,
+  allPages: PageDef[],
+  searchParams?: { editar?: string },
+) {
+  // Decided on the server from the session. `?editar=1` only expresses intent: a
+  // visitor who guesses the parameter gets the ordinary page, because the value
+  // they can influence isn't the one that decides.
+  const canEdit = await canEditLaunch(launch, searchParams);
+  const edit: EditContext = canEdit
+    ? { enabled: true, launchId: launch.id, launchSlug: launch.slug, pageKey: pageDef.pageKey }
+    : EDIT_DISABLED;
+
   if (pageDef.kind === "venta") {
     return <LaunchLandingPage launch={launch} pageKey={pageDef.pageKey} />;
   }
@@ -31,7 +45,7 @@ export async function renderLaunchPage(launch: Launch, pageDef: PageDef, allPage
     .limit(1);
 
   if (pageDef.kind === "registro") {
-    return <RegistroPage launch={launch} body={(asset?.body as RegistroPageBody) ?? null} />;
+    return <RegistroPage launch={launch} body={(asset?.body as RegistroPageBody) ?? null} edit={edit} />;
   }
 
   if (pageDef.kind === "contenido") {
@@ -56,6 +70,7 @@ export async function renderLaunchPage(launch: Launch, pageDef: PageDef, allPage
         total={contentPages.length}
         nextUnlockDate={nextUnlock && nextUnlock.getTime() > Date.now() ? nextUnlock : null}
         lockedUntil={lockedUntil}
+        edit={edit}
       />
     );
   }
@@ -67,7 +82,7 @@ export async function renderLaunchPage(launch: Launch, pageDef: PageDef, allPage
   if (pageDef.kind === "afiliados") {
     const [org] = await db.select().from(organizations).where(eq(organizations.id, launch.organizationId)).limit(1);
     const signupHref = `/registro-afiliado?org=${org?.slug ?? ""}`;
-    return <AfiliadosPage launch={launch} body={(asset?.body as AfiliadosPageBody) ?? null} signupHref={signupHref} />;
+    return <AfiliadosPage launch={launch} body={(asset?.body as AfiliadosPageBody) ?? null} signupHref={signupHref} edit={edit} />;
   }
 
   return null;
