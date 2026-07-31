@@ -26,10 +26,11 @@ type Props = {
   launchSlug: string;
   body: LandingBody | null;
   versions?: VersionMeta[];
-  refineAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
-  rawUpdateAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
-  imageSaveAction: (launchId: string, slotPath: string, formData: FormData) => Promise<void>;
-  designAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
+  /** Already bound to the launch and the page by the caller. */
+  refineAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
+  rawUpdateAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
+  imageSaveAction: (slotPath: string, formData: FormData) => Promise<void>;
+  designAction: (section: LandingSectionKey, formData: FormData) => Promise<void>;
 };
 
 export function LandingEditor({

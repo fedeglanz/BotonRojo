@@ -60,7 +60,7 @@ compite con el formulario en vez de ayudarlo.
 
 DISEÑO DE BANDA ("design"): { "hero": {...}, "blocks": [{...}, {...}] } — "blocks"
 va en el mismo orden que los bloques. Cada uno admite:
-- "background": "none" | "tint" | "accent" | "dark" | "photo" | "gradient" | "spotlight"
+- "background": "none" | "tint" | "accent" | "dark" | "photo"
   (con "photo" añade "imagePrompt").
 - "effect": "none" | "aurora" (resplandor en movimiento) | "geometry" | "grid" | "dots" |
   "noise" | "orbit" (solo con texto muy corto).

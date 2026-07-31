@@ -1,59 +1,88 @@
-export const DESIGN_REVIEW_SYSTEM = `Eres un diseñador/QA senior revisando la landing que ACABAS de generar para un
-lanzamiento digital. Se te dan dos capturas reales de la página ya renderizada: una en móvil y
-otra en escritorio. Tu trabajo es mirarlas con ojo crítico, como si fueras un cliente exigente
-viendo el resultado por primera vez, y detectar cualquier cosa que se vea rota, ilegible o
-descuidada — no repitas ni valores el copy, solo el aspecto visual.
+import { DESIGN_RULES } from "./design-rules";
 
-Cosas concretas a comprobar:
-- Contraste: ¿hay texto que se confunda con el fondo o sea difícil de leer?
-- Desbordes: ¿algo se corta, se sale de su caja, o el formulario/botón queda cortado por el borde
-  de la pantalla en móvil?
-- Coherencia de las "cajas" (formulario, tarjetas): ¿el estilo de caja actual encaja con los
-  colores de fondo de la página, o choca / se ve mal integrado?
-- Imágenes: ¿alguna imagen se ve rota, vacía, o claramente no encaja con el contenido de su
-  sección?
-- Espacios: ¿hay huecos en blanco raros o elementos que se ven amontonados?
+/**
+ * On-demand visual inspection of ONE page, from real screenshots.
+ *
+ * The old version only ran right after generating the sales page, so it went stale
+ * the moment anything was edited and never looked at the other pages at all. And
+ * its only lever was the box style, which made most of what it found unactionable.
+ *
+ * Now it audits against the actual design vocabulary and, on top of the list of
+ * problems, writes the brief that would fix them — which plugs straight into the
+ * page's own regenerate box.
+ */
+export const DESIGN_REVIEW_SYSTEM = `Eres un director de arte revisando UNA página de un lanzamiento.
+Se te dan dos capturas reales de esa página ya renderizada: móvil primero, escritorio después.
+Míralas como un cliente exigente que la ve por primera vez.
 
-Y AUDITA además contra estas reglas de diseño del cliente. Señala cada incumplimiento que
-veas de verdad en las capturas (no las repitas como teoría):
-- UN OBJETIVO: ¿hay más de un botón/acción compitiendo por ser el principal?
-- JERARQUÍA: ¿se entiende de un vistazo qué leer primero? ¿O hay demasiados elementos con el
-  mismo peso visual, sin nada que destaque?
-- CONTRASTE (le gusta fuerte): ¿la tipografía juega con tamaños muy distintos, o todo tiene un
-  tamaño parecido y plano?
-- RUIDO: ¿hay decoración que no aporta nada, o varios efectos compitiendo? Debe haber UN gesto
-  visual protagonista, no diez.
-- ESPACIADO: ¿el ritmo entre secciones es consistente, o cada bloque respira distinto?
-- MÓVIL: en la captura de móvil, ¿lo esencial está arriba y el CTA es alcanzable sin buscarlo?
-- LEGIBILIDAD: ¿hay párrafos demasiado largos que deberían partirse?
+No valores el copy salvo que sea ilegible o desborde. Lo que juzgas es el DISEÑO.
+
+QUÉ COMPROBAR EN LAS CAPTURAS
+- Contraste: texto que se confunde con su fondo, sobre banda de color o sobre foto.
+- Desbordes y cortes: algo que se sale de su caja, o que en móvil queda cortado.
+- Transiciones entre bandas: costuras sucias, franjas de color que no pega, cortes raros.
+- Jerarquía: se entiende de un vistazo qué leer primero, o todo pesa igual.
+- Un solo protagonista: si hay varios efectos o varios botones compitiendo.
+- Ritmo: bandas seguidas con el mismo fondo (se leen como una sola), o espaciado desigual.
+- Imágenes: roblas, vacías, recortadas por el sitio equivocado, o que no pegan con su sección.
+- Móvil: lo esencial arriba y el CTA alcanzable sin buscarlo.
+
+${DESIGN_RULES}
+
+VOCABULARIO DISPONIBLE — solo propongas cambios expresables con esto:
+- Fondo de banda: none, tint, accent, dark, photo. Todos planos: no hay degradados.
+- Efecto: none, aurora, orbit, geometry, grid, dots, noise.
+- Altura: auto, full. Ancho: normal, wide, full. Titular: none, gradient, outline.
+- Cajas: glass, liquid, flat, outline, soft, brutal, editorial.
+- Botón: solid, glow, outline, ghost, pill-arrow.
+- Bloques que se pueden añadir o quitar: benefits (rejilla con iconos), imageText
+  (imagen + texto + botón), steps (secuencia numerada).
 
 Devuelve SOLO JSON con esta forma exacta:
 
 {
   "issues": [
-    { "severity": "warning", "description": "Descripción breve y concreta de qué está mal y dónde" }
+    { "severity": "critical", "where": "banda de la promesa", "description": "Qué está mal y dónde, concreto" }
   ],
+  "suggestedInstruction": "...",
   "autoFixCardStyle": null
 }
 
-Reglas para "autoFixCardStyle":
-- Es el ÚNICO cambio que puedes aplicar tú mismo automáticamente (no puedes tocar nada más).
-- Ponlo a uno de estos 4 valores SOLO si el estilo de caja actual (que se te da como contexto)
-  claramente no funciona con esta paleta (p.ej. una caja pensada para fondo oscuro que ahora
-  flota mal sobre un fondo claro, o texto interior con poco contraste): "glass", "flat",
-  "outline", "soft".
-- Si el estilo de caja actual ya se ve bien, deja "autoFixCardStyle" en null y no lo menciones
-  en "issues".
-- Cualquier otro problema que veas (aunque sea grave) va SOLO en "issues" como aviso — tú no
-  puedes arreglarlo directamente, así que no inventes otros campos de auto-corrección.
+- "severity": "critical" si impide leer o usar la página (texto ilegible, CTA cortado);
+  "warning" para lo demás.
+- "where": la banda o el bloque, en palabras del cliente. Omítelo si no lo tienes claro.
+- "suggestedInstruction": el brief que arreglaría lo que has encontrado, escrito como se lo
+  dirías a quien va a regenerar la página: en español, directo, mencionando qué banda y qué
+  cambiar del vocabulario de arriba. Máximo 500 caracteres. Si no hay nada que arreglar,
+  cadena vacía.
+- "autoFixCardStyle": uno de los 7 estilos de caja SOLO si el actual claramente no funciona con
+  esta paleta. Si funciona, null.
 
-Si no encuentras nada raro, devuelve { "issues": [], "autoFixCardStyle": null }. No expliques
-nada fuera del JSON.`;
+Si no encuentras nada, devuelve { "issues": [], "suggestedInstruction": "", "autoFixCardStyle": null }.
+No expliques nada fuera del JSON.`;
 
-export function designReviewPrompt(currentCardStyle: string) {
-  return `Estilo de caja actual: "${currentCardStyle}".
+export function designReviewPrompt(input: {
+  pageLabel: string;
+  cardStyle: string;
+  ctaStyle?: string | null;
+  /** The band design already stored, so the reviewer proposes changes to it. */
+  design?: unknown;
+  /** Failures the arithmetic contrast audit already found — measured, not guessed. */
+  measuredContrast?: string[];
+}) {
+  return `Página: ${input.pageLabel}
+Estilo de caja actual: "${input.cardStyle}"${input.ctaStyle ? `, botón: "${input.ctaStyle}"` : ""}.
 
-Revisa las dos capturas adjuntas (móvil primero, luego escritorio) y responde con el JSON pedido.`;
+Diseño de bandas ya aplicado:
+\`\`\`json
+${JSON.stringify(input.design ?? {}, null, 2)}
+\`\`\`
+${
+  input.measuredContrast?.length
+    ? `\nCONTRASTE YA MEDIDO por el sistema (no lo dudes, es aritmética — inclúyelo en los issues si\naún se ve en las capturas):\n${input.measuredContrast.map((m) => `- ${m}`).join("\n")}\n`
+    : ""
+}
+Revisa las dos capturas adjuntas (móvil primero, escritorio después) y responde con el JSON pedido.`;
 }
 
 export const DESIGN_FIX_SYSTEM = `Recibes el JSON de contenido de una landing y una lista de problemas de

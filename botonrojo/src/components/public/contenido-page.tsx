@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Script from "next/script";
-import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
+import { BrandStyle, logoPlateFor, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PageBlocks } from "@/components/public/page-blocks";
 import { Reveal } from "@/components/public/reveal";
@@ -125,6 +125,16 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
 
       <StickyActionBar
         logoUrl={launch.brandLogoUrl}
+        logoAspect={
+          ((launch.assetsCache as Record<string, unknown> | null)?.logoAspect as number) ?? null
+        }
+        logoPlate={logoPlateFor(
+          launch.brandPalette,
+          (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
+            dark?: number;
+            light?: number;
+          } | null,
+        )}
         targetDate={nextUnlockDate ? nextUnlockDate.toISOString() : null}
         countdownLabel="Siguiente entrega en"
         ctaLabel="Acceder ahora"

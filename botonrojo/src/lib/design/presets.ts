@@ -110,14 +110,10 @@ export function resolveCtaStyle(preset?: CTAStylePreset | null): string {
 
 /* -------------------------------------------------------- backgrounds -- */
 
-export type BackgroundPreset =
-  | "none"
-  | "tint"
-  | "accent"
-  | "dark"
-  | "photo"
-  | "gradient"
-  | "spotlight";
+/** Flat fills only: the gradient and spotlight bands were dropped on the client's
+ *  explicit call, so they're gone from the preset map too rather than left as
+ *  dead code something could reach for again. */
+export type BackgroundPreset = "none" | "tint" | "accent" | "dark" | "photo";
 
 export type ResolvedBackground = {
   /** Paint only, for the backdrop layer behind the content. */
@@ -160,20 +156,6 @@ export const BACKGROUND_PRESETS: Record<BackgroundPreset, ResolvedBackground> = 
     text: "text-white [&_*]:!text-white",
     needsPhoto: true,
     forcesLightText: true,
-  },
-  gradient: {
-    paint:
-      "bg-[linear-gradient(160deg,color-mix(in_srgb,var(--color-accent)_18%,transparent),transparent_60%)]",
-    text: "",
-    needsPhoto: false,
-    forcesLightText: false,
-  },
-  spotlight: {
-    paint:
-      "bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,color-mix(in_srgb,var(--color-accent)_20%,transparent),transparent_70%)]",
-    text: "",
-    needsPhoto: false,
-    forcesLightText: false,
   },
 };
 

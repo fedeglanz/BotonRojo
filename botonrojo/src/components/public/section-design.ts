@@ -141,15 +141,7 @@ export type DesignCapabilityMap = Record<
 
 /* ----------------------------------------------------------- vocabularies */
 
-const BACKGROUNDS: SectionBackground[] = [
-  "none",
-  "tint",
-  "accent",
-  "dark",
-  "photo",
-  "gradient",
-  "spotlight",
-];
+const BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
 const EFFECTS: SectionEffect[] = ["none", "orbit", "geometry", "aurora", "grid", "dots", "noise"];
 const TITLE_FX: SectionTitleFx[] = ["none", "gradient", "outline"];
 const HEIGHTS: SectionHeight[] = ["auto", "full"];
@@ -184,33 +176,33 @@ export const DESIGN_CAPABILITIES: DesignCapabilityMap = {
   hero: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   statement: { backgrounds: BACKGROUNDS, effects: EFFECTS, allowFullHeight: true },
   list: {
-    backgrounds: ["none", "tint", "accent", "dark", "gradient", "spotlight"],
+    backgrounds: ["none", "tint", "accent", "dark", "tint"],
     effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
     allowFullHeight: false,
   },
   cards: {
-    backgrounds: ["none", "tint", "accent", "dark", "gradient", "spotlight"],
+    backgrounds: ["none", "tint", "accent", "dark", "tint"],
     effects: ["none", "geometry", "aurora", "grid", "dots", "noise"],
     allowFullHeight: false,
   },
   media: {
-    backgrounds: ["none", "tint", "dark", "gradient", "spotlight"],
+    backgrounds: ["none", "tint", "dark", "tint"],
     effects: ["none", "aurora", "noise"],
     allowFullHeight: true,
   },
   // A form needs maximum legibility: no photo behind it, no orbit stealing focus.
   form: {
-    backgrounds: ["none", "tint", "dark", "gradient"],
+    backgrounds: ["none", "tint", "dark"],
     effects: ["none", "aurora", "grid", "noise"],
     allowFullHeight: true,
   },
   pricing: {
-    backgrounds: ["none", "tint", "accent", "dark", "gradient"],
+    backgrounds: ["none", "tint", "accent", "dark"],
     effects: ["none", "geometry", "grid", "dots"],
     allowFullHeight: false,
   },
   faq: {
-    backgrounds: ["none", "tint", "dark", "gradient"],
+    backgrounds: ["none", "tint", "dark"],
     effects: ["none", "grid", "dots"],
     allowFullHeight: false,
   },
@@ -367,7 +359,7 @@ export function normalizeSectionDesign(
     // getting a bare band because the orbit happened to be disallowed here loses
     // the intent; the nearest allowed effect keeps it. Ordered by how close each
     // is to ambient movement.
-    const substitute = (["aurora", "gradient", "dots", "grid", "noise", "geometry"] as SectionEffect[]).find(
+    const substitute = (["aurora", "dots", "grid", "noise", "geometry"] as SectionEffect[]).find(
       (candidate) => caps.effects.includes(candidate),
     );
     issues.push({
@@ -580,7 +572,7 @@ export function applyBrandRhythm(
   // How often a band gets a background. Sobrio keeps most of the page plain.
   const every = intensity === "sobrio" ? 3 : intensity === "expresivo" ? 2 : 2;
   const cycle: SectionBackground[] =
-    intensity === "expresivo" ? ["tint", "dark", "gradient", "accent"] : ["tint", "dark", "tint", "gradient"];
+    intensity === "expresivo" ? ["tint", "dark", "accent", "tint"] : ["tint", "dark", "tint", "accent"];
 
   const out: Partial<Record<SectionDesignKey, SectionDesign>> = {};
   let banded = 0;

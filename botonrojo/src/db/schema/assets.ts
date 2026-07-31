@@ -44,11 +44,21 @@ export type Asset = typeof assets.$inferSelect;
 export type NewAsset = typeof assets.$inferInsert;
 
 export type DesignReviewIssue = {
-  severity: "auto_fixed" | "warning";
+  severity: "auto_fixed" | "warning" | "critical";
   description: string;
+  /** Which band or block it's about, when the reviewer could tell. */
+  where?: string;
 };
 
 export type DesignReviewResult = {
   issues: DesignReviewIssue[];
   reviewedAt: string;
+  /**
+   * The brief that would fix what was found, written by the reviewer in the same
+   * language the regenerate box takes. Turns a list of complaints into one click:
+   * the panel drops it into the page's instruction and regenerates.
+   */
+  suggestedInstruction?: string;
+  /** Worst text/background ratio measured on the page, for a quick verdict. */
+  worstContrast?: number;
 };

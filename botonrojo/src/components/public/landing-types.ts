@@ -101,16 +101,12 @@ export type LandingStyle = {
  * parallax/overlay) and that took the whole public page down — see
  * normalizeSectionDesign.
  */
-// "gradient" and "spotlight" already existed in BACKGROUND_PRESETS but no
-// vocabulary exposed them, so nothing could ever ask for them.
-export type SectionBackground =
-  | "none"
-  | "tint"
-  | "accent"
-  | "dark"
-  | "photo"
-  | "gradient"
-  | "spotlight";
+/**
+ * Band backgrounds. Flat only, by the client's explicit call: the gradient and
+ * spotlight fills were dropped from the vocabulary rather than merely discouraged
+ * in the prompt, so nothing can reintroduce them.
+ */
+export type SectionBackground = "none" | "tint" | "accent" | "dark" | "photo";
 export type SectionEffect = "none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise";
 /** Display treatment for the section's heading — the size/shape contrast the
  *  client keeps asking for, without touching the section components. */
@@ -139,15 +135,7 @@ export type SectionDesign = {
   orbitItems?: SectionOrbitItem[];
 };
 
-export const SECTION_BACKGROUNDS: SectionBackground[] = [
-  "none",
-  "tint",
-  "accent",
-  "dark",
-  "photo",
-  "gradient",
-  "spotlight",
-];
+export const SECTION_BACKGROUNDS: SectionBackground[] = ["none", "tint", "accent", "dark", "photo"];
 export const SECTION_EFFECTS: SectionEffect[] = [
   "none",
   "orbit",

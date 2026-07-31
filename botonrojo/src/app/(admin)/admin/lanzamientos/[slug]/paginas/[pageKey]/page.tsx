@@ -18,6 +18,8 @@ import {
   setSectionImageAction,
   updateSectionDesignAction,
   applyDesignFixesAction,
+  reviewPageDesignAction,
+  applyReviewSuggestionAction,
 } from "@/server/launches";
 import { LandingEditor } from "@/components/admin/landing-editor";
 import { PagePartsEditor } from "@/components/admin/page-parts-editor";
@@ -225,23 +227,30 @@ export default async function LaunchPageEditor(props: {
         </p>
       )}
 
+      {/* Inspection is per page and on demand, so it applies to all of them. */}
+      <DesignReviewPanel
+        review={asset?.designReview}
+        launchId={launch.id}
+        pageKey={pageKey}
+        hasContent={hasContent}
+        reviewAction={reviewPageDesignAction}
+        applySuggestionAction={applyReviewSuggestionAction}
+        // Content-level auto-fix only rewrites the landing JSON, so it's offered
+        // where it can actually do something.
+        fixAction={pageDef.kind === "venta" ? applyDesignFixesAction : undefined}
+      />
+
       {pageDef.kind === "venta" ? (
         <>
-          <DesignReviewPanel
-            review={asset?.designReview}
-            launchId={launch.id}
-            pageKey={pageKey}
-            fixAction={applyDesignFixesAction}
-          />
           <LandingEditor
             launchId={launch.id}
             launchSlug={launch.slug}
             body={(asset?.body ?? null) as LandingBody | null}
             versions={versions}
-            refineAction={refineLandingSectionAction}
-            rawUpdateAction={updateSectionRawAction}
-            imageSaveAction={setSectionImageAction}
-            designAction={updateSectionDesignAction}
+            refineAction={refineLandingSectionAction.bind(null, launch.id, pageKey)}
+            rawUpdateAction={updateSectionRawAction.bind(null, launch.id, pageKey)}
+            imageSaveAction={setSectionImageAction.bind(null, launch.id, pageKey)}
+            designAction={updateSectionDesignAction.bind(null, launch.id, pageKey)}
           />
         </>
       ) : (

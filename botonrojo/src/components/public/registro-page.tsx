@@ -1,5 +1,5 @@
 import Script from "next/script";
-import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
+import { BrandStyle, logoPlateFor, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import { BrandIcon } from "@/components/public/brand-icon";
@@ -89,6 +89,16 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
 
       <StickyActionBar
         logoUrl={launch.brandLogoUrl}
+        logoAspect={
+          ((launch.assetsCache as Record<string, unknown> | null)?.logoAspect as number) ?? null
+        }
+        logoPlate={logoPlateFor(
+          launch.brandPalette,
+          (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
+            dark?: number;
+            light?: number;
+          } | null,
+        )}
         targetDate={launch.contentDripStartsAt ? launch.contentDripStartsAt.toISOString() : null}
         countdownLabel="Empieza en"
         ctaLabel="Registrarse ahora"

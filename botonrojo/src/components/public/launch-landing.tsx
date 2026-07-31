@@ -24,7 +24,7 @@ import {
 } from "@/components/public/landing-sections";
 import { LAYOUT_PRESETS } from "@/components/public/landing-types";
 import type { LandingBody, LandingCardStyle, MiddleSectionKey } from "@/components/public/landing-types";
-import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
+import { BrandStyle, logoPlateFor, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
@@ -272,6 +272,16 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
 
       <StickyActionBar
         logoUrl={launch.brandLogoUrl}
+        logoAspect={
+          ((launch.assetsCache as Record<string, unknown> | null)?.logoAspect as number) ?? null
+        }
+        logoPlate={logoPlateFor(
+          launch.brandPalette,
+          (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
+            dark?: number;
+            light?: number;
+          } | null,
+        )}
         targetDate={launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null}
         countdownLabel="El carrito cierra en"
         ctaLabel={hasStripeProduct ? "Acceder ahora" : "Registrarse ahora"}
