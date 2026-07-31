@@ -74,7 +74,13 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
   amplifiedPromise: (landing: LandingBody) => {
     const text = asText(landing.amplifiedPromise);
-    return text ? <AmplifiedPromiseSection key="amplifiedPromise" text={text} /> : null;
+    return text ? (
+      <AmplifiedPromiseSection
+        key="amplifiedPromise"
+        text={text}
+        subline={asText(landing.amplifiedPromiseSubline) ?? undefined}
+      />
+    ) : null;
   },
   painBlocks: (landing: LandingBody, ctx: RenderCtx) =>
     landing.painBlocks && landing.painBlocks.length > 0 ? (

@@ -174,6 +174,9 @@ export type LandingBody = {
   hero?: LandingHero;
   forWhom?: LandingForWhom;
   amplifiedPromise?: string;
+  /** 40-100 characters under the promise, set much smaller. Required shape when
+   *  the promise carries the orbit: 4-6 big words can't say enough alone. */
+  amplifiedPromiseSubline?: string;
   painBlocks?: LandingPainBlock[];
   includes?: LandingIncludeItem[];
   about?: LandingAbout;

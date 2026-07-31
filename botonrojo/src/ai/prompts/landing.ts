@@ -92,12 +92,13 @@ Devuelve JSON con esta forma exacta:
     "imagePrompt": "Descripción concreta de la foto del hero"
   },
   "forWhom": { "yes": ["..."], "no": ["..."] },
-  "amplifiedPromise": "...",
-  "painBlocks": [{ "pain": "...", "solution": "...", "icon": "🔥" }],
+  "amplifiedPromise": "4-6 palabras, muy grandes",
+  "amplifiedPromiseSubline": "40-100 caracteres que expliquen esas palabras",
+  "painBlocks": [{ "pain": "...", "solution": "...", "icon": "rayo" }],
   "speakers": [{ "name": "...", "role": "...", "imagePrompt": "Descripción de la foto del ponente" }],
   "agenda": [{ "time": "09:00", "topic": "..." }],
   "includes": [
-    { "title": "...", "description": "...", "icon": "📚", "imagePrompt": "Opcional, descripción de imagen para este módulo" }
+    { "title": "...", "description": "...", "icon": "libro", "imagePrompt": "Opcional, descripción de imagen para este módulo" }
   ],
   "pricingTiers": [{ "productSlug": "...", "bullets": ["...", "..."], "highlight": "Opcional, ej. 'La más elegida'" }],
   "scarcityNote": "Opcional, frase corta de urgencia de aforo",
@@ -126,6 +127,15 @@ reordenar o quitar secciones. Si lo incluyes, debe contener únicamente claves d
 (sin "hero" ni "finalCta", que siempre van al principio y al final) y solo las que quieras que se
 muestren, en el orden que quieras. Si omites una sección entera, no incluyas tampoco su clave en
 el JSON principal de arriba.
+
+Los campos "icon" NO son emojis: son NOMBRES de un catálogo cerrado de iconos que se pintan en
+SVG con degradado de marca. Elige el que mejor describa el contenido de ese bloque. Cualquier
+nombre que no esté en esta lista se descarta y el bloque se queda sin icono:
+"rayo", "cohete", "fuego", "tendencia", "grafica", "barras", "velocimetro", "diana", "trofeo", "corona", "estrella", "escudo", "escudoOk", "candado", "verificado", "documentoOk", "balanza", "salvavidas", "cartera", "monedas", "tarjeta", "factura", "porcentaje", "reloj", "alarma", "calendario", "repetir", "infinito", "libro", "birrete", "documento", "reproducir", "bombilla", "cerebro", "brujula", "lupa", "personas", "apretonManos", "manosCorazon", "mensajes", "correo", "enviar", "campana", "capas", "cajas", "ajustes", "enlace", "nube", "baseDatos", "movil", "pantalla", "maletin", "mundo", "regalo", "chispas", "varita", "check", "cerrar"
+
+"amplifiedPromise" son 4-6 PALABRAS como máximo — se pinta enorme, así que una frase larga se
+convierte en un muro de texto. Lo que quieras explicar va en "amplifiedPromiseSubline", de 40 a
+100 caracteres, que se pinta mucho más pequeño debajo. Ese salto de tamaño es el efecto.
 
 "sectionDesign" es el DISEÑO de cada banda de la página, y es lo que separa una página plana de
 una que parece diseñada. NO lo omitas: sin él la landing sale a una sola columna estrecha en el

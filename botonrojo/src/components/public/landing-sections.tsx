@@ -1,6 +1,7 @@
 import { SubmitButton } from "@/components/admin/submit-button";
 import { formatPrice } from "@/lib/utils";
 import { Reveal, RevealItem } from "./reveal";
+import { BrandIcon } from "./brand-icon";
 import { resolveVisualStyle } from "@/lib/design/presets";
 import { Countdown } from "./countdown";
 import type {
@@ -44,7 +45,7 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
           <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
             {data.yes?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-[var(--color-success)]">✓</span>
+                <BrandIcon name="check" size="sm" treatment="plain" className="mt-0.5 text-[var(--color-success)]" />
                 <span>{p}</span>
               </li>
             ))}
@@ -57,7 +58,7 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
           <ul className="mt-4 space-y-2 text-[var(--color-muted-1)]">
             {data.no?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-[var(--color-danger)]">✗</span>
+                <BrandIcon name="cerrar" size="sm" treatment="plain" className="mt-0.5 text-[var(--color-danger)]" />
                 <span>{p}</span>
               </li>
             ))}
@@ -68,14 +69,22 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
   );
 }
 
-export function AmplifiedPromiseSection({ text }: { text: string }) {
+export function AmplifiedPromiseSection({ text, subline }: { text: string; subline?: string }) {
   return (
     <section className="mx-auto max-w-3xl px-6 py-20 text-center">
       <SectionLabel>La promesa</SectionLabel>
       <Reveal>
-        <p className="mt-6 text-balance font-[family-name:var(--font-display)] text-3xl font-bold leading-tight md:text-4xl">
+        {/* Deliberately extreme size contrast: a few very large words, then a
+            much smaller line. It's also the only shape that fits inside the
+            orbit's narrow column without the labels landing on the copy. */}
+        <p className="mt-6 text-balance font-[family-name:var(--font-display)] text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
           {text}
         </p>
+        {subline && (
+          <p className="mx-auto mt-5 max-w-md text-balance text-sm text-[var(--color-muted-1)] sm:text-base">
+            {subline}
+          </p>
+        )}
       </Reveal>
     </section>
   );
@@ -95,7 +104,7 @@ export function PainSolutionSection({
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {blocks.map((b, i) => (
           <RevealItem key={i} className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal} space-y-3`}>
-            {b.icon && <div className="text-3xl">{b.icon}</div>}
+            {b.icon && <BrandIcon name={b.icon} size="lg" plate className="mb-1" />}
             <div className="text-sm uppercase tracking-widest text-[var(--color-danger)]">El problema</div>
             <p className="text-[var(--color-muted-1)]">{b.pain}</p>
             <div className="pt-3 border-t border-[var(--color-border)]" />
@@ -140,8 +149,8 @@ export function IncludesSection({
                 {String(i + 1).padStart(2, "0")}
               </div>
               <div>
-                <div className="font-bold">
-                  {it.icon && <span className="mr-2">{it.icon}</span>}
+                <div className="flex items-center gap-2 font-bold">
+                  {it.icon && <BrandIcon name={it.icon} size="sm" />}
                   {it.title}
                 </div>
                 <p className="mt-1 text-sm text-[var(--color-muted-2)]">{it.description}</p>
@@ -352,9 +361,7 @@ export function GuaranteeSection({ text, cardStyle }: { text: string; cardStyle?
     <section className="mx-auto max-w-3xl px-6 py-20">
       <Reveal>
         <div className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.spacious} text-center`}>
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] text-3xl">
-            🛡️
-          </div>
+          <BrandIcon name="escudoOk" size="lg" plate />
           <div className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold">
             Garantía
           </div>

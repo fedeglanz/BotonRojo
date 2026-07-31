@@ -120,8 +120,11 @@ export type BackgroundPreset =
   | "spotlight";
 
 export type ResolvedBackground = {
-  /** Class applied to the section wrapper. */
-  className: string;
+  /** Paint only, for the backdrop layer behind the content. */
+  paint: string;
+  /** Text colour forced by a dark band — belongs on the wrapper, so the copy
+   *  inherits it. */
+  text: string;
   /** True when the caller must also render a photo layer + scrim. */
   needsPhoto: boolean;
   /** True when the band is dark and text must be forced light. */
@@ -129,14 +132,16 @@ export type ResolvedBackground = {
 };
 
 export const BACKGROUND_PRESETS: Record<BackgroundPreset, ResolvedBackground> = {
-  none: { className: "", needsPhoto: false, forcesLightText: false },
+  none: { paint: "", text: "", needsPhoto: false, forcesLightText: false },
   tint: {
-    className: "bg-[color-mix(in_srgb,var(--color-accent)_7%,transparent)]",
+    paint: "bg-[color-mix(in_srgb,var(--color-accent)_7%,transparent)]",
+    text: "",
     needsPhoto: false,
     forcesLightText: false,
   },
   accent: {
-    className: "bg-[color-mix(in_srgb,var(--color-accent)_16%,transparent)]",
+    paint: "bg-[color-mix(in_srgb,var(--color-accent)_16%,transparent)]",
+    text: "",
     needsPhoto: false,
     forcesLightText: false,
   },
@@ -145,24 +150,28 @@ export const BACKGROUND_PRESETS: Record<BackgroundPreset, ResolvedBackground> = 
   // translucent letter over the orbit's glow lets the glow show through and the
   // word reads as tinted.
   dark: {
-    className: "bg-[color-mix(in_srgb,var(--color-fg)_4%,black_88%)] text-white [&_*]:!text-white",
+    paint: "bg-[color-mix(in_srgb,var(--color-fg)_4%,black_88%)]",
+    text: "text-white [&_*]:!text-white",
     needsPhoto: false,
     forcesLightText: true,
   },
   photo: {
-    className: "text-white [&_*]:!text-white",
+    paint: "",
+    text: "text-white [&_*]:!text-white",
     needsPhoto: true,
     forcesLightText: true,
   },
   gradient: {
-    className:
+    paint:
       "bg-[linear-gradient(160deg,color-mix(in_srgb,var(--color-accent)_18%,transparent),transparent_60%)]",
+    text: "",
     needsPhoto: false,
     forcesLightText: false,
   },
   spotlight: {
-    className:
+    paint:
       "bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,color-mix(in_srgb,var(--color-accent)_20%,transparent),transparent_70%)]",
+    text: "",
     needsPhoto: false,
     forcesLightText: false,
   },
@@ -181,10 +190,13 @@ export type DividerPreset = "none" | "line" | "fade" | "angle" | "curve" | "dots
 export const DIVIDER_PRESETS: Record<DividerPreset, string> = {
   none: "",
   line: "border-t border-[var(--color-border)]",
-  fade: "bg-[linear-gradient(to_bottom,transparent,color-mix(in_srgb,var(--color-fg)_6%,transparent))]",
-  angle: "[clip-path:polygon(0_0,100%_3rem,100%_100%,0_100%)]",
-  curve: "[border-radius:50%_50%_0_0/2rem_2rem_0_0]",
-  dots: "bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-fg)_22%,transparent)_1px,transparent_1px)] bg-[length:12px_12px]",
+  // The band's own colour fades in from the top, so there is no seam at all.
+  fade: "[mask-image:linear-gradient(to_bottom,transparent,black_5rem)] [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_5rem)]",
+  // The paint itself is cut on a diagonal / a curve — the previous band shows
+  // through the cut, which is what makes it read as a transition.
+  angle: "[clip-path:polygon(0_3rem,100%_0,100%_100%,0_100%)]",
+  curve: "[border-radius:50%_50%_0_0/3rem_3rem_0_0]",
+  dots: "[mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)]",
 };
 
 export function resolveDivider(preset?: DividerPreset | null): string {

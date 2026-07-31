@@ -23,6 +23,14 @@ export function SectionShell({
 
   return (
     <div className={resolved.wrapperClass}>
+      {/* The band's paint on its own layer, so its divider can mask or clip the
+          colour without dragging the content with it. Painting a tint ON TOP of
+          the band's top edge — what this used to do — read as a dirty grey seam
+          against whatever sat above. */}
+      {resolved.backdropClass && (
+        <div aria-hidden className={`absolute inset-0 ${resolved.backdropClass}`} />
+      )}
+
       {resolved.background === "photo" && resolved.imageUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -41,12 +49,6 @@ export function SectionShell({
       )}
 
       <SectionEffectLayer effect={resolved.effect} />
-
-      {/* The divider was resolved and then never painted, so six presets were
-          dead. It sits on top of the band's own top edge. */}
-      {resolved.dividerClass && (
-        <div aria-hidden className={`absolute inset-x-0 top-0 h-12 ${resolved.dividerClass}`} />
-      )}
 
       {/* Content sits above the background and decoration layers. */}
       <div className="relative z-10 w-full">{children}</div>

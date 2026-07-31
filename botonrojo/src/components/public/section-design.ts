@@ -83,7 +83,9 @@ export type ResolvedSectionDesign = {
   isDefault: boolean;
   wrapperClass: string;
   contentClass: string;
-  dividerClass: string;
+  /** The band's paint, shaped by its divider. Goes on its own layer behind the
+   *  content: masking or clipping the wrapper would take the copy with it. */
+  backdropClass: string;
   background: SectionBackground;
   effect: SectionEffect;
   /** Box treatment for this section specifically, when it overrides the page. */
@@ -268,7 +270,7 @@ function brandDefaults(brand: ResolveOptions["brand"]): Partial<NormalizedSectio
 
 /** An orbit puts the copy in a narrow column inside the ring; past this many
  *  characters the labels start colliding with the text. */
-const ORBIT_MAX_CONTENT_LENGTH = 320;
+const ORBIT_MAX_CONTENT_LENGTH = 150;
 
 /* -------------------------------------------------------------- functions */
 
@@ -690,7 +692,7 @@ export function resolveSectionDesign(
     // rather than by a global clip on <main>.
     wrapperClass: [
       "relative w-full overflow-hidden",
-      bg.className,
+      bg.text,
       height === "full" ? "flex min-h-[100svh] items-center" : "",
       widthClass,
       DENSITY_CLASSES[density],
@@ -700,7 +702,9 @@ export function resolveSectionDesign(
       .filter(Boolean)
       .join(" "),
     contentClass: "relative z-10 w-full",
-    dividerClass: resolveDivider(divider as DividerPreset),
+    backdropClass: [bg.paint, bg.paint ? resolveDivider(divider as DividerPreset) : ""]
+      .filter(Boolean)
+      .join(" "),
     background,
     effect,
     style: (d?.style as VisualStylePreset) ?? "glass",
