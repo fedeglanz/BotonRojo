@@ -97,6 +97,21 @@ export type ResolvedSectionDesign = {
 export type ResolveOptions = {
   theme?: ThemeContext;
   kind?: SectionKind;
+  /**
+   * The launch's approved design system. Whatever a section doesn't state is
+   * inherited from here — NOT from generic defaults.
+   *
+   * This is the difference between a page that looks designed and one that looks
+   * like a form dump. The model returns sections with half the fields set, and
+   * filling the rest with `style: "glass", titleFx: "none", density: "normal"`
+   * silently discarded every decision the brand kit had just made.
+   */
+  brand?: {
+    cardStyle?: VisualStylePreset;
+    titleFx?: SectionTitleFx;
+    density?: DensityTokens;
+    divider?: DividerPreset;
+  } | null;
   /** Approximate characters of copy in the section. Used to reject an orbit
    *  around a long text block before it ships, not after. */
   contentLength?: number;
@@ -235,6 +250,22 @@ const KIND_DEFAULTS: Partial<Record<SectionKind, Partial<NormalizedSectionDesign
   legal: { align: "start", density: "normal" },
 };
 
+/**
+ * The approved system as section defaults. Background and effect are deliberately
+ * absent: inheriting those would put the same band colour and the same effect on
+ * every section, which is the opposite of a designed page (design rule 10 — one
+ * protagonist gesture). Those are placed by `applyBrandRhythm`.
+ */
+function brandDefaults(brand: ResolveOptions["brand"]): Partial<NormalizedSectionDesign> {
+  if (!brand) return {};
+  const out: Partial<NormalizedSectionDesign> = {};
+  if (brand.cardStyle) out.style = brand.cardStyle;
+  if (brand.titleFx) out.titleFx = brand.titleFx;
+  if (brand.density) out.density = brand.density;
+  if (brand.divider) out.divider = brand.divider;
+  return out;
+}
+
 /** An orbit puts the copy in a narrow column inside the ring; past this many
  *  characters the labels start colliding with the text. */
 const ORBIT_MAX_CONTENT_LENGTH = 320;
@@ -293,7 +324,9 @@ export function normalizeSectionDesign(
 
   const kind = options.kind ?? "statement";
   const caps = DESIGN_CAPABILITIES[kind];
-  const defaults = KIND_DEFAULTS[kind] ?? {};
+  // Order matters: the section's own value wins, then the launch's approved
+  // system, then what suits this kind of section.
+  const defaults = { ...(KIND_DEFAULTS[kind] ?? {}), ...brandDefaults(options.brand) };
 
   const track = <T extends string>(field: string, allowed: T[]): T | undefined => {
     if (input[field] === undefined) return undefined;
@@ -490,6 +523,97 @@ export function checkSectionCompatibility(
   }
 
   return { ok: issues.length === 0, issues };
+}
+
+/**
+ * Composes the page: which bands carry a background and which section gets the
+ * one loud gesture.
+ *
+ * This is deterministic on purpose. Asking the model to compose the rhythm gave
+ * `background: "none", effect: "none"` on every section — a flat page — because
+ * a model writing copy has no view of the page as a whole. Alternation and "one
+ * protagonist" are rules, so they're computed:
+ *
+ * 1. Two adjacent bands never share a background: they'd read as one section.
+ * 2. Exactly ONE section gets the loud effect (design rule 10), chosen from the
+ *    brand's own list. Short-text sections only, since `orbit` needs a narrow
+ *    column and long copy would collide with it.
+ * 3. `intensity` decides how many bands are tinted at all.
+ *
+ * Anything the model DID state wins — this only fills the silence.
+ */
+export function applyBrandRhythm(
+  order: SectionDesignKey[],
+  brand: {
+    intensity?: "sobrio" | "equilibrado" | "expresivo";
+    effects?: Array<SectionEffect>;
+  } | null,
+  stated: Partial<Record<SectionDesignKey, SectionDesign>> = {},
+  /** Approximate copy length per section, so the orbit never lands on a wall of text. */
+  contentLength: Partial<Record<SectionDesignKey, number>> = {},
+): Partial<Record<SectionDesignKey, SectionDesign>> {
+  const intensity = brand?.intensity ?? "equilibrado";
+  const effects = (brand?.effects ?? []).filter((e) => e !== "none");
+
+  // How often a band gets a background. Sobrio keeps most of the page plain.
+  const every = intensity === "sobrio" ? 3 : intensity === "expresivo" ? 2 : 2;
+  const cycle: SectionBackground[] =
+    intensity === "expresivo" ? ["tint", "dark", "gradient", "accent"] : ["tint", "dark", "tint", "gradient"];
+
+  const out: Partial<Record<SectionDesignKey, SectionDesign>> = {};
+  let banded = 0;
+
+  order.forEach((key, index) => {
+    const own = stated[key] ?? {};
+    const design: SectionDesign = { ...own };
+
+    if (!own.background) {
+      // Offset by one so the hero (index 0) stays clean and the first band lands
+      // just below it, where the eye already expects a change.
+      const wantsBand = index > 0 && index % every === 0;
+      design.background = wantsBand ? cycle[banded % cycle.length]! : "none";
+      if (wantsBand) banded += 1;
+    }
+
+    // Cards want the width; a wall of centred cards in a 72rem column wastes the
+    // screen the client keeps complaining about.
+    if (!own.width && SECTION_KIND_BY_KEY[key] === "cards") design.width = "wide";
+
+    out[key] = design;
+  });
+
+  // The single protagonist. Prefer the sections built to carry one.
+  if (effects.length > 0) {
+    const candidates: SectionDesignKey[] = ["amplifiedPromise", "finalCta", "guarantee", "hero"];
+    const hero = candidates.find((key) => {
+      if (!order.includes(key)) return false;
+      if (stated[key]?.effect) return false;
+      const length = contentLength[key] ?? 0;
+      // `orbit` is the only one that constrains the copy; the rest are backdrops.
+      return effects[0] !== "orbit" || length <= ORBIT_MAX_CONTENT_LENGTH;
+    });
+
+    if (hero) {
+      out[hero] = {
+        ...out[hero],
+        effect: effects[0],
+        height: out[hero]?.height ?? "full",
+        align: out[hero]?.align ?? "center",
+        // An effect needs a band to sit on, or it floats over nothing.
+        background: out[hero]?.background === "none" ? "dark" : out[hero]?.background,
+      };
+    }
+
+    // A second, quieter one only when the brand asked to be expressive.
+    if (effects[1] && intensity === "expresivo") {
+      const second = order.find(
+        (key) => key !== hero && !stated[key]?.effect && SECTION_KIND_BY_KEY[key] === "cards",
+      );
+      if (second) out[second] = { ...out[second], effect: effects[1] };
+    }
+  }
+
+  return out;
 }
 
 /* --------------------------------------------------------------- resolve */

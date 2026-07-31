@@ -329,3 +329,32 @@ export const SECTION_META: Record<LandingSectionKey, { label: string; descriptio
   faq: { label: "FAQ", description: "Preguntas frecuentes", hasImage: false },
   finalCta: { label: "CTA final", description: "Llamada a la acción de cierre", hasImage: false },
 };
+
+/**
+ * Which middle sections each launch type shows, and in what order. Lives here
+ * rather than in the renderer because the generator needs the same list to
+ * compose the page's design rhythm — two copies would drift.
+ */
+export type MiddleSectionKey = Exclude<LandingSectionKey, "hero" | "finalCta"> | "countdown";
+
+export const LAYOUT_PRESETS: Record<"venta_directa" | "semilla" | "plf", MiddleSectionKey[]> = {
+  // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
+  // countdown antes de la garantía, de cara al cierre.
+  venta_directa: [
+    "painBlocks",
+    "speakers",
+    "agenda",
+    "amplifiedPromise",
+    "includes",
+    "pricingTiers",
+    "countdown",
+    "guarantee",
+    "testimonials",
+    "faq",
+  ],
+  // Validación ligera: corta y directa, sin Includes/About.
+  semilla: ["forWhom", "amplifiedPromise", "testimonials", "faq"],
+  // Secuencia larga: la más completa, incluye About porque la relación con
+  // el creador pesa más en un PLF.
+  plf: ["forWhom", "painBlocks", "includes", "about", "testimonials", "guarantee", "faq"],
+};

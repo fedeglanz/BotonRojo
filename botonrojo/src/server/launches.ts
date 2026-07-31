@@ -25,13 +25,19 @@ import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/referen
 import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
 import { auditPageContrast, describeContrastFailures } from "@/lib/design/contrast-audit";
 import { describeBrandDesign, normalizeBrandDesign } from "@/lib/design/brand-design";
-import { normalizeSectionValue } from "@/components/public/landing-types";
+import { normalizeSectionValue, LAYOUT_PRESETS } from "@/components/public/landing-types";
 import {
+  applyBrandRhythm,
   normalizeSectionDesign,
   resolveSectionDesign,
   SECTION_KIND_BY_KEY,
 } from "@/components/public/section-design";
-import type { LandingBody, LandingSectionKey, LandingCardStyle } from "@/components/public/landing-types";
+import type {
+  LandingBody,
+  LandingSectionKey,
+  LandingCardStyle,
+  SectionDesignKey,
+} from "@/components/public/landing-types";
 
 import { generateImage, isImageGenConfigured } from "@/integrations/image-gen";
 import { isUnsplashConfigured, searchUnsplashPhotos } from "@/integrations/unsplash";
@@ -605,30 +611,68 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 
   const body = extractJson(text) as LandingBody;
 
-  // The model now designs the bands too. Validate each one against the closed
-  // vocabulary before storing: this is the same path that once let an invented
-  // `background: {type:"parallax"}` reach the DB and crash the public page.
-  if (body.sectionDesign && typeof body.sectionDesign === "object") {
-    const clean: NonNullable<LandingBody["sectionDesign"]> = {};
-    for (const [key, raw] of Object.entries(body.sectionDesign)) {
-      const sectionKey = key as keyof typeof SECTION_KIND_BY_KEY;
-      const kind = SECTION_KIND_BY_KEY[sectionKey];
-      if (!kind) continue;
+  // ---- Design of the bands -------------------------------------------------
+  //
+  // Two things had to change here. The model was the only source of section
+  // design, and it returned `background: "none", effect: "none"` for everything —
+  // a flat page — because whoever writes the copy has no view of the page as a
+  // whole. And whatever it left unset was filled with generic defaults, which
+  // silently threw away the design system the brand kit had just approved.
+  //
+  // So: the approved system is the baseline, the rhythm is composed
+  // deterministically, and the model's own choices still win over both.
+  const brand = launch.brandDesign;
+  const sectionOrder = (body.sectionOrder?.length
+    ? body.sectionOrder
+    : LAYOUT_PRESETS[launch.type as LaunchType] ?? LAYOUT_PRESETS.plf) as SectionDesignKey[];
+  const orderWithEnds: SectionDesignKey[] = ["hero", ...sectionOrder, "finalCta"];
 
-      const { design } = normalizeSectionDesign(raw, {
-        kind,
-        contentLength: JSON.stringify(body[sectionKey as keyof LandingBody] ?? "").length,
-      });
-      if (!design || resolveSectionDesign(design).isDefault) continue;
+  const contentLength: Partial<Record<SectionDesignKey, number>> = {};
+  for (const key of orderWithEnds) {
+    contentLength[key] = JSON.stringify(body[key as keyof LandingBody] ?? "").length;
+  }
 
-      if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-        const imageUrl = await autoResolveImage(design.imagePrompt);
-        if (imageUrl) design.imageUrl = imageUrl;
-        else design.background = "tint";
-      }
-      clean[sectionKey] = design;
+  const composed = applyBrandRhythm(orderWithEnds, brand, body.sectionDesign ?? {}, contentLength);
+
+  const clean: NonNullable<LandingBody["sectionDesign"]> = {};
+  for (const [key, raw] of Object.entries(composed)) {
+    const sectionKey = key as SectionDesignKey;
+    const kind = SECTION_KIND_BY_KEY[sectionKey];
+    if (!kind) continue;
+
+    // Validated against the closed vocabulary before storing: the same path that
+    // once let an invented `background: {type:"parallax"}` reach the DB and take
+    // the public page down.
+    const { design } = normalizeSectionDesign(raw, {
+      kind,
+      contentLength: contentLength[sectionKey],
+      brand: brand
+        ? {
+            cardStyle: brand.cardStyle,
+            titleFx: brand.titleFx,
+            density: brand.density,
+            divider: brand.divider,
+          }
+        : null,
+    });
+    if (!design) continue;
+
+    if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
+      const imageUrl = await autoResolveImage(design.imagePrompt);
+      if (imageUrl) design.imageUrl = imageUrl;
+      else design.background = "tint";
     }
-    body.sectionDesign = Object.keys(clean).length > 0 ? clean : undefined;
+    clean[sectionKey] = design;
+  }
+  body.sectionDesign = Object.keys(clean).length > 0 ? clean : undefined;
+
+  // The box and CTA treatments come from the approved system unless the model
+  // deliberately chose otherwise.
+  if (brand) {
+    body.style = {
+      cardStyle: body.style?.cardStyle ?? brand.cardStyle,
+      ctaStyle: body.style?.ctaStyle ?? brand.ctaStyle,
+    };
   }
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {

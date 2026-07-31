@@ -22,7 +22,8 @@ import {
   TestimonialsSection,
   type PricingProduct,
 } from "@/components/public/landing-sections";
-import type { LandingBody, LandingCardStyle } from "@/components/public/landing-types";
+import { LAYOUT_PRESETS } from "@/components/public/landing-types";
+import type { LandingBody, LandingCardStyle, MiddleSectionKey } from "@/components/public/landing-types";
 import { BrandStyle, usableCardStyle } from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -119,29 +120,6 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
 } as const;
 
-type MiddleSectionKey = keyof typeof MIDDLE_SECTION_RENDERERS;
-
-const LAYOUT_PRESETS: Record<LaunchType, MiddleSectionKey[]> = {
-  // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
-  // countdown antes de la garantía, de cara al cierre.
-  venta_directa: [
-    "painBlocks",
-    "speakers",
-    "agenda",
-    "amplifiedPromise",
-    "includes",
-    "pricingTiers",
-    "countdown",
-    "guarantee",
-    "testimonials",
-    "faq",
-  ],
-  // Validación ligera: corta y directa, sin Includes/About.
-  semilla: ["forWhom", "amplifiedPromise", "testimonials", "faq"],
-  // Secuencia larga: la más completa, incluye About porque la relación con
-  // el creador pesa más en un PLF.
-  plf: ["forWhom", "painBlocks", "includes", "about", "testimonials", "guarantee", "faq"],
-};
 
 export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: Launch; pageKey?: string }) {
   const [landingAsset] = await db
