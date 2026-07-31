@@ -22,6 +22,7 @@ import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefine
 import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
 import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
+import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
 import { normalizeSectionValue } from "@/components/public/landing-types";
 import {
   normalizeSectionDesign,
@@ -37,6 +38,7 @@ import { captureScreenshot, captureExternalScreenshot, isDesignReviewConfigured 
 import type { LaunchType, AvatarBrief, BrandPalette, BrandFonts, Launch } from "@/db/schema/launches";
 import type { DesignReviewIssue } from "@/db/schema/assets";
 import { resolvePages, pagePath, type PageConfig, type PageDef, type LegalPageKey } from "@/lib/launch-pages";
+import { bodyFromFields, fieldsForKind } from "@/lib/page-fields";
 import {
   getActiveCampaignClientForOrg,
 } from "@/integrations/activecampaign";
@@ -538,6 +540,13 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
   const body = extractJson(text) as LandingBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
+    // The model sometimes omits imagePrompt entirely — it reads the design
+    // rules' "nothing decorative" line as "no photos". A landing with no hero
+    // image looks unfinished, so derive one instead of shipping without it.
+    if (body.hero && !body.hero.imagePrompt && !body.hero.imageUrl) {
+      body.hero.imagePrompt = `Fotografía editorial para "${launch.name}": ${launch.promise ?? ""}`.trim();
+    }
+
     const [heroImageUrl, creatorImageUrl, includeImageUrls, speakerImageUrls] = await Promise.all([
       autoResolveImage(body.hero?.imagePrompt),
       typeof body.about === "object" ? autoResolveImage(body.about.creatorImagePrompt) : Promise.resolve(undefined),
@@ -698,6 +707,157 @@ export async function regenerateSinglePageAction(launchId: string, pageKey: stri
   await generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name);
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Saves a simple page (registro / contenido / legal / afiliados) from its real
+ * inputs instead of a raw JSON textarea. Any stored key the schema doesn't cover
+ * — a resolved `imageUrl`, say — is preserved, so editing the headline can't
+ * silently drop the photo.
+ */
+export async function updatePageFieldsAction(launchId: string, pageKey: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  if (!pageDef) throw new Error("page_not_found");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  const fields = fieldsForKind(pageDef.kind);
+  const body = bodyFromFields(
+    fields,
+    (name) => (formData.has(name) ? String(formData.get(name) ?? "") : null),
+    (asset?.body ?? null) as Record<string, unknown> | null,
+  );
+
+  // A new imagePrompt invalidates the photo resolved from the previous one.
+  const previousPrompt = (asset?.body as Record<string, unknown> | undefined)?.imagePrompt;
+  if (typeof body.imagePrompt === "string" && body.imagePrompt !== previousPrompt) {
+    const imageUrl = await autoResolveImage(body.imagePrompt);
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+  if (!body.imagePrompt) delete body.imageUrl;
+
+  if (asset) {
+    await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+  } else {
+    // No asset yet: the admin is writing this page by hand before generating it.
+    await db.insert(assets).values({
+      launchId,
+      organizationId,
+      kind: "landing",
+      title: `${pageDef.label} · ${launch.name}`,
+      pageKey,
+      body,
+    });
+  }
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
+}
+
+/**
+ * Rewrites ONE part of a simple page with Claude, so those pages get the same
+ * per-part editing the sales page has instead of an all-or-nothing regenerate.
+ */
+export async function refinePageFieldAction(launchId: string, pageKey: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  if (!pageDef) throw new Error("page_not_found");
+
+  const fieldName = String(formData.get("field") ?? "");
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!instruction) return;
+
+  const field = fieldsForKind(pageDef.kind).find((f) => f.name === fieldName);
+  if (!field) throw new Error("field_not_found");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  if (!asset) throw new Error("page_not_generated");
+
+  const body = (asset.body ?? {}) as Record<string, unknown>;
+  const current = body[fieldName];
+
+  const { text } = await complete({
+    system: PAGE_FIELD_REFINE_SYSTEM,
+    prompt: pageFieldRefinePrompt({
+      pageLabel: pageDef.label,
+      fieldLabel: field.label,
+      isList: field.type === "list",
+      current,
+      instruction,
+      launchName: launch.name,
+      promise: launch.promise,
+    }),
+    maxTokens: 1500,
+    temperature: 0.7,
+  });
+
+  // The model is asked for a bare value, but it still volunteers a fenced object
+  // now and then — accept both rather than failing the edit.
+  const answer = extractPageFieldValue(text, field.type === "list", fieldName);
+  if (answer === null) throw new Error("La IA no devolvió un valor usable. No se ha guardado nada.");
+
+  body[fieldName] = answer;
+
+  if (fieldName === "imagePrompt" && typeof answer === "string") {
+    const imageUrl = await autoResolveImage(answer);
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+
+  await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
+}
+
+/** Pulls a string or a list out of the model's answer, however it wrapped it. */
+function extractPageFieldValue(text: string, isList: boolean, fieldName: string): string | string[] | null {
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const raw = (fence ? fence[1] : text).trim();
+
+  let parsed: unknown = raw;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Not JSON at all — a plain sentence, which is fine for a text field.
+  }
+
+  // Unwrap `{ headline: "..." }` / `{ value: [...] }`.
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    const key = [fieldName, "value", "content", "text"].find((k) => k in obj);
+    if (key) parsed = obj[key];
+  }
+
+  if (isList) {
+    if (Array.isArray(parsed)) {
+      const items = parsed.filter((i): i is string => typeof i === "string").map((i) => i.trim()).filter(Boolean);
+      return items.length > 0 ? items : null;
+    }
+    if (typeof parsed === "string") {
+      const items = parsed.split("\n").map((l) => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
+      return items.length > 0 ? items : null;
+    }
+    return null;
+  }
+
+  if (typeof parsed === "string" && parsed.trim()) return parsed.trim();
+  return null;
 }
 
 export async function updatePageBodyAction(launchId: string, pageKey: string, formData: FormData) {

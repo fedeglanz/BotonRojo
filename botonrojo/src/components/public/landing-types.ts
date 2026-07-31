@@ -206,12 +206,34 @@ const ARRAY_SECTIONS = new Set<LandingSectionKey>([
 export function normalizeSectionValue(section: LandingSectionKey, raw: unknown): unknown {
   let value = raw;
 
-  // Unwrap `{ amplifiedPromise: ... }` → `...` (model echoing the section key).
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const keys = Object.keys(value as Record<string, unknown>);
-    if (keys.length === 1 && keys[0] === section) {
-      value = (value as Record<string, unknown>)[section];
+  // Peel the wrappers models actually produce, in a loop because they combine:
+  // `[{ forWhom: { yes, no } }]` is one array wrapper plus one key echo.
+  for (let i = 0; i < 3; i++) {
+    // `[ {...} ]` → `{...}`. A single-element array around an object section is
+    // never meaningful; the model is just being conversational.
+    if (Array.isArray(value) && value.length === 1 && !ARRAY_SECTIONS.has(section)) {
+      value = value[0];
+      continue;
     }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const obj = value as Record<string, unknown>;
+      const keys = Object.keys(obj);
+      // `{ amplifiedPromise: ... }` → `...` (model echoing the section key), and
+      // the generic envelopes it reaches for when asked for "the value".
+      if (keys.length === 1 && (keys[0] === section || ["value", "content", "data", "section"].includes(keys[0]))) {
+        value = obj[keys[0]];
+        continue;
+      }
+    }
+    break;
+  }
+
+  // `forWhom` split across two objects: `[{ yes: [...] }, { no: [...] }]`.
+  if (section === "forWhom" && Array.isArray(value)) {
+    const merged = value
+      .filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v))
+      .reduce<Record<string, unknown>>((acc, v) => ({ ...acc, ...v }), {});
+    if (Array.isArray(merged.yes) || Array.isArray(merged.no)) value = merged;
   }
 
   if (STRING_SECTIONS.has(section)) {
@@ -220,23 +242,35 @@ export function normalizeSectionValue(section: LandingSectionKey, raw: unknown):
     if (value && typeof value === "object" && typeof (value as { text?: unknown }).text === "string") {
       return (value as { text: string }).text;
     }
-    throw new Error(`section_shape_invalid: "${section}" debe ser texto`);
+    throw new Error(
+      `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba texto). ` +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   if (ARRAY_SECTIONS.has(section)) {
     if (Array.isArray(value)) return value;
-    throw new Error(`section_shape_invalid: "${section}" debe ser una lista`);
+    throw new Error(
+      `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba una lista). ` +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   // `about` is legitimately either a string or an object.
   if (section === "about") {
     if (typeof value === "string" || (value && typeof value === "object" && !Array.isArray(value))) return value;
-    throw new Error(`section_shape_invalid: "about" debe ser texto u objeto`);
+    throw new Error(
+      'La IA devolvió la sección "about" con una forma que no encaja. ' +
+        "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+    );
   }
 
   // hero / finalCta / forWhom / style
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
-  throw new Error(`section_shape_invalid: "${section}" debe ser un objeto`);
+  throw new Error(
+    `La IA devolvió la sección "${section}" con una forma que no encaja (se esperaba un objeto). ` +
+      "No se ha guardado nada: vuelve a intentarlo o edítala a mano.",
+  );
 }
 
 export const SECTION_META: Record<LandingSectionKey, { label: string; description: string; hasImage: boolean }> = {
