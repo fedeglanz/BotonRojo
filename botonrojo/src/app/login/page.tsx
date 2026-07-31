@@ -4,7 +4,7 @@ import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
 import { SubmitButton } from "@/components/admin/submit-button";
 
-type SearchParams = Promise<{ error?: string; callbackUrl?: string }>;
+type SearchParams = Promise<{ error?: string; callbackUrl?: string; sesion?: string }>;
 
 const ERROR_MESSAGES: Record<string, string> = {
   CredentialsSignin: "Email o contraseña incorrectos.",
@@ -16,7 +16,14 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage(props: { searchParams: SearchParams }) {
   const sp = await props.searchParams;
   const callbackUrl = sp.callbackUrl ?? "/admin";
-  const errorMessage = sp.error ? ERROR_MESSAGES[sp.error] ?? ERROR_MESSAGES.Default : null;
+  // Sent here by requireOrgAdmin when the session points at a user or an
+  // organization that no longer exists — otherwise arriving at the login with no
+  // explanation looks like a bug.
+  const errorMessage = sp.error
+    ? ERROR_MESSAGES[sp.error] ?? ERROR_MESSAGES.Default
+    : sp.sesion === "caducada"
+      ? "Tu sesión ya no es válida (la cuenta o la organización han cambiado). Vuelve a entrar."
+      : null;
 
   return (
     <main className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6">
