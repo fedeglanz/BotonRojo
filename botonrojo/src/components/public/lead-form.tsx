@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SubmitButton } from "@/components/admin/submit-button";
-import { resolveCardStyle } from "@/components/public/card-style";
+import { resolveVisualStyle } from "@/lib/design/presets";
 import type { LandingCardStyle } from "@/components/public/landing-types";
 
 type Props = {
@@ -27,19 +27,19 @@ type Props = {
  * since the box itself is no longer guaranteed to be dark.
  */
 export function LeadForm({ launchSlug, buttonLabel, action, affiliateRef, compact = false, cardStyle }: Props) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   const isGlass = (cardStyle ?? "glass") === "glass";
 
   // Field labels are actionable, not decorative — need more contrast than
   // the general "muted" tone (--color-muted-2 read as too low-contrast in
   // review on light card styles).
-  const labelClass = isGlass ? "text-zinc-400" : "text-[--color-muted-1]";
+  const labelClass = isGlass ? "text-zinc-400" : "text-[--color-text-muted]";
   const inputClass = isGlass
     ? "field-input text-white"
-    : "rounded-[0.6rem] border border-[--color-muted-3]/30 bg-[color-mix(in_srgb,var(--color-fg)_4%,transparent)] outline-none transition focus:border-[--color-accent]";
+    : "rounded-[--radius-field] border border-[--color-border] bg-[--color-surface] outline-none transition focus:border-[--color-focus]";
   const checkboxClass = isGlass
     ? "border-white/20 bg-black/40"
-    : "border-[--color-muted-3]/40 bg-transparent";
+    : "border-[--color-border-strong] bg-transparent";
 
   return (
     <form

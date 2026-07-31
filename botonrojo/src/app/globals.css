@@ -10,10 +10,130 @@
   --color-red-bright: #ff3849;
   --color-red-glow: rgba(239, 43, 61, 0.55);
 
+  /* Defaults for the vars <BrandStyle> overrides per launch. Without these,
+     any page rendered without BrandStyle (or a section styled before it loads)
+     resolves them to nothing and loses its accent/muted colours entirely. */
+  --color-accent: #ff3849;
+  --color-accent-glow: rgba(255, 56, 73, 0.45);
+  --color-muted-1: rgba(244, 244, 245, 0.82);
+  --color-muted-2: rgba(244, 244, 245, 0.58);
+  --color-muted-3: rgba(244, 244, 245, 0.42);
+
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ---------------------------------------------------------------------
+     SEMANTIC COLOURS
+     Components reference these, never a raw hex. <BrandStyle> overwrites
+     them per launch from the approved palette (see lib/design/theme.ts);
+     the values here are the fallback so a page renders correctly before
+     BrandStyle loads, or without a palette at all.
+     --------------------------------------------------------------------- */
+  --color-surface: #0b0b0d;
+  --color-surface-raised: #131316;
+  --color-text: #f4f4f5;
+  --color-text-muted: rgba(244, 244, 245, 0.82);
+  --color-text-subtle: rgba(244, 244, 245, 0.58);
+  --color-text-on-accent: #ffffff;
+  --color-primary: #ef2b3d;
+  --color-primary-hover: #f4485a;
+  --color-accent-soft: rgba(255, 56, 73, 0.14);
+  --color-border: rgba(244, 244, 245, 0.12);
+  --color-border-strong: rgba(244, 244, 245, 0.28);
+  --color-focus: #ff3849;
+  /* Status hues stay conventional: a brand-red "success" stops communicating. */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  /* ---------------------------------------------------------------------
+     SEMANTIC SCALES
+     Deliberately semantic (--radius-card) instead of numeric
+     (--radius-2xl): overriding Tailwind's own scale would silently resize
+     every `rounded-2xl` / `shadow-lg` already used across the app. The
+     numeric primitives live in lib/design/tokens.ts, which is the single
+     source of truth for TypeScript.
+     --------------------------------------------------------------------- */
+  --radius-card: 1.5rem;
+  --radius-field: 0.75rem;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 28px 60px -30px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 40px -6px var(--color-accent-glow);
+
+  /* Vertical rhythm between page sections, by density. */
+  --space-section-compact: 3rem;
+  --space-section-normal: 5rem;
+  --space-section-spacious: 8rem;
+  --space-gutter: 1.5rem;
+
+  /* Content measures. `prose` is capped for line length, not for looks. */
+  --container-prose: 42rem;
+  --container-narrow: 36rem;
+  --container-wide: 80rem;
+
+  /* Motion. Ambient loops are long on purpose. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-expo: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 600ms;
+  --duration-ambient: 22s;
+
+  /* Named animations — usable as `animate-fade-up`, `animate-shimmer`… */
+  --animate-fade-in: fade-in var(--duration-slow) var(--ease-out-expo) both;
+  --animate-fade-up: fade-up var(--duration-slow) var(--ease-out-expo) both;
+  --animate-fade-down: fade-down var(--duration-slow) var(--ease-out-expo) both;
+  --animate-scale-in: scale-in var(--duration-normal) var(--ease-spring) both;
+  --animate-slide-up: slide-up var(--duration-slow) var(--ease-out-expo) both;
+  --animate-slide-right: slide-right var(--duration-slow) var(--ease-out-expo) both;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-pulse-soft: pulse-soft 2.8s var(--ease-standard) infinite;
+  --animate-float: float 7s var(--ease-standard) infinite;
+  --animate-spotlight-pan: spotlight-pan var(--duration-ambient) var(--ease-standard) infinite;
+  --animate-gradient-shift-slow: gradient-shift-slow 28s var(--ease-standard) infinite;
+  --animate-marquee-x: marquee-x 30s linear infinite;
+  --animate-accordion-down: accordion-down var(--duration-normal) var(--ease-out-expo);
+  --animate-accordion-up: accordion-up var(--duration-normal) var(--ease-out-expo);
+  --animate-progress-indeterminate: progress-indeterminate 1.4s var(--ease-standard) infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   Z-INDEX SCALE
+   Centralised because "what covers what" is a recurring source of invisible
+   bugs: a decorative layer eating clicks, a modal behind a sticky bar.
+   Mirrors Z_INDEX in lib/design/tokens.ts.
+   --------------------------------------------------------------------------- */
+:root {
+  --z-behind: -1;
+  --z-base: 0;
+  --z-decor: 1;
+  --z-content: 10;
+  --z-raised: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+}
+
+/* ---------------------------------------------------------------------------
+   LIGHT THEME
+   Not a block of overrides here: a light page needs its surfaces mixed towards
+   black and its hairlines dark, which depends on the actual palette. So the
+   whole semantic set is computed from the approved palette in
+   lib/design/theme.ts and emitted by <BrandStyle> as `html:root { … }` on every
+   public page, together with `color-scheme` so native controls follow.
+
+   The mode is DERIVED from that palette and never from `prefers-color-scheme`:
+   a brand that approved a white page must not flip to dark because someone's
+   phone is in dark mode. And the app's own admin shell stays dark by design —
+   honouring the OS there would leave `bg-black/40` and `text-zinc-300` on a
+   white page.
+   --------------------------------------------------------------------------- */
 
 html, body {
   background: var(--color-bg);
@@ -107,27 +227,42 @@ html, body {
 }
 
 /* Big red button — the heart of the system */
+/* Primary CTA. Deliberately restrained: the previous version wrapped the pill
+   in a 70px coloured glow plus a blurred conic gradient spinning forever, which
+   read as a smear under the button rather than as depth. This one gets its
+   presence from crisp edges and one short directional shadow, with a single
+   specular sweep on hover as the only motion. */
 .big-red-button {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem 2.75rem;
+  gap: 0.6rem;
+  padding: 1.05rem 2.5rem;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
+  font-size: 1.0625rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: white;
-  background: linear-gradient(180deg, var(--color-red-bright) 0%, color-mix(in srgb, var(--color-red-bright) 80%, black) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--color-text-on-accent, #fff);
+  background: var(--color-red);
+  border: 0;
   border-radius: 999px;
+  /* Clips the sweep to the pill; isolate keeps it out of the parent's stack. */
+  overflow: hidden;
+  isolation: isolate;
   box-shadow:
-    0 0 0 6px color-mix(in srgb, var(--color-red-bright) 14%, transparent),
-    0 0 70px 14px color-mix(in srgb, var(--color-red-bright) 45%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -3px 12px rgba(0, 0, 0, 0.35);
-  transition: transform 0.15s ease, box-shadow 0.3s ease;
+    /* Top edge highlight and hairline frame — the "machined" edge. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    /* Contact shadow, then one short shadow tinted with the brand. Directional
+       and tight, so it reads as elevation instead of as a glow. */
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    0 12px 24px -14px color-mix(in srgb, var(--color-red) 75%, transparent);
+  transition:
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 150ms linear;
   cursor: pointer;
   user-select: none;
 }
@@ -137,34 +272,53 @@ html, body {
    by the automatic design review. */
 @media (max-width: 480px) {
   .big-red-button {
-    padding: 1rem 1.5rem;
+    padding: 0.9rem 1.5rem;
     font-size: 0.95rem;
   }
 }
 
-.big-red-button:hover {
-  transform: translateY(-1px) scale(1.02);
-  box-shadow:
-    0 0 0 8px color-mix(in srgb, var(--color-red-bright) 20%, transparent),
-    0 0 100px 18px color-mix(in srgb, var(--color-red-bright) 60%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -3px 12px rgba(0, 0, 0, 0.35);
-}
-
-.big-red-button:active {
-  transform: translateY(0) scale(0.99);
-}
-
+/* The specular sweep: a narrow skewed highlight that crosses once per hover.
+   Parked outside the pill, so it costs nothing until then. */
 .big-red-button::after {
   content: "";
   position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg, transparent, var(--color-red-bright), transparent 60%);
-  filter: blur(8px);
-  opacity: 0.6;
-  z-index: -1;
-  animation: spin 8s linear infinite;
+  top: -50%;
+  bottom: -50%;
+  left: -60%;
+  width: 40%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  transform: skewX(-18deg) translateX(-160%);
+  pointer-events: none;
+}
+
+.big-red-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    0 18px 32px -16px color-mix(in srgb, var(--color-red) 85%, transparent);
+}
+
+.big-red-button:hover::after {
+  transform: skewX(-18deg) translateX(420%);
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.big-red-button:active {
+  transform: translateY(0) scale(0.995);
+  filter: brightness(0.98);
+}
+
+.big-red-button:focus-visible {
+  outline: 2px solid var(--color-focus, var(--color-red));
+  outline-offset: 3px;
 }
 
 @keyframes spin {
@@ -391,4 +545,646 @@ html, body {
   border-color: color-mix(in srgb, var(--color-red-bright) 60%, transparent);
   background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-red-bright) 14%, transparent);
+}
+
+/* ==========================================================================
+   Section effects — decoration scoped to one section band (never `fixed`,
+   unlike .mesh-bg/.circuit-grid, which are viewport-wide and are hidden on
+   public pages by BrandStyle). All read the brand vars so they follow the
+   launch's palette.
+   ========================================================================== */
+
+/* Slow drifting brand glow. */
+.fx-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 45% at 25% 30%, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 65%),
+    radial-gradient(ellipse 40% 40% at 75% 70%, color-mix(in srgb, var(--color-red) 26%, transparent), transparent 65%);
+  filter: blur(60px);
+  animation: fx-drift 22s ease-in-out infinite;
+}
+
+@keyframes fx-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4%, -3%) scale(1.08); }
+}
+
+/* Fine technical grid, faded at the edges so it never ends in a hard line. */
+.fx-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-fg) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-fg) 55%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 78%);
+}
+
+/* Orbit: a ring of items rotating around a centre. The wrapper rotates and
+   each item counter-rotates, so labels stay upright while orbiting. */
+.fx-orbit {
+  /* One source of truth for the diameter: the item placement below derives its
+     radius from it, so the two can't drift apart. Wider than the text column
+     on purpose, so the labels orbit *around* the copy instead of over it. */
+  --fx-orbit-size: min(92vw, 52rem);
+  position: relative;
+  width: var(--fx-orbit-size);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.fx-orbit__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* The section's copy sits in the middle of the ring, so the core is a soft halo
+   behind it rather than a bright blob under it — at full strength it washed
+   over the text. */
+.fx-orbit__core {
+  position: absolute;
+  inset: 34%;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 32%, transparent), transparent 70%);
+  filter: blur(24px);
+}
+
+.fx-orbit__spinner {
+  position: absolute;
+  inset: 0;
+  animation: fx-orbit-spin 28s linear infinite;
+}
+
+/* Pausing on hover is the behaviour the client asked for explicitly. Also
+   pauses on keyboard focus so it isn't mouse-only. */
+.fx-orbit:hover .fx-orbit__spinner,
+.fx-orbit:focus-within .fx-orbit__spinner {
+  animation-play-state: paused;
+}
+
+.fx-orbit__item {
+  position: absolute;
+  /* Placed by coordinates (--fx-x/--fx-y), NOT by rotate(): a static rotation
+     would leave every label permanently tilted, since the label's reverse
+     animation only cancels the spinner's rotation, not an extra fixed angle. */
+  left: var(--fx-x);
+  top: var(--fx-y);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.fx-orbit__label {
+  display: inline-block;
+  animation: fx-orbit-spin 28s linear infinite reverse;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  /* Brand tint rather than the PAGE background: the orbit can sit inside a dark
+     band on a light-palette page, where a page-background pill came out pale
+     under the band's forced white text. An accent tint reads on both. */
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* Inherits the band's text colour, so it follows a forced-light band too. */
+  color: inherit;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.fx-orbit:hover .fx-orbit__label,
+.fx-orbit:focus-within .fx-orbit__label {
+  animation-play-state: paused;
+}
+
+a.fx-orbit__label:hover,
+a.fx-orbit__label:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+a.fx-orbit__label:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@keyframes fx-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* On a phone the ring can't sit outside the content, so the labels would land
+   on the copy and get clipped at the edges. Keep the ring and the glow as
+   decoration and drop the labels — legibility beats the effect. Any link they
+   carried is decorative; the section's real CTA is unaffected. */
+@media (max-width: 640px) {
+  .fx-orbit {
+    --fx-orbit-size: min(96vw, 24rem);
+  }
+
+  .fx-orbit__item {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   BASE LAYER
+   Inside `@layer base` on purpose: Tailwind emits utilities in a later layer,
+   so `text-4xl` still beats the default `h1` size here. Unlayered rules would
+   win over every utility and silently break the existing pages.
+   ========================================================================== */
+@layer base {
+  /* Focus is visible on every surface. Removing it is never an option — it is
+     the only affordance a keyboard user has. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Fluid headings: no breakpoint jumps, and no heading left at body size
+     because whoever wrote the markup forgot a size class. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    /* Avoids a lone word on the last line of a headline. */
+    text-wrap: balance;
+  }
+
+  h1 { font-size: clamp(2.25rem, 6vw, 4.5rem); }
+  h2 { font-size: clamp(1.75rem, 4vw, 3rem); }
+  h3 { font-size: clamp(1.25rem, 2.5vw, 1.875rem); }
+  h4 { font-size: 1.25rem; }
+
+  p, li {
+    line-height: 1.65;
+    /* Stops a single trailing word on a paragraph's last line. */
+    text-wrap: pretty;
+  }
+
+  strong, b { font-weight: 700; }
+  code, kbd, samp, pre { font-family: var(--font-mono); }
+
+  /* Forms inherit the page's type instead of the browser's. */
+  input, textarea, select, button {
+    font: inherit;
+    color: inherit;
+  }
+
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+  ::placeholder { color: var(--color-text-subtle); }
+
+  /* Media never overflows its column, and keeps its aspect ratio. */
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Anchored scrolling clears a sticky header instead of hiding under it. */
+  :target { scroll-margin-top: 6rem; }
+}
+
+/* ==========================================================================
+   BASE UTILITIES
+   Opt-in helpers rather than base rules, on purpose:
+   - `min-height: 44px` on every button/input would beat an `h-8` utility
+     (min-height wins over height) and inflate the existing admin controls, so
+     the touch floor is applied here and by the CTA presets, which already
+     exceed it.
+   - `max-width: 75ch` on every `<p>` would left-align centred copy inside a
+     wider container, because the cap shrinks the box without recentring it.
+     `.u-measure` pairs the cap with `margin-inline: auto`.
+   ========================================================================== */
+
+/* Legibility cap: past ~75 characters the eye loses the line it was on. */
+.u-measure {
+  max-width: 75ch;
+  margin-inline: auto;
+}
+
+.u-touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Screen-reader-only, for labels an icon-only control still needs. */
+.u-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Page gutter and section rhythm, matching the density tokens. */
+.u-gutter { padding-inline: var(--space-gutter); }
+.u-section-compact { padding-block: var(--space-section-compact); }
+.u-section { padding-block: var(--space-section-normal); }
+.u-section-spacious { padding-block: var(--space-section-spacious); }
+
+/* ==========================================================================
+   EFFECT CLASSES
+   The closed vocabulary the generator is allowed to paint (see
+   components/public/section-design.ts). Every one reads brand variables, never
+   a fixed colour, so it looks right on any approved palette.
+   ========================================================================== */
+
+/* --- decorative layers (absolute, behind content, never clickable) ------- */
+
+/* Film grain scoped to one section, unlike the page-wide `.grain`. */
+.fx-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A single light source above the fold — cheap depth without a photo. */
+.fx-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 0%,
+    color-mix(in srgb, var(--color-accent) 22%, transparent),
+    transparent 70%
+  );
+}
+
+.fx-gradient-animated {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0.35;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--color-accent) 40%, transparent),
+    transparent 35%,
+    color-mix(in srgb, var(--color-primary) 35%, transparent) 60%,
+    transparent 85%
+  );
+  filter: blur(70px);
+  animation: gradient-shift-slow 28s var(--ease-standard) infinite;
+}
+
+/* Dot lattice — the quieter sibling of `.fx-grid`, for content-heavy bands. */
+.fx-dot-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-fg) 45%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+/* Legibility scrim for text over an arbitrary photo. Without it, contrast is
+   whatever the photo happens to be — i.e. unknown. */
+.fx-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-bg) 88%, transparent),
+    color-mix(in srgb, var(--color-bg) 55%, transparent)
+  );
+}
+
+/* --- masks --------------------------------------------------------------- */
+
+.fx-mask-fade-b {
+  mask-image: linear-gradient(to bottom, black 60%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent);
+}
+
+.fx-mask-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+}
+
+/* --- surfaces and glow --------------------------------------------------- */
+
+.fx-glass-blur {
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+.fx-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.fx-glow-hover {
+  transition: box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.fx-glow-hover:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+/* A conic brand border, drawn as a ring so the fill stays readable. */
+.fx-conic-border {
+  position: relative;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.fx-conic-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 180deg,
+    color-mix(in srgb, var(--color-accent) 70%, transparent),
+    transparent 40%,
+    color-mix(in srgb, var(--color-accent) 45%, transparent)
+  );
+  /* Ring, not fill: mask out the interior so only the 1px edge paints. */
+  mask: linear-gradient(black, black) content-box exclude, linear-gradient(black, black);
+  -webkit-mask: linear-gradient(black, black) content-box exclude, linear-gradient(black, black);
+  pointer-events: none;
+}
+
+/* --- text treatments ---------------------------------------------------- */
+
+.fx-text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-fg) 20%,
+    var(--color-accent) 55%,
+    var(--color-fg) 90%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Outlined display type — the strong shape contrast the client asked for. */
+.fx-text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--color-fg);
+}
+
+.fx-underline-grow {
+  position: relative;
+  text-decoration: none;
+}
+
+.fx-underline-grow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.15em;
+  height: 1.5px;
+  width: 0;
+  background: var(--color-accent);
+  transition: width var(--duration-normal) var(--ease-out-expo);
+}
+
+.fx-underline-grow:hover::after,
+.fx-underline-grow:focus-visible::after {
+  width: 100%;
+}
+
+/* --- interaction -------------------------------------------------------- */
+
+.fx-lift {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+
+.fx-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+.fx-press:active {
+  transform: scale(0.99);
+}
+
+/* --- motion helpers ----------------------------------------------------- */
+
+.fx-float {
+  animation: float 7s var(--ease-standard) infinite;
+}
+
+.fx-ring-pulse {
+  position: relative;
+}
+
+.fx-ring-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--color-accent);
+  animation: pulse-soft 2.8s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+
+/* Loading placeholder: a sweep, not a spinner, so layout doesn't shift when
+   the real content arrives. */
+.fx-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-fg) 12%, transparent),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+.fx-skeleton {
+  border-radius: var(--radius-field);
+  background: color-mix(in srgb, var(--color-fg) 8%, transparent);
+  animation: pulse-soft 2.8s var(--ease-standard) infinite;
+}
+
+/* Indeterminate progress, for work with no known duration (AI generation). */
+.fx-progress {
+  position: relative;
+  overflow: hidden;
+  height: 2px;
+  background: color-mix(in srgb, var(--color-fg) 10%, transparent);
+}
+
+.fx-progress::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  background: var(--color-accent);
+  animation: progress-indeterminate 1.4s var(--ease-standard) infinite;
+}
+
+.fx-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.fx-marquee__track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 30s linear infinite;
+}
+
+.fx-marquee:hover .fx-marquee__track {
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   KEYFRAMES
+   Referenced by the `--animate-*` tokens in @theme (so `animate-fade-up`
+   works) and by the effect classes above.
+   ========================================================================== */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spotlight-pan {
+  0%, 100% { transform: translateX(-6%); }
+  50% { transform: translateX(6%); }
+}
+
+@keyframes gradient-shift-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  /* -50% because the track renders its children twice, so the loop is seamless. */
+  to { transform: translateX(-50%); }
+}
+
+@keyframes accordion-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-accordion-content-height, auto); opacity: 1; }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height, auto); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+@keyframes progress-indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(350%); }
+}
+
+/* ==========================================================================
+   Reduced motion. Every animation above (and the pre-existing ambient ones)
+   runs `infinite`; honouring this preference is an accessibility requirement,
+   not a nicety. Layout and colour are unaffected — only movement stops.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* These exist only to move; with motion off they'd sit as a static blob or
+     a frozen half-drawn ring, so hide them outright. */
+  .mesh-bg::before,
+  .mesh-bg::after,
+  .fx-aurora,
+  .fx-gradient-animated,
+  .fx-shimmer,
+  .fx-ring-pulse::after,
+  .fx-progress::after,
+  .pulse-dot::after {
+    display: none !important;
+  }
+
+  /* The CTA's specular sweep only moves on hover, so it doesn't need hiding —
+     just don't travel. */
+  .big-red-button:hover::after {
+    transition: none !important;
+    transform: skewX(-18deg) translateX(-160%) !important;
+  }
+
+  /* These would freeze mid-travel and read as broken layout rather than as a
+     stopped animation, so reset them to their resting state. */
+  .fx-float,
+  .fx-marquee__track {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* An indeterminate bar with no motion says nothing; show it as a full track
+     so it still reads as "working". */
+  .fx-progress {
+    background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
 }

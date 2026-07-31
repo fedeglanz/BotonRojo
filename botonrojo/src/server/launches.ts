@@ -22,6 +22,12 @@ import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefine
 import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
 import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
 import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
+import { normalizeSectionValue } from "@/components/public/landing-types";
+import {
+  normalizeSectionDesign,
+  resolveSectionDesign,
+  SECTION_KIND_BY_KEY,
+} from "@/components/public/section-design";
 import type { LandingBody, LandingSectionKey, LandingCardStyle } from "@/components/public/landing-types";
 
 import { generateImage, isImageGenConfigured } from "@/integrations/image-gen";
@@ -102,7 +108,14 @@ async function autoResolveImage(prompt: string | undefined | null): Promise<stri
   return undefined;
 }
 
-const VALID_CARD_STYLES: LandingCardStyle[] = ["glass", "flat", "outline", "soft"];
+const VALID_CARD_STYLES: LandingCardStyle[] = [
+  "glass",
+  "flat",
+  "outline",
+  "soft",
+  "brutal",
+  "editorial",
+];
 
 /**
  * Post-generation visual QA: screenshots the page that was just written to
@@ -1149,10 +1162,98 @@ export async function refineLandingSectionAction(
     temperature: 0.6,
   });
 
-  const updated = extractJson(text);
+  const parsed = extractJson(text) as Record<string, unknown>;
+
+  // The model may answer either as `{ content, design }` (the current contract)
+  // or as the bare section value (older behaviour, and what it still does when
+  // the instruction is purely textual). Accept both.
+  const hasEnvelope =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed) && "content" in parsed;
+  const rawContent = hasEnvelope ? parsed.content : parsed;
+  const rawDesign = hasEnvelope ? parsed.design : undefined;
+
+  // Validate before storing: a wrapped or invented shape here is what breaks
+  // the public page later, far from its cause.
+  const updated = normalizeSectionValue(section, rawContent);
   const newBody: LandingBody = { ...body, [section]: updated };
 
+  // Anything outside the closed design vocabulary is dropped here, not stored.
+  // Passing the section's kind is what enforces the per-kind rules (no photo
+  // behind a form, no orbit around a long text block).
+  const { design } = normalizeSectionDesign(rawDesign, {
+    kind: SECTION_KIND_BY_KEY[section],
+    contentLength: JSON.stringify(updated ?? "").length,
+  });
+  if (design) {
+    // A photo background is useless without an actual image, so resolve it now
+    // with the same Magnific → Unsplash path the rest of the generator uses.
+    if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
+      const imageUrl = await autoResolveImage(design.imagePrompt);
+      if (imageUrl) design.imageUrl = imageUrl;
+      else design.background = "tint"; // don't leave an empty photo band
+    }
+    newBody.sectionDesign = { ...(body.sectionDesign ?? {}), [section]: design };
+  }
+
   await saveLandingBody(launchId, organizationId, launch.slug, newBody, user.id);
+}
+
+/** Deterministic counterpart to the refine box: the dropdowns in the section
+ * editor, for when you know exactly what you want and don't want to rely on
+ * the model interpreting it. */
+export async function updateSectionDesignAction(
+  launchId: string,
+  section: LandingSectionKey,
+  formData: FormData,
+) {
+  const { user, organizationId } = await requireOrgAdmin();
+  const { launch, asset } = await loadLandingAsset(launchId, organizationId);
+  const body = (asset?.body ?? {}) as LandingBody;
+
+  const { design } = normalizeSectionDesign(
+    {
+      background: formData.get("background"),
+      effect: formData.get("effect"),
+      height: formData.get("height"),
+      width: formData.get("width"),
+      // Keep whatever image/orbit data the section already had.
+      imageUrl: body.sectionDesign?.[section]?.imageUrl,
+      imagePrompt: body.sectionDesign?.[section]?.imagePrompt,
+      orbitItems: body.sectionDesign?.[section]?.orbitItems,
+    },
+    { kind: SECTION_KIND_BY_KEY[section] },
+  );
+
+  const nextDesign = { ...(body.sectionDesign ?? {}) };
+  if (design) {
+    if (design.background === "photo" && !design.imageUrl) {
+      const prompt = design.imagePrompt ?? `Fotografía de fondo para "${launch.name}"`;
+      const imageUrl = await autoResolveImage(prompt);
+      if (imageUrl) design.imageUrl = imageUrl;
+      else design.background = "tint";
+    }
+    // Orbit with no items would render an empty ring — seed it from the launch.
+    if (design.effect === "orbit" && !design.orbitItems?.length) {
+      const seeds = (launch.benefits ?? []).slice(0, 6).map((b) => ({ label: b.split(" ").slice(0, 3).join(" ") }));
+      if (seeds.length >= 3) design.orbitItems = seeds;
+      else design.effect = "aurora";
+    }
+    // Picking every default in the dropdowns means "no design": store nothing,
+    // so resetting a section actually clears it instead of leaving a row that
+    // resolves to the same thing anyway.
+    if (resolveSectionDesign(design).isDefault) delete nextDesign[section];
+    else nextDesign[section] = design;
+  } else {
+    delete nextDesign[section];
+  }
+
+  await saveLandingBody(
+    launchId,
+    organizationId,
+    launch.slug,
+    { ...body, sectionDesign: nextDesign },
+    user.id,
+  );
 }
 
 const ALLOWED_IMAGE_SLOTS = new Set([

@@ -18,7 +18,7 @@ type Props = {
 export function StickyActionBar({ targetDate, countdownLabel, ctaLabel, href }: Props) {
   const isFuture = Boolean(targetDate && new Date(targetDate).getTime() > Date.now());
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[color-mix(in_srgb,var(--color-bg)_88%,transparent)] backdrop-blur-md">
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[--color-border] bg-[color-mix(in_srgb,var(--color-bg)_88%,transparent)] backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-3">
         {isFuture && targetDate ? (
           <div className="min-w-0">

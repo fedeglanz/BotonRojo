@@ -1,4 +1,5 @@
 import type { AvatarBrief, BrandPalette, BrandFonts } from "@/db/schema/launches";
+import { DESIGN_RULES } from "./design-rules";
 
 export const LANDING_SYSTEM = `Eres un copywriter + director de arte de landings de lanzamientos digitales.
 
@@ -32,7 +33,9 @@ no proponas colores ni tipografía, eso ya está decidido de antemano. Ejemplos:
 - "Persona joven mirando al horizonte con luz dorada del amanecer desde una azotea de Madrid"
 - "Mano sobre teclado de portátil con post-its de colores alrededor, plano cenital, luz natural"
 
-Tono: futurista pero humano. Español neutro de España. Sin emojis salvo donde se piden iconos.`;
+Tono: futurista pero humano. Español neutro de España. Sin emojis salvo donde se piden iconos.
+
+${DESIGN_RULES}`;
 
 export function landingPrompt(
   launchName: string,
@@ -118,7 +121,7 @@ muestren, en el orden que quieras. Si omites una sección entera, no incluyas ta
 el JSON principal de arriba.
 
 "style.cardStyle" controla cómo se ven las "cajas" (formulario de registro, bloques de dolor →
-solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos 4 valores:
+solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos 6 valores:
 - "glass": tarjeta oscura con desenfoque y esquinas tipo HUD futurista (por defecto — úsalo si el
   cliente no pide nada distinto).
 - "flat": fondo casi plano, integrado con el color de fondo de la página, borde muy sutil. Úsalo
@@ -126,8 +129,12 @@ solución, tarjetas de qué incluye, testimonios, garantía). Elige uno de estos
 - "outline": solo borde de color de acento, sin relleno. Úsalo si piden algo "minimalista" o
   "más ligero".
 - "soft": tarjeta con sombra suave y esquinas muy redondeadas, sin bordes duros ni efecto HUD.
-  Úsalo si piden algo "más cálido", "editorial" o "SaaS moderno".
-No inventes más valores que estos 4. Si las instrucciones no mencionan el diseño de las cajas,
+  Úsalo si piden algo "más cálido" o "SaaS moderno".
+- "brutal": esquinas rectas, borde grueso del color del texto y sombra dura desplazada al pasar el
+  ratón. Úsalo si piden mucho contraste, algo "rotundo", "con carácter" o "sin miedo".
+- "editorial": sin caja, solo una línea superior y mucho aire. Úsalo cuando el contenido sea texto
+  largo y lo importante sea leerlo, o si piden algo "tipo revista" o "editorial".
+No inventes más valores que estos 6. Si las instrucciones no mencionan el diseño de las cajas,
 usa "glass" y no incluyas el campo "style" en absoluto.
 
 Responde SOLO con JSON válido. No expliques nada.`;

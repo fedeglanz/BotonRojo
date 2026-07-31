@@ -44,6 +44,7 @@ import {
   generateMilestonesAction,
   updateMilestoneAction,
   analyzeCalendarAction,
+  updateSectionDesignAction,
   generateBrandKitAction,
   updateBrandKitAction,
   approveBrandKitAction,
@@ -59,6 +60,7 @@ import { generateAdStaticsAction, deleteAdImageAction, listAdImages, fixAdCopyLe
 import { listMediaItems } from "@/server/media";
 
 import { WizardStep } from "@/components/admin/wizard-step";
+import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
@@ -80,8 +82,31 @@ import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-export default async function LaunchHubPage(props: { params: Promise<{ slug: string }> }) {
+/** Group separator, shown only in the "Todo" view — with every step on one page
+ *  the group boundaries are what carry the order. */
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 pt-2">
+      <h2 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+        {children}
+      </h2>
+      <div className="h-px flex-1 bg-white/10" />
+    </div>
+  );
+}
+
+/** Section ids used in `?seccion=` — see LaunchTabs. "todo" shows every step
+ *  at once and is the default: grouping gave the hub an order, but defaulting to
+ *  a single group hid the other six steps behind a tab you had to know about. */
+const SECTIONS = ["todo", "marca", "paginas", "campana", "conexiones", "registros"] as const;
+type SectionId = (typeof SECTIONS)[number];
+
+export default async function LaunchHubPage(props: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ seccion?: string }>;
+}) {
   const { slug } = await props.params;
+  const { seccion } = await props.searchParams;
   const { organizationId } = await requireOrgAdmin();
   if (!organizationId) throw new Error("no_organization");
   const [launch] = await db
@@ -223,6 +248,41 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
   const hasActiveDomain = launchDomains.some((d) => d.status === "active");
   const acConfigured = await isActiveCampaignConfigured(organizationId);
 
+  const basePath = `/admin/lanzamientos/${launch.slug}`;
+  // Groups have to follow the order the steps appear in the page, so the
+  // calendar sits with brand and copy (all three are launch groundwork) and
+  // Telegram with the other integrations.
+  const done = {
+    marca: [brandKitApproved, hasMarco, hasMilestones].filter(Boolean).length,
+    paginas: hasLanding ? 1 : 0,
+    campana: [hasEmails, Boolean(adsAsset)].filter(Boolean).length,
+    conexiones: [hasProduct, hasAc, hasActiveDomain, hasTelegram].filter(Boolean).length,
+  };
+  const tabs: LaunchTab[] = [
+    {
+      id: "todo",
+      label: "Todo",
+      done: done.marca + done.paginas + done.campana + done.conexiones,
+      total: 10,
+    },
+    { id: "marca", label: "Marca, copy y fechas", done: done.marca, total: 3 },
+    {
+      id: "paginas",
+      label: "Páginas",
+      done: done.paginas,
+      total: 1,
+      blocked: !hasMarco || !brandKitApproved,
+    },
+    { id: "campana", label: "Campaña", done: done.campana, total: 2, blocked: !hasMarco },
+    { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
+    // Read-only: there is nothing to complete, so it shows no counter.
+    { id: "registros", label: "Registros", done: 0, total: 0 },
+  ];
+
+
+  const requested = SECTIONS.find((s) => s === seccion);
+  const active: SectionId = requested ?? "todo";
+
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -254,6 +314,11 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         </Link>
       </header>
 
+      <LaunchTabs tabs={tabs} active={active} basePath={basePath} />
+
+      {(active === "todo" || active === "marca") && (
+      <>
+      {active === "todo" && <GroupHeading>Marca y copy</GroupHeading>}
       {/* Step 1 — Identidad visual (brand kit) */}
       <WizardStep
         index={1}
@@ -294,12 +359,11 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         }
       >
         <MarcoCopyEditor
-          launchId={launch.id}
           avatar={launch.avatar}
           promise={launch.promise}
           painPoints={launch.painPoints ?? []}
           benefits={launch.benefits ?? []}
-          updateAction={updateMarcoCopyAction}
+          updateAction={updateMarcoCopyAction.bind(null, launch.id)}
         />
       </WizardStep>
 
@@ -334,6 +398,12 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
+      </>
+      )}
+
+      {(active === "todo" || active === "paginas") && (
+      <>
+      {active === "todo" && <GroupHeading>Páginas</GroupHeading>}
       {/* Step 3 — Páginas */}
       <WizardStep
         index={3}
@@ -434,9 +504,16 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           refineAction={refineLandingSectionAction}
           rawUpdateAction={updateSectionRawAction}
           imageSaveAction={setSectionImageAction}
+          designAction={updateSectionDesignAction}
         />
       </WizardStep>
 
+      </>
+      )}
+
+      {(active === "todo" || active === "campana") && (
+      <>
+      {active === "todo" && <GroupHeading>Campaña</GroupHeading>}
       {/* Step 4 — Emails */}
       <WizardStep
         index={4}
@@ -507,6 +584,12 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         </div>
       </WizardStep>
 
+      </>
+      )}
+
+      {(active === "todo" || active === "conexiones") && (
+      <>
+      {active === "todo" && <GroupHeading>Conexiones</GroupHeading>}
       {/* Step 6 — Producto Stripe */}
       <WizardStep
         index={6}
@@ -609,6 +692,12 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
         />
       </WizardStep>
 
+      </>
+      )}
+
+      {(active === "todo" || active === "registros") && (
+      <>
+      {active === "todo" && <GroupHeading>Registros</GroupHeading>}
       {/* Step 10 — Registros */}
       <WizardStep
         index={10}
@@ -678,6 +767,8 @@ export default async function LaunchHubPage(props: { params: Promise<{ slug: str
           <p className="text-sm text-zinc-500">Aun no hay eventos registrados para este lanzamiento.</p>
         )}
       </WizardStep>
+      </>
+      )}
     </div>
   );
 }

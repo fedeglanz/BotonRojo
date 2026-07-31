@@ -1,11 +1,14 @@
 import type { AvatarBrief } from "@/db/schema/launches";
 import type { LegalPageKey } from "@/lib/launch-pages";
+import { DESIGN_RULES } from "./design-rules";
 
 export const REGISTRO_SYSTEM = `Eres copywriter de páginas de captura (opt-in) para lanzamientos digitales.
 Generas UNA página corta: titular, subtítulo, 3-4 bullets de qué gana quien se apunte, y CTA. Nada de
 testimonios, garantía ni FAQ — eso vive en la página de venta, no aquí. Español neutro de España, sin
 emojis. Para "imagePrompt": descripción concreta y evocadora de una foto, como si se lo pidieras a un
-fotógrafo — sin proponer colores ni tipografía.`;
+fotógrafo — sin proponer colores ni tipografía.
+
+${DESIGN_RULES}`;
 
 export function registroPrompt(
   launchName: string,
@@ -36,7 +39,9 @@ export const CONTENIDO_SYSTEM = `Eres copywriter de páginas de contenido educat
 de lanzamiento (Product Launch Formula). Cada página enseña algo real y útil por sí mismo — no es una
 venta directa, construye autoridad y deseo hacia la oferta que llega al final de la secuencia. Español
 neutro de España, sin emojis. Para "imagePrompt": descripción concreta de una foto, sin proponer colores
-ni tipografía.`;
+ni tipografía.
+
+${DESIGN_RULES}`;
 
 export function contenidoPrompt(
   launchName: string,

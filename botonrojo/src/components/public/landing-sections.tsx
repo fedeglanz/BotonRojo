@@ -1,7 +1,7 @@
 import { SubmitButton } from "@/components/admin/submit-button";
 import { formatPrice } from "@/lib/utils";
 import { Reveal, RevealItem } from "./reveal";
-import { resolveCardStyle } from "./card-style";
+import { resolveVisualStyle } from "@/lib/design/presets";
 import { Countdown } from "./countdown";
 import type {
   LandingBody,
@@ -24,7 +24,7 @@ export type PricingProduct = { slug: string; name: string; priceCents: number; c
 export function HeroImage({ url, alt }: { url: string; alt: string }) {
   return (
     <Reveal className="mx-auto mt-12 max-w-4xl">
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
+      <div className="overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={alt} className="h-full w-full object-cover" />
       </div>
@@ -37,27 +37,27 @@ export function ForWhomSection({ data }: { data: LandingForWhom }) {
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Para quién</SectionLabel>
       <Reveal className="mt-8 grid gap-5 md:grid-cols-2 xl:gap-6">
-        <RevealItem className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-emerald-300">
+        <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_8%,transparent)] p-6">
+          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[--color-success]">
             Sí, esto es para ti si…
           </div>
           <ul className="mt-4 space-y-2 text-[--color-muted-1]">
             {data.yes?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-emerald-400">✓</span>
+                <span className="mt-1 text-[--color-success]">✓</span>
                 <span>{p}</span>
               </li>
             ))}
           </ul>
         </RevealItem>
-        <RevealItem className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
-          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-red-300">
+        <RevealItem className="rounded-xl border border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6">
+          <div className="font-[family-name:var(--font-display)] text-lg font-bold text-[--color-danger]">
             No es para ti si…
           </div>
           <ul className="mt-4 space-y-2 text-[--color-muted-1]">
             {data.no?.map((p, i) => (
               <li key={i} className="flex gap-3">
-                <span className="mt-1 text-red-400">✗</span>
+                <span className="mt-1 text-[--color-danger]">✗</span>
                 <span>{p}</span>
               </li>
             ))}
@@ -88,18 +88,18 @@ export function PainSolutionSection({
   blocks: LandingPainBlock[];
   cardStyle?: LandingCardStyle;
 }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Antes y después</SectionLabel>
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {blocks.map((b, i) => (
-          <RevealItem key={i} className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} space-y-3 p-6`}>
+          <RevealItem key={i} className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal} space-y-3`}>
             {b.icon && <div className="text-3xl">{b.icon}</div>}
-            <div className="text-sm uppercase tracking-widest text-red-300">El problema</div>
+            <div className="text-sm uppercase tracking-widest text-[--color-danger]">El problema</div>
             <p className="text-[--color-muted-1]">{b.pain}</p>
-            <div className="pt-3 border-t border-white/10" />
-            <div className="text-sm uppercase tracking-widest text-emerald-300">→ Cómo lo resolvemos</div>
+            <div className="pt-3 border-t border-[--color-border]" />
+            <div className="text-sm uppercase tracking-widest text-[--color-success]">→ Cómo lo resolvemos</div>
             <p>{b.solution}</p>
           </RevealItem>
         ))}
@@ -115,7 +115,7 @@ export function IncludesSection({
   items: LandingIncludeItem[];
   cardStyle?: LandingCardStyle;
 }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Qué incluye</SectionLabel>
@@ -123,10 +123,10 @@ export function IncludesSection({
         {items.map((it, i) => (
           <RevealItem
             key={i}
-            className={`group overflow-hidden transition hover:border-[--color-accent] ${card.box}`}
+            className={`group overflow-hidden ${card.box} ${card.hover}`}
           >
             {it.imageUrl && (
-              <div className="aspect-video w-full overflow-hidden bg-black/40">
+              <div className="aspect-video w-full overflow-hidden bg-[--color-surface]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={it.imageUrl}
@@ -171,7 +171,7 @@ export function AboutSection({ data }: { data: LandingAbout }) {
       <SectionLabel>Sobre el creador</SectionLabel>
       <Reveal className="mt-8 flex flex-col items-center gap-10 md:flex-row md:items-start">
         {data.creatorImageUrl && (
-          <RevealItem className="relative aspect-[3/4] w-64 shrink-0 overflow-hidden rounded-2xl border border-white/10 shadow-[0_20px_50px_-15px_var(--color-red-glow)]">
+          <RevealItem className="relative aspect-[3/4] w-64 shrink-0 overflow-hidden rounded-2xl border border-[--color-border] shadow-[0_20px_50px_-15px_var(--color-red-glow)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={data.creatorImageUrl} alt={data.creatorName ?? ""} className="h-full w-full object-cover" />
           </RevealItem>
@@ -199,13 +199,13 @@ export function TestimonialsSection({
   items: LandingTestimonial[];
   cardStyle?: LandingCardStyle;
 }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 xl:max-w-7xl">
       <SectionLabel>Testimonios</SectionLabel>
       <Reveal className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         {items.map((t, i) => (
-          <RevealItem key={i} className={`${card.box} p-6`}>
+          <RevealItem key={i} className={`${card.box} ${card.padding.normal}`}>
             <div className="font-[family-name:var(--font-display)] text-3xl leading-none text-[--color-accent]">
               &ldquo;
             </div>
@@ -240,7 +240,7 @@ export function SpeakersSection({ items }: { items: LandingSpeaker[] }) {
       <Reveal className="mt-8 grid gap-5 grid-cols-2 lg:grid-cols-4 xl:gap-6">
         {items.map((s, i) => (
           <RevealItem key={i} className="text-center">
-            <div className="mx-auto aspect-square w-full max-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+            <div className="mx-auto aspect-square w-full max-w-[160px] overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface]">
               {s.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={s.imageUrl} alt={s.name} className="h-full w-full object-cover" />
@@ -286,7 +286,7 @@ export function PricingTiersSection({
   startCheckoutAction: (formData: FormData) => Promise<void>;
   cardStyle?: LandingCardStyle;
 }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   const rows = tiers
     .map((tier) => ({ tier, product: products.find((p) => p.slug === tier.productSlug) }))
     .filter((r): r is { tier: LandingPricingTier; product: PricingProduct } => Boolean(r.product));
@@ -303,7 +303,7 @@ export function PricingTiersSection({
         {rows.map(({ tier, product }) => (
           <RevealItem
             key={product.slug}
-            className={`flex flex-col ${card.box} ${card.hudCorners ? "hud-corners" : ""} p-6`}
+            className={`flex flex-col ${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.normal}`}
           >
             {tier.highlight && (
               <div className="mb-2 inline-block self-start rounded-full bg-[--color-accent] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-black">
@@ -347,11 +347,11 @@ export function CountdownSection({ targetDate, label }: { targetDate: string; la
 }
 
 export function GuaranteeSection({ text, cardStyle }: { text: string; cardStyle?: LandingCardStyle }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   return (
     <section className="mx-auto max-w-3xl px-6 py-20">
       <Reveal>
-        <div className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} p-8 text-center`}>
+        <div className={`${card.box} ${card.hudCorners ? "hud-corners" : ""} ${card.padding.spacious} text-center`}>
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] text-3xl">
             🛡️
           </div>
@@ -366,7 +366,7 @@ export function GuaranteeSection({ text, cardStyle }: { text: string; cardStyle?
 }
 
 export function FaqSection({ items, cardStyle }: { items: LandingFaq[]; cardStyle?: LandingCardStyle }) {
-  const card = resolveCardStyle(cardStyle);
+  const card = resolveVisualStyle(cardStyle);
   return (
     <section className="mx-auto max-w-6xl px-6 py-20">
       <SectionLabel>Preguntas frecuentes</SectionLabel>
@@ -375,7 +375,7 @@ export function FaqSection({ items, cardStyle }: { items: LandingFaq[]; cardStyl
       <Reveal className="mt-8 grid gap-3 lg:grid-cols-2 lg:gap-x-5">
         {items.map((q, i) => (
           <RevealItem key={i} className="h-fit">
-            <details className={`group ${card.box} p-5`}>
+            <details className={`group ${card.box} ${card.padding.compact}`}>
               <summary className="flex cursor-pointer items-center justify-between">
                 <span className="font-semibold">{q.q}</span>
                 <span className="text-[--color-red-bright] transition group-open:rotate-45">+</span>

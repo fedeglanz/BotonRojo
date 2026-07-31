@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandStyle } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import type { Launch } from "@/db/schema/launches";
 import type { AfiliadosPageBody } from "@/components/public/page-bodies";
@@ -54,9 +55,7 @@ export function AfiliadosPage({
         </Reveal>
       </div>
 
-      <footer className="border-t border-white/10 py-8 text-center text-xs text-[--color-muted-3]">
-        {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} />
     </main>
   );
 }

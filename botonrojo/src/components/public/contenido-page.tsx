@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Script from "next/script";
 import { BrandStyle } from "@/components/public/brand-style";
+import { PublicFooter } from "@/components/public/public-footer";
 import { Reveal } from "@/components/public/reveal";
 import { Countdown } from "@/components/public/countdown";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -66,7 +67,7 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
 
           {body?.imageUrl && (
             <Reveal className="mt-8">
-              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
+              <div className="overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={body.imageUrl} alt="" className="h-full w-full object-cover" />
               </div>
@@ -93,7 +94,7 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
               {Array.from({ length: total }, (_, i) => (
                 <div
                   key={i}
-                  className={`h-1.5 flex-1 rounded-full ${i < index ? "bg-[--color-accent]" : "bg-white/10"}`}
+                  className={`h-1.5 flex-1 rounded-full ${i < index ? "bg-[--color-accent]" : "bg-[--color-border-strong]"}`}
                 />
               ))}
             </div>
@@ -112,9 +113,7 @@ export function ContenidoPage({ launch, body, nextHref, index, total, nextUnlock
         </aside>
       </div>
 
-      <footer className="border-t border-white/10 py-8 pb-28 text-center text-xs text-[--color-muted-3]">
-        {new Date().getFullYear()}
-      </footer>
+      <PublicFooter launch={launch} stickyBar />
 
       <StickyActionBar
         targetDate={nextUnlockDate ? nextUnlockDate.toISOString() : null}

@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { SubmitButton } from "./submit-button";
 import { ImagePicker } from "./image-picker";
-import { SECTION_META, type LandingSectionKey } from "@/components/public/landing-types";
+import {
+  SECTION_META,
+  SECTION_BACKGROUNDS,
+  SECTION_EFFECTS,
+  SECTION_HEIGHTS,
+  SECTION_WIDTHS,
+  type LandingSectionKey,
+  type SectionDesign,
+} from "@/components/public/landing-types";
 
 type ImageSlot = {
   label: string;
@@ -21,6 +29,8 @@ type Props = {
   refineAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   rawUpdateAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
   imageSaveAction: (launchId: string, slotPath: string, formData: FormData) => Promise<void>;
+  design?: SectionDesign | null;
+  designAction: (launchId: string, section: LandingSectionKey, formData: FormData) => Promise<void>;
 };
 
 const SUGGESTIONS: Record<LandingSectionKey, string[]> = {
@@ -88,8 +98,10 @@ export function SectionEditor({
   refineAction,
   rawUpdateAction,
   imageSaveAction,
+  design,
+  designAction,
 }: Props) {
-  const [mode, setMode] = useState<"preview" | "ai" | "manual" | "images">("preview");
+  const [mode, setMode] = useState<"preview" | "ai" | "design" | "manual" | "images">("preview");
   const meta = SECTION_META[section];
 
   return (
@@ -104,6 +116,7 @@ export function SectionEditor({
         <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-black/40 p-1 text-xs">
           <TabButton active={mode === "preview"} onClick={() => setMode("preview")}>Preview</TabButton>
           <TabButton active={mode === "ai"} onClick={() => setMode("ai")}>✨ IA</TabButton>
+          <TabButton active={mode === "design"} onClick={() => setMode("design")}>🎨 Diseño</TabButton>
           {imageSlots && imageSlots.length > 0 && (
             <TabButton active={mode === "images"} onClick={() => setMode("images")}>🖼️ Imágenes</TabButton>
           )}
@@ -112,6 +125,34 @@ export function SectionEditor({
       </header>
 
       {mode === "preview" && <div className="p-5">{preview}</div>}
+
+      {mode === "design" && (
+        <form action={designAction.bind(null, launchId, section)} className="space-y-4 p-5">
+          <p className="text-xs text-zinc-500">
+            Control directo del aspecto de esta sección. También puedes pedírselo en palabras
+            desde la pestaña ✨ IA (&ldquo;ponle un fondo oscuro a pantalla completa&rdquo;).
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <DesignSelect name="background" label="Fondo" options={SECTION_BACKGROUNDS} labels={BACKGROUND_LABELS} value={design?.background} />
+            <DesignSelect name="effect" label="Efecto" options={SECTION_EFFECTS} labels={EFFECT_LABELS} value={design?.effect} />
+            <DesignSelect name="height" label="Altura" options={SECTION_HEIGHTS} labels={HEIGHT_LABELS} value={design?.height} />
+            <DesignSelect name="width" label="Ancho" options={SECTION_WIDTHS} labels={WIDTH_LABELS} value={design?.width} />
+          </div>
+
+          {design?.orbitItems && design.orbitItems.length > 0 && (
+            <p className="text-xs text-zinc-500">
+              Elementos en órbita: {design.orbitItems.map((i) => i.label).join(" · ")}
+            </p>
+          )}
+
+          <div className="flex justify-end">
+            <SubmitButton variant="ghost" pendingLabel="Aplicando…">
+              Aplicar diseño
+            </SubmitButton>
+          </div>
+        </form>
+      )}
 
       {mode === "ai" && (
         <div className="space-y-4 p-5">
@@ -179,6 +220,57 @@ export function SectionEditor({
         </div>
       )}
     </div>
+  );
+}
+
+const BACKGROUND_LABELS: Record<string, string> = {
+  none: "Sin fondo",
+  tint: "Tinte suave",
+  accent: "Tinte fuerte",
+  dark: "Banda oscura",
+  photo: "Foto de fondo",
+};
+
+const EFFECT_LABELS: Record<string, string> = {
+  none: "Sin efecto",
+  orbit: "Órbita (solo texto corto)",
+  geometry: "Geometría de fondo",
+  aurora: "Resplandor animado",
+  grid: "Retícula técnica",
+};
+
+const HEIGHT_LABELS: Record<string, string> = { auto: "Automática", full: "Pantalla completa" };
+
+const WIDTH_LABELS: Record<string, string> = { normal: "Normal", wide: "Ancho", full: "A sangre" };
+
+function DesignSelect({
+  name,
+  label,
+  options,
+  labels,
+  value,
+}: {
+  name: string;
+  label: string;
+  options: readonly string[];
+  labels: Record<string, string>;
+  value?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs uppercase tracking-widest text-zinc-400">{label}</span>
+      <select
+        name={name}
+        defaultValue={value ?? options[0]}
+        className="field-input mt-2 w-full px-3 py-2 text-sm text-white"
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {labels[o] ?? o}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

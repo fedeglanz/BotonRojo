@@ -5,15 +5,15 @@ import { SubmitButton } from "./submit-button";
 import type { AvatarBrief } from "@/db/schema/launches";
 
 type Props = {
-  launchId: string;
   avatar: AvatarBrief | null;
   promise: string | null;
   painPoints: string[];
   benefits: string[];
-  updateAction: (launchId: string, formData: FormData) => Promise<void>;
+  /** Already bound to the launch id by the caller. */
+  updateAction: (formData: FormData) => Promise<void>;
 };
 
-export function MarcoCopyEditor({ launchId, avatar, promise, painPoints, benefits, updateAction }: Props) {
+export function MarcoCopyEditor({ avatar, promise, painPoints, benefits, updateAction }: Props) {
   const [open, setOpen] = useState(false);
   const hasContent = Boolean(promise);
 
@@ -63,7 +63,7 @@ export function MarcoCopyEditor({ launchId, avatar, promise, painPoints, benefit
 
         {open && (
           <form
-            action={updateAction.bind(null, launchId)}
+            action={updateAction}
             className="mt-4 space-y-4 rounded-lg border border-white/10 bg-black/40 p-5"
           >
             <Field label="Promesa" name="promise" defaultValue={promise ?? ""} />
