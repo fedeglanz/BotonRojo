@@ -1016,15 +1016,20 @@ async function normalizePageComposition(
       if (url) heroResult.design.imageUrl = url;
       else heroResult.design.background = "tint";
     }
+    // Always the page's first band, so it can't carry a divider.
+    heroResult.design.divider = "none";
     design.hero = heroResult.design;
 
     // A photo floating beside the form on top of an already-decorated band is
-    // noise competing with the one thing that has to stand out. Drop it, unless
-    // the model deliberately asked to keep it.
+    // noise competing with the one thing that has to stand out.
+    //
+    // This overrides the model rather than deferring to it: asked for a dark hero
+    // with an effect, it still set hideHeroImage to false and put the photo back.
+    // On a form band the form is the subject — that's a property of the band, not
+    // a preference to negotiate.
     const decorated =
       heroResult.design.background !== "none" || heroResult.design.effect !== "none";
-    const b = body as { hideHeroImage?: boolean };
-    if (decorated && b.hideHeroImage === undefined) b.hideHeroImage = true;
+    if (decorated) (body as { hideHeroImage?: boolean }).hideHeroImage = true;
   }
 
   if (blocks.length > 0) {

@@ -9,6 +9,7 @@ import { env } from "@/lib/env";
 import { captureLeadAction } from "@/server/checkout";
 import type { Launch } from "@/db/schema/launches";
 import { SectionShell } from "@/components/public/section-shell";
+import { usableDivider } from "@/components/public/section-design";
 import { PageBlocks } from "@/components/public/page-blocks";
 import type { RegistroPageBody } from "@/components/public/page-bodies";
 
@@ -29,7 +30,13 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
       {/* The hero band takes a design like any landing section: background,
           effect, full height. Without it a capture page could only ever be the
           same flat two-column template. */}
-      <SectionShell design={body?.design?.hero}>
+      <SectionShell
+        design={
+          body?.design?.hero
+            ? { ...body.design.hero, divider: usableDivider(body.design.hero, undefined, true) }
+            : undefined
+        }
+      >
         <section className="mx-auto grid min-h-[100svh] max-w-6xl items-center gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-16">
           <div className="text-center lg:text-left">
             <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl lg:text-5xl">
