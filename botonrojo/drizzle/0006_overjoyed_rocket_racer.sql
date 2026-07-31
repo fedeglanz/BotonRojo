@@ -25,6 +25,9 @@ CREATE TABLE "media_items" (
 --> statement-breakpoint
 ALTER TABLE "users" DROP CONSTRAINT "users_organization_id_organizations_id_fk";
 --> statement-breakpoint
+-- Backfill NULL organization_id with the first (default) organization before SET NOT NULL
+UPDATE "users" SET "organization_id" = (SELECT "id" FROM "organizations" LIMIT 1) WHERE "organization_id" IS NULL;--> statement-breakpoint
+UPDATE "launches" SET "organization_id" = (SELECT "id" FROM "organizations" LIMIT 1) WHERE "organization_id" IS NULL;--> statement-breakpoint
 ALTER TABLE "users" ALTER COLUMN "organization_id" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "launches" ALTER COLUMN "organization_id" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "is_super_admin" boolean DEFAULT false NOT NULL;--> statement-breakpoint
