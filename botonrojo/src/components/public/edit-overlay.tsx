@@ -32,8 +32,8 @@ type EditState = {
   select: (selection: Selection) => void;
   /** Reordering lives on the region itself, not in the panel: moving a band is a
    *  one-click action and opening a side panel for it would be in the way. */
-  moveBlockAction: (formData: FormData) => Promise<void>;
-  /** How many blocks the page has, so the arrows can be hidden at the ends. */
+  moveAction: (formData: FormData) => Promise<void>;
+  /** How many blocks the page has, so a block's arrows can be hidden at the ends. */
   blockCount: number;
 };
 
@@ -50,7 +50,7 @@ export function EditModeProvider({
   designAction,
   addBlockAction,
   removeBlockAction,
-  moveBlockAction,
+  moveAction,
   blockCount = 0,
 }: {
   ctx: EditContext;
@@ -60,7 +60,7 @@ export function EditModeProvider({
   designAction: (formData: FormData) => Promise<void>;
   addBlockAction: (formData: FormData) => Promise<void>;
   removeBlockAction: (formData: FormData) => Promise<void>;
-  moveBlockAction: (formData: FormData) => Promise<void>;
+  moveAction: (formData: FormData) => Promise<void>;
 }) {
   const [selection, select] = useState<Selection>(null);
 
@@ -78,7 +78,7 @@ export function EditModeProvider({
 
   return (
     <EditModeContext.Provider
-      value={{ ctx, selection, select, moveBlockAction, blockCount }}
+      value={{ ctx, selection, select, moveAction, blockCount }}
     >
       {children}
       <EditBar ctx={ctx} />
@@ -131,10 +131,22 @@ export function Editable({
   target,
   label,
   children,
+  canAdd = true,
+  addLabel = "+ sección",
+  addHint = "Añadir una sección nueva debajo de esta",
+  move,
 }: {
   target: EditTarget;
   label: string;
   children: React.ReactNode;
+  /** The sales page has a closed set of sections, so a brand new band can only go
+   *  at the end there — see `addLabel`. */
+  canAdd?: boolean;
+  addLabel?: string;
+  addHint?: string;
+  /** The bands above and below, when the caller knows them. Blocks don't need it:
+   *  their neighbours are their own index ± 1. */
+  move?: { up?: EditTarget | null; down?: EditTarget | null };
 }) {
   const edit = useEditMode();
   const [hover, setHover] = useState(false);
@@ -144,6 +156,19 @@ export function Editable({
   const selected =
     edit.selection?.target.kind === target.kind &&
     JSON.stringify(edit.selection.target) === JSON.stringify(target);
+
+  // A block's neighbours are implicit; anything else has to be told, because only
+  // the page knows which bands are actually visible around this one.
+  const up =
+    move?.up ??
+    (target.kind === "block" && target.index > 0
+      ? ({ kind: "block", index: target.index - 1 } as EditTarget)
+      : null);
+  const down =
+    move?.down ??
+    (target.kind === "block" && target.index < edit.blockCount - 1
+      ? ({ kind: "block", index: target.index + 1 } as EditTarget)
+      : null);
 
   return (
     <div
@@ -173,44 +198,42 @@ export function Editable({
           >
             Cambiar {label}
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              edit.select({
-                target: { kind: "block", index: -1 },
-                label: `debajo de ${label}`,
-                after: target,
-              })
-            }
-            className="rounded-md bg-black/85 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur hover:bg-black"
-            title="Añadir una sección nueva debajo de esta"
-          >
-            + sección
-          </button>
+          {canAdd && (
+            <button
+              type="button"
+              onClick={() =>
+                edit.select({
+                  target: { kind: "block", index: -1 },
+                  label: `debajo de ${label}`,
+                  after: target,
+                })
+              }
+              className="rounded-md bg-black/85 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur hover:bg-black"
+              title={addHint}
+            >
+              {addLabel}
+            </button>
+          )}
 
-          {target.kind === "block" && (
-            <>
-              {target.index > 0 && (
-                <MoveButton
-                  edit={edit}
-                  target={target}
-                  direction="up"
-                  label="Subir esta sección"
-                >
-                  ↑
-                </MoveButton>
-              )}
-              {target.index < edit.blockCount - 1 && (
-                <MoveButton
-                  edit={edit}
-                  target={target}
-                  direction="down"
-                  label="Bajar esta sección"
-                >
-                  ↓
-                </MoveButton>
-              )}
-            </>
+          {up && (
+            <MoveButton
+              edit={edit}
+              target={target}
+              swapWith={up}
+              label="Subir esta sección"
+            >
+              ↑
+            </MoveButton>
+          )}
+          {down && (
+            <MoveButton
+              edit={edit}
+              target={target}
+              swapWith={down}
+              label="Bajar esta sección"
+            >
+              ↓
+            </MoveButton>
           )}
         </div>
       )}
@@ -223,22 +246,23 @@ export function Editable({
 function MoveButton({
   edit,
   target,
-  direction,
+  swapWith,
   label,
   children,
 }: {
   edit: EditState;
   target: EditTarget;
-  direction: "up" | "down";
+  /** The band to trade places with. */
+  swapWith: EditTarget;
   label: string;
   children: React.ReactNode;
 }) {
   return (
-    <form action={edit.moveBlockAction}>
+    <form action={edit.moveAction}>
       <input type="hidden" name="launchId" value={edit.ctx.launchId} />
       <input type="hidden" name="pageKey" value={edit.ctx.pageKey} />
       <input type="hidden" name="target" value={JSON.stringify(target)} />
-      <input type="hidden" name="direction" value={direction} />
+      <input type="hidden" name="swapWith" value={JSON.stringify(swapWith)} />
       <button
         type="submit"
         title={label}
@@ -529,7 +553,7 @@ function EditPanel({
             </form>
           )}
 
-          {tab === "design" && selection.target.kind === "block" && (
+          {selection.target.kind === "block" && (
             <form
               action={removeBlockAction}
               onSubmit={after}

@@ -22,7 +22,7 @@ import {
   editDesignAction,
   addBlockAction,
   removeBlockAction,
-  moveBlockAction,
+  movePartAction,
 } from "@/server/page-edit";
 import type { RegistroPageBody } from "@/components/public/page-bodies";
 
@@ -53,7 +53,7 @@ export function RegistroPage({
       designAction={editDesignAction}
       addBlockAction={addBlockAction}
       removeBlockAction={removeBlockAction}
-      moveBlockAction={moveBlockAction}
+      moveAction={movePartAction}
       blockCount={body?.blocks?.length ?? 0}
     >
       <main className="relative min-h-screen overflow-hidden">

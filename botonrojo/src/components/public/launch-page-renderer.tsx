@@ -34,7 +34,7 @@ export async function renderLaunchPage(
     : EDIT_DISABLED;
 
   if (pageDef.kind === "venta") {
-    return <LaunchLandingPage launch={launch} pageKey={pageDef.pageKey} />;
+    return <LaunchLandingPage launch={launch} pageKey={pageDef.pageKey} edit={edit} />;
   }
 
   const [asset] = await db

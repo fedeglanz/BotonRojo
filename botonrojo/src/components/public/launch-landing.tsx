@@ -22,13 +22,38 @@ import {
   TestimonialsSection,
   type PricingProduct,
 } from "@/components/public/landing-sections";
-import { LAYOUT_PRESETS } from "@/components/public/landing-types";
-import type { LandingBody, LandingCardStyle, MiddleSectionKey } from "@/components/public/landing-types";
-import { BrandStyle, logoPlateFor, usableCardStyle } from "@/components/public/brand-style";
+import {
+  LAYOUT_PRESETS,
+  SECTION_META,
+} from "@/components/public/landing-types";
+import type {
+  LandingBody,
+  LandingCardStyle,
+  MiddleSectionKey,
+} from "@/components/public/landing-types";
+import {
+  BrandStyle,
+  logoPlateFor,
+  usableCardStyle,
+} from "@/components/public/brand-style";
 import { PublicFooter } from "@/components/public/public-footer";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
 import { usableDivider } from "@/components/public/section-design";
+import { PageBlocks } from "@/components/public/page-blocks";
+import { EditModeProvider, Editable } from "@/components/public/edit-overlay";
+import {
+  EDIT_DISABLED,
+  type EditContext,
+  type EditTarget,
+} from "@/components/public/edit-mode";
+import {
+  editRefineAction,
+  editDesignAction,
+  addBlockAction,
+  removeBlockAction,
+  movePartAction,
+} from "@/server/page-edit";
 
 import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
@@ -56,7 +81,11 @@ function asText(value: unknown): string | null {
     // One level of accidental wrapping, e.g. { amplifiedPromise: { text } }.
     for (const nested of Object.values(inner)) {
       if (typeof nested === "string") return nested;
-      if (nested && typeof nested === "object" && typeof (nested as { text?: unknown }).text === "string") {
+      if (
+        nested &&
+        typeof nested === "object" &&
+        typeof (nested as { text?: unknown }).text === "string"
+      ) {
         return (nested as { text: string }).text;
       }
     }
@@ -70,7 +99,8 @@ function asText(value: unknown): string | null {
 // short, a plf is the full sequence with About included.
 const MIDDLE_SECTION_RENDERERS = {
   forWhom: (landing: LandingBody) =>
-    landing.forWhom && (landing.forWhom.yes?.length || landing.forWhom.no?.length) ? (
+    landing.forWhom &&
+    (landing.forWhom.yes?.length || landing.forWhom.no?.length) ? (
       <ForWhomSection key="forWhom" data={landing.forWhom} />
     ) : null,
   amplifiedPromise: (landing: LandingBody) => {
@@ -85,20 +115,32 @@ const MIDDLE_SECTION_RENDERERS = {
   },
   painBlocks: (landing: LandingBody, ctx: RenderCtx) =>
     landing.painBlocks && landing.painBlocks.length > 0 ? (
-      <PainSolutionSection key="painBlocks" blocks={landing.painBlocks} cardStyle={ctx.cardStyle} />
+      <PainSolutionSection
+        key="painBlocks"
+        blocks={landing.painBlocks}
+        cardStyle={ctx.cardStyle}
+      />
     ) : null,
   speakers: (landing: LandingBody) =>
     landing.speakers && landing.speakers.length > 0 ? (
       <SpeakersSection key="speakers" items={landing.speakers} />
     ) : null,
   agenda: (landing: LandingBody) =>
-    landing.agenda && landing.agenda.length > 0 ? <AgendaSection key="agenda" items={landing.agenda} /> : null,
+    landing.agenda && landing.agenda.length > 0 ? (
+      <AgendaSection key="agenda" items={landing.agenda} />
+    ) : null,
   includes: (landing: LandingBody, ctx: RenderCtx) =>
     landing.includes && landing.includes.length > 0 ? (
-      <IncludesSection key="includes" items={landing.includes} cardStyle={ctx.cardStyle} />
+      <IncludesSection
+        key="includes"
+        items={landing.includes}
+        cardStyle={ctx.cardStyle}
+      />
     ) : null,
   pricingTiers: (landing: LandingBody, ctx: RenderCtx) =>
-    landing.pricingTiers && landing.pricingTiers.length > 1 && ctx.products.length > 1 ? (
+    landing.pricingTiers &&
+    landing.pricingTiers.length > 1 &&
+    ctx.products.length > 1 ? (
       <PricingTiersSection
         key="pricingTiers"
         tiers={landing.pricingTiers}
@@ -110,16 +152,26 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
   countdown: (landing: LandingBody, ctx: RenderCtx) =>
     ctx.cartClosesAt ? (
-      <CountdownSection key="countdown" targetDate={ctx.cartClosesAt.toISOString()} />
+      <CountdownSection
+        key="countdown"
+        targetDate={ctx.cartClosesAt.toISOString()}
+      />
     ) : null,
-  about: (landing: LandingBody) => (landing.about ? <AboutSection key="about" data={landing.about} /> : null),
+  about: (landing: LandingBody) =>
+    landing.about ? <AboutSection key="about" data={landing.about} /> : null,
   testimonials: (landing: LandingBody, ctx: RenderCtx) =>
     landing.testimonials && landing.testimonials.length > 0 ? (
-      <TestimonialsSection key="testimonials" items={landing.testimonials} cardStyle={ctx.cardStyle} />
+      <TestimonialsSection
+        key="testimonials"
+        items={landing.testimonials}
+        cardStyle={ctx.cardStyle}
+      />
     ) : null,
   guarantee: (landing: LandingBody, ctx: RenderCtx) => {
     const text = asText(landing.guarantee);
-    return text ? <GuaranteeSection key="guarantee" text={text} cardStyle={ctx.cardStyle} /> : null;
+    return text ? (
+      <GuaranteeSection key="guarantee" text={text} cardStyle={ctx.cardStyle} />
+    ) : null;
   },
   faq: (landing: LandingBody, ctx: RenderCtx) =>
     landing.faq && landing.faq.length > 0 ? (
@@ -127,12 +179,33 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
 } as const;
 
+/** What a band is called when you point at it. Falls back for `countdown`, which
+ *  is a visible band with no entry in SECTION_META because its content comes from
+ *  the launch's cart date rather than from editable copy. */
+function bandLabel(key: MiddleSectionKey | "hero" | "finalCta"): string {
+  if (key === "countdown") return "el contador";
+  return SECTION_META[key]?.label ?? key;
+}
 
-export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: Launch; pageKey?: string }) {
+export async function LaunchLandingPage({
+  launch,
+  pageKey = "main",
+  edit = EDIT_DISABLED,
+}: {
+  launch: Launch;
+  pageKey?: string;
+  edit?: EditContext;
+}) {
   const [landingAsset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launch.id),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -150,7 +223,9 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const hasStripeProduct = Boolean(product?.stripePriceId);
   const heroHeadline = landing?.hero?.headline ?? launch.name;
   const heroSubheadline = landing?.hero?.subheadline ?? launch.promise ?? "";
-  const ctaLabel = landing?.hero?.cta ?? (hasStripeProduct ? "Quiero entrar" : "Apúntame al lanzamiento");
+  const ctaLabel =
+    landing?.hero?.cta ??
+    (hasStripeProduct ? "Quiero entrar" : "Apúntame al lanzamiento");
   const finalCtaLabel = landing?.finalCta?.button ?? ctaLabel;
   const finalCtaHeadline = landing?.finalCta?.headline ?? "¿Te apuntas?";
 
@@ -161,137 +236,230 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const ctaStyle = landing?.style?.ctaStyle;
   const fonts = launch.brandFonts;
 
+  // The middle bands, resolved to the ones that actually render. Computed here
+  // rather than inside the markup because both the divider repair and the reorder
+  // arrows need to know the VISIBLE neighbour: a section with no content renders
+  // nothing, so the previous key in the stored order is often not the band above.
+  const middleKeys = (
+    landing?.sectionOrder?.length
+      ? landing.sectionOrder
+      : (LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf)
+  ) as MiddleSectionKey[];
+
+  const middleBands = landing
+    ? middleKeys
+        .map((key) => ({
+          key,
+          node: MIDDLE_SECTION_RENDERERS[key]?.(landing, {
+            // The section's own box style wins over the page default.
+            cardStyle: usableCardStyle(
+              palette,
+              landing.sectionDesign?.[key]?.style as LandingCardStyle,
+            ),
+            products: activeProducts.map((p) => ({
+              slug: p.slug,
+              name: p.name,
+              priceCents: p.priceCents,
+              currency: p.currency,
+            })),
+            cartClosesAt: launch.cartClosesAt,
+          }),
+        }))
+        .filter((band) => Boolean(band.node))
+    : [];
+
+  const sectionTarget = (key: string): EditTarget => ({ kind: "section", key });
+  const ADD_AT_END = {
+    canAdd: true,
+    addLabel: "+ sección al final",
+    addHint:
+      "La página de venta tiene sus secciones fijas: una sección nueva se añade al final, antes del cierre",
+  };
+
   return (
-    // No `overflow-hidden` here: each SectionShell clips its own decoration, so
-    // a global clip would only stop sections from bleeding as intended.
-    // `overflow-x-clip` still prevents sideways page scroll.
-    <main className="relative min-h-screen overflow-x-clip">
-      <BrandStyle palette={palette} fonts={fonts} />
-      <Script
-        src="/track.js"
-        data-launch={launch.slug}
-        data-api={env.APP_URL}
-        strategy="afterInteractive"
-      />
+    <EditModeProvider
+      ctx={edit}
+      refineAction={editRefineAction}
+      designAction={editDesignAction}
+      addBlockAction={addBlockAction}
+      removeBlockAction={removeBlockAction}
+      moveAction={movePartAction}
+      blockCount={landing?.blocks?.length ?? 0}
+    >
+      {/* No `overflow-hidden` on <main>: each SectionShell clips its own
+          decoration, so a global clip would only stop sections from bleeding as
+          intended. `overflow-x-clip` still prevents sideways page scroll. */}
+      <main className="relative min-h-screen overflow-x-clip">
+        <BrandStyle palette={palette} fonts={fonts} />
+        <Script
+          src="/track.js"
+          data-launch={launch.slug}
+          data-api={env.APP_URL}
+          strategy="afterInteractive"
+        />
 
-      {/* HERO — sized to the viewport and vertically centered so the CTA/form
+        {/* HERO — sized to the viewport and vertically centered so the CTA/form
           is visible without scrolling, on mobile and desktop alike. */}
-      <section className="relative mx-auto flex min-h-[100svh] max-w-3xl flex-col items-center justify-center px-6 py-6 text-center">
-        {/* No launch-type badge: "plf" / "venta directa" is our internal
+        <Editable
+          target={sectionTarget("hero")}
+          label={bandLabel("hero")}
+          {...ADD_AT_END}
+        >
+          <section className="relative mx-auto flex min-h-[100svh] max-w-3xl flex-col items-center justify-center px-6 py-6 text-center">
+            {/* No launch-type badge: "plf" / "venta directa" is our internal
             vocabulary, and it was the first thing a visitor read. */}
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl md:text-6xl">
-          {heroHeadline}
-        </h1>
+            <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl md:text-6xl">
+              {heroHeadline}
+            </h1>
 
-        {heroSubheadline && (
-          <p className="mt-2 max-w-2xl text-balance text-sm text-[var(--color-muted-1)] sm:mt-4 sm:text-base md:text-lg">
-            {heroSubheadline}
-          </p>
+            {heroSubheadline && (
+              <p className="mt-2 max-w-2xl text-balance text-sm text-[var(--color-muted-1)] sm:mt-4 sm:text-base md:text-lg">
+                {heroSubheadline}
+              </p>
+            )}
+
+            {product && (
+              <PriceTag
+                priceCents={product.priceCents}
+                currency={product.currency}
+              />
+            )}
+
+            <div id="cta" className="mt-3 w-full sm:mt-6">
+              <CtaBlock
+                launchSlug={launch.slug}
+                buttonLabel={ctaLabel}
+                hasStripeProduct={hasStripeProduct}
+                productSlug={product?.slug ?? null}
+                startCheckoutAction={startCheckoutAction}
+                captureLeadAction={captureLeadAction}
+                compact
+                cardStyle={cardStyle}
+                ctaStyle={ctaStyle}
+              />
+            </div>
+          </section>
+        </Editable>
+
+        {landing?.hero?.imageUrl && (
+          <HeroImage url={landing.hero.imageUrl} alt={heroHeadline} />
         )}
 
-        {product && (
-          <PriceTag priceCents={product.priceCents} currency={product.currency} />
-        )}
-
-        <div id="cta" className="mt-3 w-full sm:mt-6">
-          <CtaBlock
-            launchSlug={launch.slug}
-            buttonLabel={ctaLabel}
-            hasStripeProduct={hasStripeProduct}
-            productSlug={product?.slug ?? null}
-            startCheckoutAction={startCheckoutAction}
-            captureLeadAction={captureLeadAction}
-            compact
-            cardStyle={cardStyle}
-            ctaStyle={ctaStyle}
-          />
-        </div>
-      </section>
-
-      {landing?.hero?.imageUrl && (
-        <HeroImage url={landing.hero.imageUrl} alt={heroHeadline} />
-      )}
-
-      {/* SECTIONS FROM GENERATED LANDING — order/inclusion depends on launch type,
+        {/* SECTIONS FROM GENERATED LANDING — order/inclusion depends on launch type,
           unless the client's general instructions asked Claude for a custom order.
           Each is wrapped in SectionShell, which is a no-op unless that section
           has a design (background / effect / full height / width) set. */}
-      {landing &&
-        (landing.sectionOrder?.length ? landing.sectionOrder : LAYOUT_PRESETS[launch.type] ?? LAYOUT_PRESETS.plf).map(
-          (key, index, all) => {
-            const previousKey = index > 0 ? all[index - 1] : undefined;
-            const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
-              // The section's own box style wins over the page default.
-              cardStyle: usableCardStyle(palette, landing.sectionDesign?.[key]?.style as LandingCardStyle),
-              products: activeProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
-              cartClosesAt: launch.cartClosesAt,
-            });
-            if (!rendered) return null;
-            // Repaired on read: a shape divider against a painted neighbour shows
-            // a wedge of page background between the two colours.
-            const own = landing.sectionDesign?.[key];
-            const design = own
-              ? { ...own, divider: usableDivider(own, landing.sectionDesign?.[previousKey!]) }
-              : own;
-            return (
-              <SectionShell key={key} design={design}>
-                {rendered}
-              </SectionShell>
-            );
-          },
-        )}
+        {middleBands.map((band, index) => {
+          const own = landing?.sectionDesign?.[band.key];
+          // Repaired on read: a shape divider against a painted neighbour shows
+          // a wedge of page background between the two colours.
+          const design = own
+            ? {
+                ...own,
+                divider: usableDivider(
+                  own,
+                  index > 0
+                    ? landing?.sectionDesign?.[middleBands[index - 1]!.key]
+                    : undefined,
+                ),
+              }
+            : own;
 
-      {/* FINAL CTA — also wrapped in SectionShell: it's a visible band like any
+          return (
+            <Editable
+              key={band.key}
+              target={sectionTarget(band.key)}
+              label={bandLabel(band.key)}
+              move={{
+                up:
+                  index > 0 ? sectionTarget(middleBands[index - 1]!.key) : null,
+                down:
+                  index < middleBands.length - 1
+                    ? sectionTarget(middleBands[index + 1]!.key)
+                    : null,
+              }}
+              {...ADD_AT_END}
+            >
+              <SectionShell design={design}>{band.node}</SectionShell>
+            </Editable>
+          );
+        })}
+
+        {/* Sections added from the page itself land here: after the fixed set, before
+          the closing CTA, which is where "una sección más" belongs on a sales page. */}
+        <PageBlocks
+          blocks={landing?.blocks}
+          designs={landing?.design?.blocks}
+          cardStyle={cardStyle}
+          ctaStyle={ctaStyle}
+          editable={edit.enabled}
+        />
+
+        {/* FINAL CTA — also wrapped in SectionShell: it's a visible band like any
           other, so it can take a background, full height and an effect. */}
-      <SectionShell design={landing?.sectionDesign?.finalCta}>
-        <section className="relative mx-auto max-w-3xl px-6 py-20 text-center">
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-5xl">
-            {finalCtaHeadline}
-          </h2>
-          {landing?.finalCta?.subheadline && (
-            <p className="mx-auto mt-4 max-w-xl text-balance text-[var(--color-muted-1)]">
-              {landing.finalCta.subheadline}
-            </p>
+        <Editable
+          target={sectionTarget("finalCta")}
+          label={bandLabel("finalCta")}
+          canAdd={false}
+        >
+          <SectionShell design={landing?.sectionDesign?.finalCta}>
+            <section className="relative mx-auto max-w-3xl px-6 py-20 text-center">
+              <h2 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-5xl">
+                {finalCtaHeadline}
+              </h2>
+              {landing?.finalCta?.subheadline && (
+                <p className="mx-auto mt-4 max-w-xl text-balance text-[var(--color-muted-1)]">
+                  {landing.finalCta.subheadline}
+                </p>
+              )}
+              <div className="mt-10">
+                <CtaBlock
+                  launchSlug={launch.slug}
+                  buttonLabel={finalCtaLabel}
+                  hasStripeProduct={hasStripeProduct}
+                  productSlug={product?.slug ?? null}
+                  startCheckoutAction={startCheckoutAction}
+                  captureLeadAction={captureLeadAction}
+                  cardStyle={cardStyle}
+                  ctaStyle={ctaStyle}
+                />
+              </div>
+            </section>
+          </SectionShell>
+        </Editable>
+
+        <PublicFooter launch={launch} stickyBar />
+
+        <StickyActionBar
+          logoUrl={launch.brandLogoUrl}
+          logoAspect={
+            ((launch.assetsCache as Record<string, unknown> | null)
+              ?.logoAspect as number) ?? null
+          }
+          logoPlate={logoPlateFor(
+            launch.brandPalette,
+            (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
+              dark?: number;
+              light?: number;
+            } | null,
           )}
-          <div className="mt-10">
-            <CtaBlock
-              launchSlug={launch.slug}
-              buttonLabel={finalCtaLabel}
-              hasStripeProduct={hasStripeProduct}
-              productSlug={product?.slug ?? null}
-              startCheckoutAction={startCheckoutAction}
-              captureLeadAction={captureLeadAction}
-              cardStyle={cardStyle}
-              ctaStyle={ctaStyle}
-            />
-          </div>
-        </section>
-      </SectionShell>
-
-      <PublicFooter launch={launch} stickyBar />
-
-      <StickyActionBar
-        logoUrl={launch.brandLogoUrl}
-        logoAspect={
-          ((launch.assetsCache as Record<string, unknown> | null)?.logoAspect as number) ?? null
-        }
-        logoPlate={logoPlateFor(
-          launch.brandPalette,
-          (launch.assetsCache as Record<string, unknown> | null)?.logoInk as {
-            dark?: number;
-            light?: number;
-          } | null,
-        )}
-        targetDate={launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null}
-        countdownLabel="El carrito cierra en"
-        ctaLabel={hasStripeProduct ? "Acceder ahora" : "Registrarse ahora"}
-      />
-    </main>
+          targetDate={
+            launch.cartClosesAt ? launch.cartClosesAt.toISOString() : null
+          }
+          countdownLabel="El carrito cierra en"
+          ctaLabel={hasStripeProduct ? "Acceder ahora" : "Registrarse ahora"}
+        />
+      </main>
+    </EditModeProvider>
   );
 }
 
 export async function findLaunchBySlugOrNotFound(slug: string) {
-  const [launch] = await db.select().from(launches).where(eq(launches.slug, slug)).limit(1);
+  const [launch] = await db
+    .select()
+    .from(launches)
+    .where(eq(launches.slug, slug))
+    .limit(1);
   if (!launch) notFound();
   return launch;
 }

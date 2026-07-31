@@ -17,6 +17,7 @@ import {
 } from "@/ai/prompts/page-blocks";
 import type { EditTarget } from "@/components/public/edit-mode";
 import type { PageBlock } from "@/components/public/page-bodies";
+import { LAYOUT_PRESETS } from "@/components/public/landing-types";
 import type {
   LandingSectionKey,
   SectionDesign,
@@ -378,35 +379,81 @@ export async function addBlockAction(formData: FormData) {
 }
 
 /**
- * Moves a block one position up or down.
+ * Swaps the band pointed at with its neighbour — the ↑↓ arrows.
  *
- * The design list is positional, so it has to move with the block — otherwise the
- * band that moved keeps the background of the one now in its place, which reads as
- * the edit having gone wrong.
+ * The form carries WHAT to swap with (`swapWith`) rather than a direction, because
+ * the two page families count positions differently. A simple page's blocks are an
+ * array, but the sales page's sections are keys in `sectionOrder` whose visible
+ * sequence is shorter than the stored one: a section with no content renders
+ * nothing, so "one position up" in the stored order is not the band the admin sees
+ * above. Sending the neighbour's identity removes that guesswork.
  */
-export async function moveBlockAction(formData: FormData) {
+export async function movePartAction(formData: FormData) {
   const launchId = String(formData.get("launchId") ?? "");
   const pageKey = String(formData.get("pageKey") ?? "");
-  const direction = String(formData.get("direction") ?? "");
   const target = parseTarget(formData);
-  if (target.kind !== "block" || target.index < 0)
-    throw new Error("target_invalid");
-  if (direction !== "up" && direction !== "down")
-    throw new Error("direction_invalid");
+
+  let swapWith: EditTarget;
+  try {
+    swapWith = JSON.parse(
+      String(formData.get("swapWith") ?? "{}"),
+    ) as EditTarget;
+  } catch {
+    throw new Error("swap_target_invalid");
+  }
+  if (swapWith.kind !== target.kind) throw new Error("swap_target_invalid");
 
   const { launch, pageDef, asset } = await loadPage(launchId, pageKey);
   const body = (asset.body ?? {}) as Record<string, unknown>;
-  const blocks = (body.blocks ?? []) as PageBlock[];
 
+  if (target.kind === "section" && swapWith.kind === "section") {
+    // Materialize the order before touching it: until someone reorders, the page
+    // renders the launch type's preset and `sectionOrder` is absent, so swapping
+    // inside an empty array would silently do nothing.
+    const stored = (body.sectionOrder ?? []) as string[];
+    const order = stored.length
+      ? [...stored]
+      : [
+          ...(LAYOUT_PRESETS[launch.type as keyof typeof LAYOUT_PRESETS] ??
+            LAYOUT_PRESETS.plf),
+        ];
+
+    const from = order.indexOf(target.key);
+    const to = order.indexOf(swapWith.key);
+    if (from < 0 || to < 0) return;
+    [order[from], order[to]] = [order[to]!, order[from]!];
+    body.sectionOrder = order;
+
+    // No design list to shift here: on the sales page the design is keyed by
+    // section name, so it follows the section by itself.
+    await savePage(
+      asset.id,
+      launch.slug,
+      pageKey,
+      pagePath(launch.slug, pageDef),
+      body,
+    );
+    return;
+  }
+
+  if (target.kind !== "block" || swapWith.kind !== "block") {
+    throw new Error("target_invalid");
+  }
+
+  const blocks = (body.blocks ?? []) as PageBlock[];
   const from = target.index;
-  const to = direction === "up" ? from - 1 : from + 1;
+  const to = swapWith.index;
   // Silently ignore a move off either end: the arrows are hidden there anyway, and
   // throwing would turn a harmless double-click into an error page.
-  if (to < 0 || to >= blocks.length) return;
+  if (from < 0 || to < 0 || from >= blocks.length || to >= blocks.length)
+    return;
 
   [blocks[from], blocks[to]] = [blocks[to]!, blocks[from]!];
   body.blocks = blocks;
 
+  // Here the design list IS positional, so it has to move with the block —
+  // otherwise the band that moved keeps the background of the one now in its
+  // place, which reads as the edit having gone wrong.
   const design = (body.design ?? {}) as {
     hero?: SectionDesign;
     blocks?: SectionDesign[];
