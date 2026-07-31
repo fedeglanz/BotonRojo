@@ -121,10 +121,12 @@ export function resolveSemanticColors(
     borderStrong: rgba(foreground, a11y.highContrast ? 0.55 : 0.28),
     focus: accent,
     // Status hues stay conventional on purpose: a brand-red "success" would
-    // stop communicating success.
-    success: "#34d399",
-    warning: "#fbbf24",
-    danger: "#f87171",
+    // stop communicating success. But the shade has to follow the mode — the
+    // light mints and ambers that read well on black drop to ~1.9:1 on white,
+    // so the light theme takes the saturated versions instead.
+    ...(mode === "dark"
+      ? { success: "#34d399", warning: "#fbbf24", danger: "#f87171" }
+      : { success: "#047857", warning: "#b45309", danger: "#b91c1c" }),
   };
 }
 

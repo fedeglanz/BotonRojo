@@ -43,11 +43,25 @@ const server = http.createServer(async (req, res) => {
   let page;
   try {
     const raw = await readBody(req);
-    const { url, width = 1280, height = 900, fullPage = false, type = "jpeg", quality = 75 } = JSON.parse(raw);
+    const {
+      url,
+      width = 1280,
+      height = 900,
+      fullPage = false,
+      type = "jpeg",
+      quality = 75,
+      // Defaults to "reduce" deliberately. The landing sections reveal on
+      // scroll via framer-motion, which starts them at opacity 0 — and a
+      // fullPage screenshot resizes the viewport instead of scrolling, so
+      // whileInView never fires and everything below the hero came out blank.
+      // The design review was grading those blank captures. With reduced
+      // motion the components render in their settled state.
+      reducedMotion = "reduce",
+    } = JSON.parse(raw);
     if (!url) throw new Error("missing_url");
 
     const browser = await getBrowser();
-    page = await browser.newPage({ viewport: { width, height } });
+    page = await browser.newPage({ viewport: { width, height }, reducedMotion });
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: 25000 });
     } catch {

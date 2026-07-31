@@ -108,7 +108,14 @@ async function autoResolveImage(prompt: string | undefined | null): Promise<stri
   return undefined;
 }
 
-const VALID_CARD_STYLES: LandingCardStyle[] = ["glass", "flat", "outline", "soft"];
+const VALID_CARD_STYLES: LandingCardStyle[] = [
+  "glass",
+  "flat",
+  "outline",
+  "soft",
+  "brutal",
+  "editorial",
+];
 
 /**
  * Post-generation visual QA: screenshots the page that was just written to

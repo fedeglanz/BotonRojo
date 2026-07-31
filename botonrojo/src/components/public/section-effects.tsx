@@ -17,10 +17,12 @@ export function SectionOrbitLayer({ items }: { items: SectionOrbitItem[] }) {
     // would swallow those events. `pointer-events-none` here means only the
     // labels themselves are interactive, so the copy underneath stays
     // selectable everywhere else.
+    //
+    // The ring and the core glow are NOT here — see SectionOrbitBackdrop. At
+    // z-20 the core's blue glow sat on top of the copy and visibly tinted the
+    // words it covered.
     <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
       <div className="fx-orbit">
-        <div className="fx-orbit__ring" aria-hidden />
-        <div className="fx-orbit__core" aria-hidden />
         <div className="fx-orbit__spinner">
           {ring.map((item, i) => {
             // Offset by half a step so no label sits dead-centre top or bottom,
@@ -55,6 +57,25 @@ export function SectionOrbitLayer({ items }: { items: SectionOrbitItem[] }) {
   );
 }
 
+/**
+ * The orbit's decorative half — ring and central glow — drawn behind the
+ * content, while the labels ride above it in SectionOrbitLayer. Splitting them
+ * is what keeps the copy readable and the labels clickable at the same time.
+ */
+export function SectionOrbitBackdrop() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+    >
+      <div className="fx-orbit">
+        <div className="fx-orbit__ring" />
+        <div className="fx-orbit__core" />
+      </div>
+    </div>
+  );
+}
+
 /** Large basic geometry in brand colour — circles, arcs and lines. */
 function Geometry() {
   return (
@@ -84,5 +105,6 @@ export function SectionEffectLayer({ effect }: { effect: SectionEffect }) {
   if (effect === "aurora") return <div className="fx-aurora" aria-hidden />;
   if (effect === "grid") return <div className="fx-grid" aria-hidden />;
   if (effect === "geometry") return <Geometry />;
+  if (effect === "orbit") return <SectionOrbitBackdrop />;
   return null;
 }

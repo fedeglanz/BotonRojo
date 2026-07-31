@@ -1,5 +1,5 @@
 import Script from "next/script";
-import { BrandStyle } from "@/components/public/brand-style";
+import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
 import { Reveal, RevealItem } from "@/components/public/reveal";
 import { LeadForm } from "@/components/public/lead-form";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
@@ -43,16 +43,22 @@ export function RegistroPage({ launch, body }: { launch: Launch; body: RegistroP
 
         <Reveal className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-none" id="cta">
           {body?.imageUrl && (
-            <div className="mb-6 aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
+            <div className="mb-6 aspect-[4/3] overflow-hidden rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-[0_30px_60px_-20px_var(--color-red-glow)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={body.imageUrl} alt={headline} className="h-full w-full object-cover" />
             </div>
           )}
-          <LeadForm launchSlug={launch.slug} buttonLabel={body?.cta ?? "Apúntame"} action={captureLeadAction} compact />
+          <LeadForm
+            launchSlug={launch.slug}
+            buttonLabel={body?.cta ?? "Apúntame"}
+            action={captureLeadAction}
+            compact
+            cardStyle={defaultCardStyleFor(launch.brandPalette)}
+          />
         </Reveal>
       </section>
 
-      <footer className="border-t border-white/10 py-8 pb-28 text-center text-xs text-[--color-muted-3]">
+      <footer className="border-t border-[--color-border] py-8 pb-28 text-center text-xs text-[--color-muted-3]">
         {new Date().getFullYear()}
       </footer>
 

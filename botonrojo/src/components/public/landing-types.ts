@@ -71,11 +71,13 @@ export type LandingAgendaItem = { time: string; topic: string };
 /**
  * How "boxes" (registration form, pain/solution blocks, includes cards,
  * testimonials, guarantee) are rendered. "glass" is Botón Rojo's own dark
- * HUD look (blurred dark card + corner brackets) — the other three are
- * flatter, lighter-weight treatments for when that reads as dated or
- * mismatched with a lighter/more editorial brand.
+ * HUD look (blurred dark card + corner brackets) and stays the default — the
+ * rest are for brands that read as dated or mismatched in it.
+ *
+ * Resolved by `resolveVisualStyle` in lib/design/presets.ts, which is also
+ * where the padding-by-density and hover treatments live.
  */
-export type LandingCardStyle = "glass" | "flat" | "outline" | "soft";
+export type LandingCardStyle = "glass" | "flat" | "outline" | "soft" | "brutal" | "editorial";
 
 export type LandingStyle = {
   cardStyle?: LandingCardStyle;

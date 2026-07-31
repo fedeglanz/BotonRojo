@@ -125,14 +125,16 @@ export const BACKGROUND_PRESETS: Record<BackgroundPreset, ResolvedBackground> = 
     forcesLightText: false,
   },
   // Forces light text: on a light brand the page foreground is near-black and
-  // would be invisible against this band.
+  // would be invisible against this band. Fully opaque, not white/90 — a
+  // translucent letter over the orbit's glow lets the glow show through and the
+  // word reads as tinted.
   dark: {
-    className: "bg-[color-mix(in_srgb,var(--color-fg)_4%,black_88%)] text-white [&_*]:!text-white/90",
+    className: "bg-[color-mix(in_srgb,var(--color-fg)_4%,black_88%)] text-white [&_*]:!text-white",
     needsPhoto: false,
     forcesLightText: true,
   },
   photo: {
-    className: "text-white [&_*]:!text-white/90",
+    className: "text-white [&_*]:!text-white",
     needsPhoto: true,
     forcesLightText: true,
   },

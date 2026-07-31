@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { LeadForm } from "@/components/public/lead-form";
 import type { LandingCardStyle } from "@/components/public/landing-types";
@@ -27,13 +27,23 @@ export function CtaBlock({
   compact = false,
   cardStyle,
 }: Props) {
+  const reduced = useReducedMotion();
+
   return (
+    // `animate`, never `whileInView`, and `animate` is set unconditionally.
+    // Two ways this block used to end up permanently invisible — and it holds
+    // the page's final CTA, so "invisible" meant no conversion point at all:
+    //   1. `whileInView` starting from opacity 0 never fires if the observer
+    //      doesn't run (reduced motion, a headless render, an offscreen mount).
+    //   2. `useReducedMotion()` returns null on the server, so opacity 0 is
+    //      already in the HTML before the preference is known; dropping
+    //      `animate` for reduced motion then left nothing to undo it.
+    // So the animation always runs and always ends visible — reduced motion
+    // only collapses its duration.
     <motion.div
       initial={{ opacity: 0, y: 16 }}
-      animate={compact ? { opacity: 1, y: 0 } : undefined}
-      whileInView={compact ? undefined : { opacity: 1, y: 0 }}
-      viewport={compact ? undefined : { once: true, margin: "-100px" }}
-      transition={{ duration: 0.6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.6 }}
       className={`mx-auto max-w-2xl px-6 text-center ${compact ? "py-4" : "py-16"}`}
     >
       {hasStripeProduct && productSlug ? (

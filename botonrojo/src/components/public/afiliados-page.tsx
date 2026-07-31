@@ -54,7 +54,7 @@ export function AfiliadosPage({
         </Reveal>
       </div>
 
-      <footer className="border-t border-white/10 py-8 text-center text-xs text-[--color-muted-3]">
+      <footer className="border-t border-[--color-border] py-8 text-center text-xs text-[--color-muted-3]">
         {new Date().getFullYear()}
       </footer>
     </main>

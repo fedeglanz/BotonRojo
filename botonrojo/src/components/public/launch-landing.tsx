@@ -22,8 +22,8 @@ import {
   TestimonialsSection,
   type PricingProduct,
 } from "@/components/public/landing-sections";
-import type { LandingBody } from "@/components/public/landing-types";
-import { BrandStyle } from "@/components/public/brand-style";
+import type { LandingBody, LandingCardStyle } from "@/components/public/landing-types";
+import { BrandStyle, defaultCardStyleFor } from "@/components/public/brand-style";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
 import { SectionShell } from "@/components/public/section-shell";
 
@@ -31,7 +31,35 @@ import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
 import type { Launch, LaunchType } from "@/db/schema/launches";
 
-type RenderCtx = { products: PricingProduct[]; cartClosesAt: Date | null };
+type RenderCtx = {
+  products: PricingProduct[];
+  cartClosesAt: Date | null;
+  /** Already resolved against the brand, so a section never has to
+   *  fall back to `glass` (which is always a dark card). */
+  cardStyle: LandingCardStyle;
+};
+
+/**
+ * Last line of defence for text sections. Data saved before shape validation
+ * existed (or hand-edited since) can hold an object where a string belongs;
+ * rendering that throws "Objects are not valid as a React child" and takes the
+ * whole public page down. Better to show the salvageable text, or nothing.
+ */
+function asText(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const inner = value as Record<string, unknown>;
+    if (typeof inner.text === "string") return inner.text;
+    // One level of accidental wrapping, e.g. { amplifiedPromise: { text } }.
+    for (const nested of Object.values(inner)) {
+      if (typeof nested === "string") return nested;
+      if (nested && typeof nested === "object" && typeof (nested as { text?: unknown }).text === "string") {
+        return (nested as { text: string }).text;
+      }
+    }
+  }
+  return null;
+}
 
 // Middle-of-page sections (everything between the hero and the final CTA),
 // keyed so each launch type can order/include them differently — a
@@ -42,11 +70,13 @@ const MIDDLE_SECTION_RENDERERS = {
     landing.forWhom && (landing.forWhom.yes?.length || landing.forWhom.no?.length) ? (
       <ForWhomSection key="forWhom" data={landing.forWhom} />
     ) : null,
-  amplifiedPromise: (landing: LandingBody) =>
-    landing.amplifiedPromise ? <AmplifiedPromiseSection key="amplifiedPromise" text={landing.amplifiedPromise} /> : null,
-  painBlocks: (landing: LandingBody) =>
+  amplifiedPromise: (landing: LandingBody) => {
+    const text = asText(landing.amplifiedPromise);
+    return text ? <AmplifiedPromiseSection key="amplifiedPromise" text={text} /> : null;
+  },
+  painBlocks: (landing: LandingBody, ctx: RenderCtx) =>
     landing.painBlocks && landing.painBlocks.length > 0 ? (
-      <PainSolutionSection key="painBlocks" blocks={landing.painBlocks} cardStyle={landing.style?.cardStyle} />
+      <PainSolutionSection key="painBlocks" blocks={landing.painBlocks} cardStyle={ctx.cardStyle} />
     ) : null,
   speakers: (landing: LandingBody) =>
     landing.speakers && landing.speakers.length > 0 ? (
@@ -54,9 +84,9 @@ const MIDDLE_SECTION_RENDERERS = {
     ) : null,
   agenda: (landing: LandingBody) =>
     landing.agenda && landing.agenda.length > 0 ? <AgendaSection key="agenda" items={landing.agenda} /> : null,
-  includes: (landing: LandingBody) =>
+  includes: (landing: LandingBody, ctx: RenderCtx) =>
     landing.includes && landing.includes.length > 0 ? (
-      <IncludesSection key="includes" items={landing.includes} cardStyle={landing.style?.cardStyle} />
+      <IncludesSection key="includes" items={landing.includes} cardStyle={ctx.cardStyle} />
     ) : null,
   pricingTiers: (landing: LandingBody, ctx: RenderCtx) =>
     landing.pricingTiers && landing.pricingTiers.length > 1 && ctx.products.length > 1 ? (
@@ -66,7 +96,7 @@ const MIDDLE_SECTION_RENDERERS = {
         products={ctx.products}
         scarcityNote={landing.scarcityNote}
         startCheckoutAction={startCheckoutAction}
-        cardStyle={landing.style?.cardStyle}
+        cardStyle={ctx.cardStyle}
       />
     ) : null,
   countdown: (landing: LandingBody, ctx: RenderCtx) =>
@@ -74,15 +104,17 @@ const MIDDLE_SECTION_RENDERERS = {
       <CountdownSection key="countdown" targetDate={ctx.cartClosesAt.toISOString()} />
     ) : null,
   about: (landing: LandingBody) => (landing.about ? <AboutSection key="about" data={landing.about} /> : null),
-  testimonials: (landing: LandingBody) =>
+  testimonials: (landing: LandingBody, ctx: RenderCtx) =>
     landing.testimonials && landing.testimonials.length > 0 ? (
-      <TestimonialsSection key="testimonials" items={landing.testimonials} cardStyle={landing.style?.cardStyle} />
+      <TestimonialsSection key="testimonials" items={landing.testimonials} cardStyle={ctx.cardStyle} />
     ) : null,
-  guarantee: (landing: LandingBody) =>
-    landing.guarantee ? <GuaranteeSection key="guarantee" text={landing.guarantee} cardStyle={landing.style?.cardStyle} /> : null,
-  faq: (landing: LandingBody) =>
+  guarantee: (landing: LandingBody, ctx: RenderCtx) => {
+    const text = asText(landing.guarantee);
+    return text ? <GuaranteeSection key="guarantee" text={text} cardStyle={ctx.cardStyle} /> : null;
+  },
+  faq: (landing: LandingBody, ctx: RenderCtx) =>
     landing.faq && landing.faq.length > 0 ? (
-      <FaqSection key="faq" items={landing.faq} cardStyle={landing.style?.cardStyle} />
+      <FaqSection key="faq" items={landing.faq} cardStyle={ctx.cardStyle} />
     ) : null,
 } as const;
 
@@ -137,6 +169,9 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
   const finalCtaHeadline = landing?.finalCta?.headline ?? "¿Te apuntas?";
 
   const palette = launch.brandPalette;
+  // The generator may not set a box style; the fallback has to follow the
+  // brand, since `glass` is always a dark card.
+  const cardStyle = landing?.style?.cardStyle ?? defaultCardStyleFor(palette);
   const fonts = launch.brandFonts;
 
   return (
@@ -155,7 +190,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
       {/* HERO — sized to the viewport and vertically centered so the CTA/form
           is visible without scrolling, on mobile and desktop alike. */}
       <section className="relative mx-auto flex min-h-[100svh] max-w-3xl flex-col items-center justify-center px-6 py-6 text-center">
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-widest text-[--color-muted-1] sm:mb-4">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[--color-border] bg-[--color-surface] px-3 py-1 text-xs uppercase tracking-widest text-[--color-muted-1] sm:mb-4">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[--color-red]" />
           {launch.type.replace("_", " ")}
         </div>
@@ -183,7 +218,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             startCheckoutAction={startCheckoutAction}
             captureLeadAction={captureLeadAction}
             compact
-            cardStyle={landing?.style?.cardStyle}
+            cardStyle={cardStyle}
           />
         </div>
       </section>
@@ -202,6 +237,7 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
             const rendered = MIDDLE_SECTION_RENDERERS[key]?.(landing, {
               products: activeProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
               cartClosesAt: launch.cartClosesAt,
+              cardStyle,
             });
             if (!rendered) return null;
             return (
@@ -212,25 +248,33 @@ export async function LaunchLandingPage({ launch, pageKey = "main" }: { launch: 
           },
         )}
 
-      {/* FINAL CTA */}
-      <section className="relative mx-auto max-w-3xl px-6 py-20 text-center">
-        <h2 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-5xl">
-          {finalCtaHeadline}
-        </h2>
-        <div className="mt-10">
-          <CtaBlock
-            launchSlug={launch.slug}
-            buttonLabel={finalCtaLabel}
-            hasStripeProduct={hasStripeProduct}
-            productSlug={product?.slug ?? null}
-            startCheckoutAction={startCheckoutAction}
-            captureLeadAction={captureLeadAction}
-            cardStyle={landing?.style?.cardStyle}
-          />
-        </div>
-      </section>
+      {/* FINAL CTA — also wrapped in SectionShell: it's a visible band like any
+          other, so it can take a background, full height and an effect. */}
+      <SectionShell design={landing?.sectionDesign?.finalCta}>
+        <section className="relative mx-auto max-w-3xl px-6 py-20 text-center">
+          <h2 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-5xl">
+            {finalCtaHeadline}
+          </h2>
+          {landing?.finalCta?.subheadline && (
+            <p className="mx-auto mt-4 max-w-xl text-balance text-[--color-muted-1]">
+              {landing.finalCta.subheadline}
+            </p>
+          )}
+          <div className="mt-10">
+            <CtaBlock
+              launchSlug={launch.slug}
+              buttonLabel={finalCtaLabel}
+              hasStripeProduct={hasStripeProduct}
+              productSlug={product?.slug ?? null}
+              startCheckoutAction={startCheckoutAction}
+              captureLeadAction={captureLeadAction}
+              cardStyle={cardStyle}
+            />
+          </div>
+        </section>
+      </SectionShell>
 
-      <footer className="border-t border-white/10 py-8 pb-28 text-center text-xs text-[--color-muted-3]">
+      <footer className="border-t border-[--color-border] py-8 pb-28 text-center text-xs text-[--color-muted-3]">
         Escuela Nómada Digital · {new Date().getFullYear()}
       </footer>
 

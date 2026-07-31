@@ -63,7 +63,8 @@ se pueda corregir desde el contenido.
 Qué SÍ puedes cambiar:
 - Acortar textos que desbordan o se parten mal (titulares, textos de botón, etiquetas).
 - Acortar o partir párrafos gigantes en varios más cortos.
-- "style.cardStyle" a uno de estos 4 valores si el actual no encaja: "glass", "flat", "outline", "soft".
+- "style.cardStyle" a uno de estos 6 valores si el actual no encaja: "glass", "flat", "outline",
+  "soft", "brutal", "editorial".
 - Quitar una sección entera (borrando su clave) si el problema es que sobra o está vacía.
 - "sectionOrder" para reordenar secciones si el problema es de orden.
 

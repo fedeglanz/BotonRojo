@@ -1,5 +1,7 @@
-import { googleFontsUrl, hexToRgba } from "@/lib/brand-kit";
+import { googleFontsUrl } from "@/lib/brand-kit";
+import { resolveTheme, themeToCssVars } from "@/lib/design/theme";
 import type { BrandPalette, BrandFonts } from "@/db/schema/launches";
+import type { LandingCardStyle } from "@/components/public/landing-types";
 
 type Props = {
   palette: BrandPalette | null;
@@ -7,40 +9,59 @@ type Props = {
 };
 
 /**
- * Shared per-launch theming for every public-facing page (landing, gracias):
- * hides Botón Rojo's own app-shell ambient effects (a client's page isn't our
- * dashboard), and derives muted-text tones from the foreground so copy stays
- * legible whether the brand kit is light or dark.
+ * Shared per-launch theming for every public-facing page (landing, gracias,
+ * registro, contenido, legal, afiliados).
+ *
+ * The whole semantic set is resolved in TypeScript from the approved palette
+ * (lib/design/theme.ts) instead of being patched var by var here. That is what
+ * makes light mode actually work: a white background needs its surfaces mixed
+ * towards black and its hairlines dark, and overriding `--color-bg` alone never
+ * got you there — cards stayed near-black and borders invisible.
+ *
+ * The mode is DERIVED from the palette, never from the visitor's OS: a brand
+ * that approved a white page must not flip to dark because someone's phone is
+ * in dark mode.
  */
 export function BrandStyle({ palette, fonts }: Props) {
-  const foreground = palette?.foreground ?? "#f4f4f5";
+  const theme = resolveTheme({ palette });
+  const vars = Object.entries(themeToCssVars(theme))
+    .map(([name, value]) => `${name}: ${value};`)
+    .join("\n          ");
 
   return (
     <>
       <style>{`
+        /* A client's page isn't our dashboard: hide Botón Rojo's own app-shell
+           ambient effects. */
         .mesh-bg, .circuit-grid, .vignette { display: none; }
-        body {
-          --color-muted-1: ${hexToRgba(foreground, 0.82)};
-          --color-muted-2: ${hexToRgba(foreground, 0.58)};
-          --color-muted-3: ${hexToRgba(foreground, 0.42)};
+
+        /* "html:root" rather than plain ":root" on purpose: it outweighs the
+           "html, body" rule in globals.css regardless of stylesheet order, so
+           the page background follows the brand instead of racing it. The
+           variables then inherit down to everything. */
+        html:root {
+          color-scheme: ${theme.mode};
+          ${vars}
+          ${fonts ? `--font-display: "${fonts.display}", "Inter", system-ui, sans-serif;` : ""}
+          ${fonts ? `--font-sans: "${fonts.body}", system-ui, sans-serif;` : ""}
         }
       `}</style>
-      {palette && (
-        <style>{`
-          body {
-            --color-red: ${palette.primary};
-            --color-red-bright: ${palette.primary};
-            --color-red-glow: ${hexToRgba(palette.primary, 0.55)};
-            --color-accent: ${palette.accent};
-            --color-accent-glow: ${hexToRgba(palette.accent, 0.45)};
-            --color-bg: ${palette.background};
-            --color-fg: ${palette.foreground};
-            ${fonts ? `--font-display: "${fonts.display}", "Inter", system-ui, sans-serif;` : ""}
-            ${fonts ? `--font-sans: "${fonts.body}", system-ui, sans-serif;` : ""}
-          }
-        `}</style>
-      )}
       {fonts && <link rel="stylesheet" href={googleFontsUrl(fonts)} />}
     </>
   );
+}
+
+/** The mode a launch resolves to, for callers that need it outside CSS. */
+export function brandThemeMode(palette: BrandPalette | null): "light" | "dark" {
+  return resolveTheme({ palette }).mode;
+}
+
+/**
+ * Which box treatment to use when the launch hasn't chosen one. `glass` is
+ * always a dark blurred card, so on a light brand it landed as a near-black
+ * panel in the middle of a white page — with its own fixed light-on-dark labels.
+ * `soft` is the light-mode equivalent: same weight, follows the palette.
+ */
+export function defaultCardStyleFor(palette: BrandPalette | null): LandingCardStyle {
+  return brandThemeMode(palette) === "light" ? "soft" : "glass";
 }

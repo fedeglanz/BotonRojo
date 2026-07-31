@@ -23,7 +23,7 @@ export function LegalPage({ launch, body }: { launch: Launch; body: LegalPageBod
       <BrandStyle palette={launch.brandPalette} fonts={launch.brandFonts} />
 
       <div className="mx-auto max-w-4xl px-6 py-16">
-        <header className="border-b border-white/10 pb-8">
+        <header className="border-b border-[--color-border] pb-8">
           <div className="text-xs uppercase tracking-widest text-[--color-muted-3]">{launch.name}</div>
           <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-extrabold leading-tight md:text-4xl">
             {body?.title ?? "Documento legal"}
@@ -48,7 +48,7 @@ export function LegalPage({ launch, body }: { launch: Launch; body: LegalPageBod
         </article>
       </div>
 
-      <footer className="border-t border-white/10 py-8 text-center text-xs text-[--color-muted-3]">
+      <footer className="border-t border-[--color-border] py-8 text-center text-xs text-[--color-muted-3]">
         {launch.name} · {new Date().getFullYear()}
       </footer>
     </main>
