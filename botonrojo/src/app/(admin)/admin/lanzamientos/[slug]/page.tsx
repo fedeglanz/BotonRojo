@@ -15,7 +15,6 @@ import {
   updateMarcoCopyAction,
   generateAllPagesAction,
   regenerateSinglePageAction,
-  updatePageBodyAction,
   updateLandingInstructionsAction,
   generateEmailsAction,
   generateAdsAction,
@@ -24,13 +23,9 @@ import {
   updateReferenceUrlAction,
   updateCartScheduleAction,
   updateContentDripScheduleAction,
-  applyDesignFixesAction,
   provisionActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
   scheduleAcCampaignsAction,
-  refineLandingSectionAction,
-  updateSectionRawAction,
-  setSectionImageAction,
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
@@ -44,14 +39,12 @@ import {
   generateMilestonesAction,
   updateMilestoneAction,
   analyzeCalendarAction,
-  updateSectionDesignAction,
   generateBrandKitAction,
   updateBrandKitAction,
   approveBrandKitAction,
   updateBrandLogoAction,
 } from "@/server/launches";
 import { resolvePages, pagePath } from "@/lib/launch-pages";
-import { SimplePageEditor } from "@/components/admin/simple-page-editor";
 import { ContentDripForm } from "@/components/admin/content-drip-form";
 import { AdsPanel } from "@/components/admin/ads-panel";
 import { AdStaticsGenerator } from "@/components/admin/ad-statics-generator";
@@ -61,10 +54,10 @@ import { listMediaItems } from "@/server/media";
 
 import { WizardStep } from "@/components/admin/wizard-step";
 import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
+import { PageIndex } from "@/components/admin/page-index";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
-import { LandingEditor } from "@/components/admin/landing-editor";
 import { EmailSequence } from "@/components/admin/email-sequence";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
@@ -75,8 +68,6 @@ import { BrandKitPanel } from "@/components/admin/brand-kit-panel";
 import { LandingInstructionsForm } from "@/components/admin/landing-instructions-form";
 import { ReferenceUrlForm } from "@/components/admin/reference-url-form";
 import { CartScheduleForm } from "@/components/admin/cart-schedule-form";
-import { DesignReviewPanel } from "@/components/admin/design-review-panel";
-import type { LandingBody } from "@/components/public/landing-types";
 import { listDomainsForLaunch, addDomainAction, verifyDomainAction, removeDomainAction } from "@/server/domains";
 import { env } from "@/lib/env";
 
@@ -133,21 +124,6 @@ export default async function LaunchHubPage(props: {
   for (const a of allLandingAssets) {
     if (!latestByPageKey.has(a.pageKey)) latestByPageKey.set(a.pageKey, a);
   }
-
-  // Load all landing versions with author info (no body to keep it light) —
-  // scoped to the venta page specifically.
-  const landingVersions = await db
-    .select({
-      id: assets.id,
-      createdAt: assets.createdAt,
-      generatedByAi: assets.generatedByAi,
-      authorEmail: users.email,
-      authorName: users.name,
-    })
-    .from(assets)
-    .leftJoin(users, eq(assets.authorId, users.id))
-    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, ventaPage.pageKey)))
-    .orderBy(desc(assets.createdAt));
 
   const landingAsset = latestByPageKey.get(ventaPage.pageKey) ?? null;
 
@@ -304,13 +280,13 @@ export default async function LaunchHubPage(props: {
             </span>
           </p>
         </div>
+        {/* No single "view public page" link: a launch has up to nine URLs, so
+            each one is opened from the page index instead. */}
         <Link
-          href={`/${launch.slug}`}
-          target="_blank"
-          rel="noreferrer"
+          href={`/admin/lanzamientos/${launch.slug}?seccion=paginas`}
           className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[--color-red]"
         >
-          Ver landing pública ↗
+          Ver sus {pages.length} páginas →
         </Link>
       </header>
 
@@ -440,72 +416,35 @@ export default async function LaunchHubPage(props: {
           />
         )}
 
-        {pages.length > 1 && (
-          <div className="mb-6 space-y-2">
-            <div className="text-xs uppercase tracking-widest text-zinc-400">Otras páginas</div>
-            {pages
-              .filter((p) => p.pageKey !== ventaPage.pageKey)
-              .map((p) => (
-                <SimplePageEditor
-                  key={p.pageKey}
-                  launchId={launch.id}
-                  pageKey={p.pageKey}
-                  label={p.label}
-                  kind={p.kind}
-                  href={pagePath(launch.slug, p)}
-                  hasContent={latestByPageKey.has(p.pageKey)}
-                  body={(latestByPageKey.get(p.pageKey)?.body as Record<string, unknown>) ?? null}
-                  regenerateAction={regenerateSinglePageAction}
-                  updateAction={updatePageBodyAction}
-                />
-              ))}
-          </div>
-        )}
-
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs uppercase tracking-widest text-zinc-400">
-            {ventaPage.label} — edición detallada
-          </div>
-          <Link
-            href={pagePath(launch.slug, ventaPage)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-md border border-white/20 bg-white/[0.08] px-3 py-1.5 text-xs uppercase tracking-widest text-zinc-100 transition hover:border-[--color-red] hover:bg-white/15"
-          >
-            Ver {ventaPage.label.toLowerCase()} ↗
-          </Link>
-        </div>
-        <DesignReviewPanel
-          review={landingAsset?.designReview}
-          launchId={launch.id}
-          pageKey={ventaPage.pageKey}
-          fixAction={applyDesignFixesAction}
-        />
-        <ReferenceUrlForm
-          launchId={launch.id}
-          currentUrl={launch.referenceUrl}
-          saveAction={updateReferenceUrlAction}
-        />
-        <CartScheduleForm
-          launchId={launch.id}
-          currentCartClosesAt={launch.cartClosesAt}
-          saveAction={updateCartScheduleAction}
-        />
-        <LandingInstructionsForm
-          launchId={launch.id}
-          currentInstructions={launch.landingGeneralInstructions}
-          saveAction={updateLandingInstructionsAction}
-        />
-        <LandingEditor
-          launchId={launch.id}
+        <PageIndex
+          pages={pages}
           launchSlug={launch.slug}
-          body={(landingAsset?.body ?? null) as LandingBody | null}
-          versions={landingVersions}
-          refineAction={refineLandingSectionAction}
-          rawUpdateAction={updateSectionRawAction}
-          imageSaveAction={setSectionImageAction}
-          designAction={updateSectionDesignAction}
+          generatedKeys={new Set(latestByPageKey.keys())}
+          dripStartsAt={launch.contentDripStartsAt}
         />
+
+        {/* Generation inputs: they steer every page, so they belong with the
+            index rather than inside one page's editor. */}
+        <div className="mt-6 space-y-3 border-t border-white/5 pt-5">
+          <div className="text-xs uppercase tracking-widest text-zinc-400">
+            Cómo se generan las páginas
+          </div>
+          <ReferenceUrlForm
+            launchId={launch.id}
+            currentUrl={launch.referenceUrl}
+            saveAction={updateReferenceUrlAction}
+          />
+          <CartScheduleForm
+            launchId={launch.id}
+            currentCartClosesAt={launch.cartClosesAt}
+            saveAction={updateCartScheduleAction}
+          />
+          <LandingInstructionsForm
+            launchId={launch.id}
+            currentInstructions={launch.landingGeneralInstructions}
+            saveAction={updateLandingInstructionsAction}
+          />
+        </div>
       </WizardStep>
 
       </>

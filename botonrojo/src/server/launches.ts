@@ -495,6 +495,9 @@ type PageGenCtx = {
   userId: string;
   launchProducts: Array<{ slug: string; name: string; priceCents: number; currency: string }>;
   referenceSummary: string | null;
+  /** What the admin typed next to the regenerate button for this page. Beats the
+   *  launch-wide instructions, because it's the more specific of the two. */
+  pageInstruction?: string | null;
 };
 
 async function insertPageAsset(
@@ -529,7 +532,7 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       launch.painPoints ?? [],
       launch.benefits ?? [],
       { palette: launch.brandPalette!, fonts: launch.brandFonts! },
-      launch.landingGeneralInstructions,
+      [launch.landingGeneralInstructions, ctx.pageInstruction].filter(Boolean).join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
     ),
@@ -573,7 +576,7 @@ async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageG
 
   const { text } = await complete({
     system: REGISTRO_SYSTEM,
-    prompt: registroPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, channel),
+    prompt: registroPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, channel, ctx.pageInstruction),
     maxTokens: 2000,
     temperature: 0.7,
   });
@@ -596,7 +599,15 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
 
   const { text } = await complete({
     system: CONTENIDO_SYSTEM,
-    prompt: contenidoPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, launch.benefits ?? [], index, total),
+    prompt: contenidoPrompt(
+      launch.name,
+      launch.avatar as AvatarBrief,
+      launch.promise!,
+      launch.benefits ?? [],
+      index,
+      total,
+      ctx.pageInstruction,
+    ),
     maxTokens: 3000,
     temperature: 0.7,
   });
@@ -616,7 +627,7 @@ async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 
   const { text } = await complete({
     system: LEGAL_SYSTEM,
-    prompt: legalPrompt(orgName, legalKey, launch.name),
+    prompt: legalPrompt(orgName, legalKey, launch.name, ctx.pageInstruction),
     maxTokens: 3000,
     temperature: 0.4,
   });
@@ -628,7 +639,12 @@ async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
 async function generateAfiliadosPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
   const { text } = await complete({
     system: AFILIADOS_SYSTEM,
-    prompt: afiliadosPrompt(launch.name, launch.promise!, launch.affiliateCommissionRate ?? 3000),
+    prompt: afiliadosPrompt(
+      launch.name,
+      launch.promise!,
+      launch.affiliateCommissionRate ?? 3000,
+      ctx.pageInstruction,
+    ),
     maxTokens: 1500,
     temperature: 0.7,
   });
@@ -691,7 +707,11 @@ export async function generateAllPagesAction(launchId: string) {
 }
 
 /** Regenerates a single already-existing (or not-yet-existing) page. */
-export async function regenerateSinglePageAction(launchId: string, pageKey: string) {
+export async function regenerateSinglePageAction(
+  launchId: string,
+  pageKey: string,
+  formData?: FormData,
+) {
   const { user, organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
@@ -702,11 +722,30 @@ export async function regenerateSinglePageAction(launchId: string, pageKey: stri
   const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
+  // Remembered per page in assetsCache, so regenerating twice doesn't mean
+  // retyping the brief — and so you can see what produced what you're looking at.
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const stored = (cache.pageInstructions ?? {}) as Record<string, string>;
+  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const pageInstruction = typed || stored[pageKey] || null;
+
+  if (typed !== (stored[pageKey] ?? "")) {
+    const next = { ...stored };
+    if (typed) next[pageKey] = typed;
+    else delete next[pageKey];
+    await db
+      .update(launches)
+      .set({ assetsCache: { ...cache, pageInstructions: next }, updatedAt: new Date() })
+      .where(eq(launches.id, launchId));
+  }
+
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   const ctx = await sharedPageGenContext(launch, organizationId, user.id);
-  await generateSinglePage(launch, pageDef, ctx, org?.name ?? launch.name);
+  await generateSinglePage(launch, pageDef, { ...ctx, pageInstruction }, org?.name ?? launch.name);
 
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  revalidatePath(pagePath(launch.slug, pageDef));
 }
 
 /**

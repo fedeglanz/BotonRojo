@@ -81,6 +81,11 @@ export default async function LaunchPageEditor(props: {
           .orderBy(desc(assets.createdAt))
       : [];
 
+  const storedInstruction =
+    ((launch.assetsCache as Record<string, unknown> | null)?.pageInstructions as
+      | Record<string, string>
+      | undefined)?.[pageKey] ?? "";
+
   const index = pages.findIndex((p) => p.pageKey === pageKey);
   const prev = pages[index - 1];
   const next = pages[index + 1];
@@ -119,16 +124,41 @@ export default async function LaunchPageEditor(props: {
             >
               Ver esta página ↗
             </a>
-            <form action={regenerateSinglePageAction.bind(null, launch.id, pageKey)}>
-              <AiGeneratingOverlay
-                messages={[`Escribiendo ${pageDef.label.toLowerCase()}…`, "Ajustando el tono…"]}
-              />
-              <SubmitButton variant={hasContent ? "outline" : "primary"} pendingLabel="Generando…">
-                {hasContent ? "Regenerar entera" : "Generar con Claude"}
-              </SubmitButton>
-            </form>
           </div>
         </div>
+
+        {/* Regenerating the whole page takes a brief: structure, global copy,
+            design. It's remembered per page, so a second pass starts from what
+            you asked the first time instead of from nothing. */}
+        <form
+          action={regenerateSinglePageAction.bind(null, launch.id, pageKey)}
+          className="space-y-2 rounded-xl border border-[--color-red]/25 bg-[--color-red]/5 p-4"
+        >
+          <AiGeneratingOverlay
+            messages={[`Escribiendo ${pageDef.label.toLowerCase()}…`, "Ajustando el tono…", "Repasando la estructura…"]}
+          />
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-widest text-zinc-400">
+              Qué quieres de esta página (estructura, copy, diseño)
+            </span>
+            <textarea
+              name="instruction"
+              rows={3}
+              defaultValue={storedInstruction}
+              placeholder="Más corta y directa. Sube el formulario arriba, quita los testimonios y pon una banda oscura a pantalla completa en la promesa."
+              className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              Opcional. Se guarda para esta página y manda sobre las instrucciones generales
+              del lanzamiento.
+            </span>
+          </label>
+          <div className="flex justify-end">
+            <SubmitButton variant={hasContent ? "outline" : "primary"} pendingLabel="Generando…">
+              {hasContent ? "Regenerar entera" : "Generar con Claude"}
+            </SubmitButton>
+          </div>
+        </form>
 
         {/* Moving between the launch's pages without going back to the hub. */}
         <nav className="flex items-center justify-between gap-3 border-t border-white/5 pt-3 text-xs">
