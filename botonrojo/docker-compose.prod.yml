@@ -11,7 +11,8 @@ name: botonrojo
 #   · Sin Caddy. Nginx de Hestia ya es dueño del 80 y del 443, y quitárselo
 #     tumbaría el resto de los sitios. El HTTPS lo pone Hestia con su Let's
 #     Encrypt y hace de proxy a la app.
-#   · La app publica en 3010, no en 3000: ahí está Grafana.
+#   · La app publica en 3020. El 3000 es de Grafana y el 3010 de otro node que ya
+#     estaba corriendo; conviene comprobarlo con `ss -tln` antes de mover esto.
 #   · Postgres y Redis no publican NINGÚN puerto. Solo los usa la app, por la red
 #     interna de Docker, y el 6379 del host ya lo ocupa el Redis del sistema.
 #   · MinIO sí publica en 127.0.0.1:9000, porque nginx tiene que poder servir por
@@ -72,4 +73,4 @@ services:
         condition: service_started
     env_file: .env
     ports:
-      - "127.0.0.1:3010:3000"
+      - "127.0.0.1:3020:3000"
