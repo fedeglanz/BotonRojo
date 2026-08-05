@@ -66,6 +66,21 @@ mándalos en \`archivos\` al publicar. La plataforma los aloja y reescribe las r
 No hace falta que los pongas en línea ni que sepas la URL final. Una referencia
 relativa sin archivo hace que publicar falle: es mejor eso que una imagen rota.
 
+## Páginas nuevas
+
+Si el lanzamiento no tiene la página que hace falta, créala: \`crear_pagina\` con un
+nombre y un tipo (\`registro\`, \`venta\`, \`contenido\`, \`afiliados\`). El nombre se
+convierte en la URL: "Webinar de junio" → \`/slug/webinar-de-junio\`. El tipo decide
+qué cablea la plataforma, así que elígelo por lo que la página tiene que conseguir,
+no por su aspecto.
+
+También puedes publicar directamente sobre una página que no existe pasando
+\`crear\` con el tipo: se crea y se publica de una vez.
+
+Una página creada así se lleva desde aquí a partir de ese momento. Para cambiarla,
+pide su HTML con \`ver_pagina\`, retócalo y vuelve a publicar; el panel no la toca a
+propósito, porque regenerarla la sustituiría por una página del sistema.
+
 ## Lo que no debes hacer
 
 - No metas tu propia analítica ni pixels de terceros: la medición ya va dentro.

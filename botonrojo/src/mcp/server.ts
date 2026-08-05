@@ -37,7 +37,8 @@ Para diseñar y publicar una página:
 2. contexto_lanzamiento, para la marca, la promesa, los precios y las fechas.
 3. contrato_pagina, para saber qué atributos tiene que llevar el HTML.
 4. Diseña el HTML completo.
-5. publicar_pagina.
+5. publicar_pagina. Si la página no existe todavía, créala con crear_pagina o pasa
+   "crear" con su tipo en la misma llamada.
 
 No hace falta programar el formulario, el pago, la cuenta atrás ni la medición: la
 plataforma los cablea al publicar. Si la cuenta no tiene plan pro, publicar diseño

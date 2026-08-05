@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { isCustomPageBody } from "@/lib/custom-page";
+import { retireCustomPageAction } from "@/server/page-edit";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -45,7 +48,9 @@ export default async function LaunchPageEditor(props: {
   const [launch] = await db
     .select()
     .from(launches)
-    .where(and(eq(launches.slug, slug), eq(launches.organizationId, organizationId)))
+    .where(
+      and(eq(launches.slug, slug), eq(launches.organizationId, organizationId)),
+    )
     .limit(1);
   if (!launch) notFound();
 
@@ -56,12 +61,23 @@ export default async function LaunchPageEditor(props: {
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launch.id),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
   const body = (asset?.body ?? null) as Record<string, unknown> | null;
   const hasContent = Boolean(asset);
+  // Designed outside the app. Everything below that would rewrite the page is
+  // hidden: regenerating or editing a section would replace a design nobody here
+  // can reproduce, and the JSON editors have nothing to edit — the content is a
+  // finished HTML document.
+  const fromClaude = isCustomPageBody(asset?.body);
   const publicPath = pagePath(launch.slug, pageDef);
   const unlockDate = contentUnlockDate(launch.contentDripStartsAt, pageKey);
 
@@ -79,19 +95,28 @@ export default async function LaunchPageEditor(props: {
           })
           .from(assets)
           .leftJoin(users, eq(assets.authorId, users.id))
-          .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+          .where(
+            and(
+              eq(assets.launchId, launch.id),
+              eq(assets.kind, "landing"),
+              eq(assets.pageKey, pageKey),
+            ),
+          )
           .orderBy(desc(assets.createdAt))
       : [];
 
   const storedInstruction =
-    ((launch.assetsCache as Record<string, unknown> | null)?.pageInstructions as
-      | Record<string, string>
-      | undefined)?.[pageKey] ?? "";
+    (
+      (launch.assetsCache as Record<string, unknown> | null)
+        ?.pageInstructions as Record<string, string> | undefined
+    )?.[pageKey] ?? "";
 
   // No page can be created before the visual identity is approved: it decides
   // the palette, the fonts and the whole design system the page is built from.
   const brandApproved =
-    launch.brandKitStatus === "approved" && Boolean(launch.brandPalette) && Boolean(launch.brandFonts);
+    launch.brandKitStatus === "approved" &&
+    Boolean(launch.brandPalette) &&
+    Boolean(launch.brandFonts);
   const hasMarco = Boolean(launch.promise && launch.avatar);
   const canGenerate = brandApproved && hasMarco;
 
@@ -115,12 +140,19 @@ export default async function LaunchPageEditor(props: {
               {pageDef.label}
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
-              <code className="text-[var(--color-red-bright)]">{publicPath}</code>
+              <code className="text-[var(--color-red-bright)]">
+                {publicPath}
+              </code>
               {" · "}
-              {hasContent ? "Generada" : "Sin generar"}
+              {fromClaude
+                ? "Diseñada en Claude"
+                : hasContent
+                  ? "Generada"
+                  : "Sin generar"}
               {pageDef.kind === "legal" &&
                 " · borrador de IA, revísalo con un asesor antes de publicar"}
-              {unlockDate && ` · se abre el ${unlockDate.toLocaleDateString("es")}`}
+              {unlockDate &&
+                ` · se abre el ${unlockDate.toLocaleDateString("es")}`}
             </p>
           </div>
 
@@ -136,60 +168,93 @@ export default async function LaunchPageEditor(props: {
           </div>
         </div>
 
-        {/* Regenerating the whole page takes a brief: structure, global copy,
+        {fromClaude ? (
+          <div className="space-y-3 rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-emerald-300">
+              Esta página se lleva desde Claude
+            </div>
+            <p className="text-sm text-zinc-300">
+              La diseñaste en Claude Design y la publicó el conector. Para
+              cambiarla, pídeselo a Claude: tiene el HTML actual con{" "}
+              <code>ver_pagina</code> y lo vuelve a publicar. Desde aquí no se
+              toca a propósito — regenerarla la sustituiría por una página del
+              sistema y perderías el diseño.
+            </p>
+            <p className="text-xs text-zinc-500">
+              La medición, el formulario, el pago y los afiliados siguen
+              funcionando: los cablea la plataforma al servirla.
+            </p>
+            <form
+              action={retireCustomPageAction.bind(null, launch.id, pageKey)}
+            >
+              <SubmitButton variant="outline" pendingLabel="Retirando…">
+                Retirar el diseño y volver a la página generada
+              </SubmitButton>
+            </form>
+          </div>
+        ) : (
+          <>
+            {/* Regenerating the whole page takes a brief: structure, global copy,
             design. It's remembered per page, so a second pass starts from what
             you asked the first time instead of from nothing. */}
-        <form
-          action={regenerateSinglePageAction.bind(null, launch.id, pageKey)}
-          className="space-y-2 rounded-xl border border-[var(--color-red)]/25 bg-[var(--color-red)]/5 p-4"
-        >
-          <AiGeneratingOverlay
-            messages={[`Escribiendo ${pageDef.label.toLowerCase()}…`, "Ajustando el tono…", "Repasando la estructura…"]}
-          />
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-widest text-zinc-400">
-              Qué quieres de esta página (estructura, copy, diseño)
-            </span>
-            <textarea
-              name="instruction"
-              rows={3}
-              defaultValue={storedInstruction}
-              placeholder="Más corta y directa. Sube el formulario arriba, quita los testimonios y pon una banda oscura a pantalla completa en la promesa."
-              className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
-            />
-            <span className="mt-1 block text-xs text-zinc-500">
-              Opcional. Se guarda para esta página y manda sobre las instrucciones generales
-              del lanzamiento.
-            </span>
-          </label>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {!canGenerate && (
-              <p className="mr-auto text-xs text-amber-300">
-                {!brandApproved ? (
-                  <>
-                    Aprueba primero la{" "}
-                    <Link
-                      href={`/admin/lanzamientos/${launch.slug}?seccion=marca`}
-                      className="underline underline-offset-2"
-                    >
-                      identidad visual
-                    </Link>
-                    : decide la paleta, las tipografías y el sistema de diseño de esta página.
-                  </>
-                ) : (
-                  <>Genera antes el marco de copy (avatar y promesa).</>
-                )}
-              </p>
-            )}
-            <SubmitButton
-              variant={hasContent ? "outline" : "primary"}
-              pendingLabel="Generando…"
-              disabled={!canGenerate}
+            <form
+              action={regenerateSinglePageAction.bind(null, launch.id, pageKey)}
+              className="space-y-2 rounded-xl border border-[var(--color-red)]/25 bg-[var(--color-red)]/5 p-4"
             >
-              {hasContent ? "Regenerar entera" : "Generar con Claude"}
-            </SubmitButton>
-          </div>
-        </form>
+              <AiGeneratingOverlay
+                messages={[
+                  `Escribiendo ${pageDef.label.toLowerCase()}…`,
+                  "Ajustando el tono…",
+                  "Repasando la estructura…",
+                ]}
+              />
+              <label className="block">
+                <span className="block text-[10px] uppercase tracking-widest text-zinc-400">
+                  Qué quieres de esta página (estructura, copy, diseño)
+                </span>
+                <textarea
+                  name="instruction"
+                  rows={3}
+                  defaultValue={storedInstruction}
+                  placeholder="Más corta y directa. Sube el formulario arriba, quita los testimonios y pon una banda oscura a pantalla completa en la promesa."
+                  className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
+                />
+                <span className="mt-1 block text-xs text-zinc-500">
+                  Opcional. Se guarda para esta página y manda sobre las
+                  instrucciones generales del lanzamiento.
+                </span>
+              </label>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {!canGenerate && (
+                  <p className="mr-auto text-xs text-amber-300">
+                    {!brandApproved ? (
+                      <>
+                        Aprueba primero la{" "}
+                        <Link
+                          href={`/admin/lanzamientos/${launch.slug}?seccion=marca`}
+                          className="underline underline-offset-2"
+                        >
+                          identidad visual
+                        </Link>
+                        : decide la paleta, las tipografías y el sistema de
+                        diseño de esta página.
+                      </>
+                    ) : (
+                      <>Genera antes el marco de copy (avatar y promesa).</>
+                    )}
+                  </p>
+                )}
+                <SubmitButton
+                  variant={hasContent ? "outline" : "primary"}
+                  pendingLabel="Generando…"
+                  disabled={!canGenerate}
+                >
+                  {hasContent ? "Regenerar entera" : "Generar con Claude"}
+                </SubmitButton>
+              </div>
+            </form>
+          </>
+        )}
 
         {/* Moving between the launch's pages without going back to the hub. */}
         <nav className="flex items-center justify-between gap-3 border-t border-white/5 pt-3 text-xs">
@@ -204,7 +269,8 @@ export default async function LaunchPageEditor(props: {
             <span />
           )}
           <span className="text-zinc-600">
-            {index + 1} de {pages.length} · {LAUNCH_TYPES[launch.type as LaunchType]?.label ?? launch.type}
+            {index + 1} de {pages.length} ·{" "}
+            {LAUNCH_TYPES[launch.type as LaunchType]?.label ?? launch.type}
           </span>
           {next ? (
             <Link
@@ -219,7 +285,7 @@ export default async function LaunchPageEditor(props: {
         </nav>
       </header>
 
-      {!hasContent && (
+      {!hasContent && !fromClaude && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
           {brandApproved
             ? "Esta página aún no tiene contenido. Genérala con Claude, o escribe sus partes a mano y guarda: se crea igual."
@@ -227,7 +293,8 @@ export default async function LaunchPageEditor(props: {
         </p>
       )}
 
-      {/* Inspection is per page and on demand, so it applies to all of them. */}
+      {/* Inspection applies to a Claude page too — it only looks and reports. What
+          it must not offer there is the automatic fix, which rewrites the JSON. */}
       <DesignReviewPanel
         review={asset?.designReview}
         launchId={launch.id}
@@ -237,20 +304,40 @@ export default async function LaunchPageEditor(props: {
         applySuggestionAction={applyReviewSuggestionAction}
         // Content-level auto-fix only rewrites the landing JSON, so it's offered
         // where it can actually do something.
-        fixAction={pageDef.kind === "venta" ? applyDesignFixesAction : undefined}
+        fixAction={
+          pageDef.kind === "venta" && !fromClaude
+            ? applyDesignFixesAction
+            : undefined
+        }
       />
 
-      {pageDef.kind === "venta" ? (
+      {fromClaude ? null : pageDef.kind === "venta" ? (
         <>
           <LandingEditor
             launchId={launch.id}
             launchSlug={launch.slug}
             body={(asset?.body ?? null) as LandingBody | null}
             versions={versions}
-            refineAction={refineLandingSectionAction.bind(null, launch.id, pageKey)}
-            rawUpdateAction={updateSectionRawAction.bind(null, launch.id, pageKey)}
-            imageSaveAction={setSectionImageAction.bind(null, launch.id, pageKey)}
-            designAction={updateSectionDesignAction.bind(null, launch.id, pageKey)}
+            refineAction={refineLandingSectionAction.bind(
+              null,
+              launch.id,
+              pageKey,
+            )}
+            rawUpdateAction={updateSectionRawAction.bind(
+              null,
+              launch.id,
+              pageKey,
+            )}
+            imageSaveAction={setSectionImageAction.bind(
+              null,
+              launch.id,
+              pageKey,
+            )}
+            designAction={updateSectionDesignAction.bind(
+              null,
+              launch.id,
+              pageKey,
+            )}
           />
         </>
       ) : (
