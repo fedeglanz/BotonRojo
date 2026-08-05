@@ -16,6 +16,8 @@ import {
   regenerateSinglePageAction,
   updateLandingInstructionsAction,
   generateEmailsAction,
+  refineEmailAction,
+  updateEmailAction,
   generateAdsAction,
   createStripeProductAction,
   deleteStripeProductAction,
@@ -58,7 +60,7 @@ import { GenerationProgress } from "@/components/admin/generation-progress";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
-import { EmailSequence } from "@/components/admin/email-sequence";
+import { EmailEditor } from "@/components/admin/email-editor";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
@@ -494,7 +496,12 @@ export default async function LaunchHubPage(props: {
           </form>
         }
       >
-        <EmailSequence body={(emailAsset?.body ?? null) as Parameters<typeof EmailSequence>[0]["body"]} />
+        <EmailEditor
+          launchId={launch.id}
+          body={(emailAsset?.body ?? null) as Parameters<typeof EmailEditor>[0]["body"]}
+          refineAction={refineEmailAction}
+          updateAction={updateEmailAction}
+        />
       </WizardStep>
 
       {/* Step 5 — Anuncios */}
