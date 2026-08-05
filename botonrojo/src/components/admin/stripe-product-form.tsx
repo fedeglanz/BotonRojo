@@ -32,9 +32,13 @@ export function StripeProductForm({
           className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm"
         >
           <div>
-            <div className="text-xs uppercase tracking-widest text-emerald-300">Producto creado en Stripe</div>
+            <div className="text-xs uppercase tracking-widest text-emerald-300">
+              Producto creado en Stripe
+            </div>
             <div className="mt-1 text-white">{p.name}</div>
-            <div className="font-[family-name:var(--font-mono)] text-xs text-zinc-400">{p.stripePriceId}</div>
+            <div className="font-[family-name:var(--font-mono)] text-xs text-zinc-400">
+              {p.stripePriceId}
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right font-[family-name:var(--font-display)] text-xl font-bold">
@@ -52,7 +56,10 @@ export function StripeProductForm({
         </div>
       ))}
 
-      <form action={action.bind(null, launchId)} className="grid gap-4 md:grid-cols-2">
+      <form
+        action={action.bind(null, launchId)}
+        className="grid gap-4 md:grid-cols-2"
+      >
         {hasTiers && (
           <label className="block md:col-span-2">
             <span className="block text-xs uppercase tracking-widest text-zinc-400">
@@ -69,7 +76,9 @@ export function StripeProductForm({
         )}
 
         <label className="block md:col-span-2">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Nombre del producto</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Nombre del producto
+          </span>
           <input
             type="text"
             name="name"
@@ -80,7 +89,9 @@ export function StripeProductForm({
         </label>
 
         <label className="block md:col-span-2">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Descripción</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Descripción
+          </span>
           <textarea
             name="description"
             rows={3}
@@ -90,20 +101,31 @@ export function StripeProductForm({
         </label>
 
         <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Precio (céntimos)</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Precio
+          </span>
+          {/* En euros con decimales: pedir céntimos a saltos de 100 hacía
+              imposible un precio como 97,50 y obligaba a multiplicar a mano. */}
           <input
             type="number"
-            name="priceCents"
+            name="price"
             required
-            min={100}
-            step={100}
-            defaultValue={hasTiers ? undefined : defaultPriceCents ?? 9700}
+            min={0.5}
+            step="0.01"
+            inputMode="decimal"
+            defaultValue={
+              hasTiers
+                ? undefined
+                : ((defaultPriceCents ?? 9700) / 100).toFixed(2)
+            }
             className="mt-2 w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
           />
         </label>
 
         <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Moneda</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Moneda
+          </span>
           <select
             name="currency"
             defaultValue={defaultCurrency}

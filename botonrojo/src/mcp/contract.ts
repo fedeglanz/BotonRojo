@@ -46,6 +46,9 @@ Se sustituyen al publicar. Escríbelos tal cual en el HTML:
 - \`{{precio}}\` — precio formateado ("97 €")
 - \`{{precio_sin_formato}}\` — el número ("97")
 - \`{{moneda}}\` — "EUR"
+- \`{{plazos}}\` — "3 pagos de 39,90 €" si el lanzamiento admite pago a plazos, y
+  vacío si no. Úsalo tal cual: no dividas el precio tú, porque el importe de cada
+  plazo lo decide el cliente y casi nunca es el total entre el número de pagos
 - \`{{cierre_carrito}}\` / \`{{cierre_registro}}\` — fechas en ISO
 - \`{{url_registro}}\` / \`{{url_venta}}\` / \`{{url_gracias}}\` — rutas internas
 - \`{{slug}}\` — slug del lanzamiento
@@ -65,6 +68,21 @@ Si el diseño referencia \`estilos.css\`, \`fondo.webp\`, etc. con rutas relativ
 mándalos en \`archivos\` al publicar. La plataforma los aloja y reescribe las rutas.
 No hace falta que los pongas en línea ni que sepas la URL final. Una referencia
 relativa sin archivo hace que publicar falle: es mejor eso que una imagen rota.
+
+## Páginas nuevas
+
+Si el lanzamiento no tiene la página que hace falta, créala: \`crear_pagina\` con un
+nombre y un tipo (\`registro\`, \`venta\`, \`contenido\`, \`afiliados\`). El nombre se
+convierte en la URL: "Webinar de junio" → \`/slug/webinar-de-junio\`. El tipo decide
+qué cablea la plataforma, así que elígelo por lo que la página tiene que conseguir,
+no por su aspecto.
+
+También puedes publicar directamente sobre una página que no existe pasando
+\`crear\` con el tipo: se crea y se publica de una vez.
+
+Una página creada así se lleva desde aquí a partir de ese momento. Para cambiarla,
+pide su HTML con \`ver_pagina\`, retócalo y vuelve a publicar; el panel no la toca a
+propósito, porque regenerarla la sustituiría por una página del sistema.
 
 ## Lo que no debes hacer
 

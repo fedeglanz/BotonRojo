@@ -15,18 +15,46 @@ import { getStripeClientForOrg } from "@/lib/stripe";
 
 import { MARCO_COPY_SYSTEM, marcoCopyPrompt } from "@/ai/prompts/marco-copy";
 import { LANDING_SYSTEM, landingPrompt } from "@/ai/prompts/landing";
-import { REFINE_SYSTEM, refineSectionPrompt } from "@/ai/prompts/landing-refine";
+import {
+  REFINE_SYSTEM,
+  refineSectionPrompt,
+} from "@/ai/prompts/landing-refine";
 import { EMAILS_SYSTEM, emailsPrompt } from "@/ai/prompts/emails";
 import { EMAIL_REFINE_SYSTEM, emailRefinePrompt } from "@/ai/prompts/email-refine";
 import { ADS_SYSTEM, adsPrompt } from "@/ai/prompts/ads";
-import { TELEGRAM_SYSTEM, telegramPrompt, TELEGRAM_REFINE_SYSTEM, telegramRefinePrompt } from "@/ai/prompts/telegram";
+import {
+  TELEGRAM_SYSTEM,
+  telegramPrompt,
+  TELEGRAM_REFINE_SYSTEM,
+  telegramRefinePrompt,
+} from "@/ai/prompts/telegram";
 import { BRAND_KIT_SYSTEM, brandKitPrompt } from "@/ai/prompts/brand-kit";
-import { DESIGN_REVIEW_SYSTEM, designReviewPrompt, DESIGN_FIX_SYSTEM, designFixPrompt } from "@/ai/prompts/design-review";
-import { REFERENCE_SITE_SYSTEM, referenceSitePrompt } from "@/ai/prompts/reference-site";
-import { PAGE_FIELD_REFINE_SYSTEM, pageFieldRefinePrompt } from "@/ai/prompts/page-field-refine";
-import { auditPageContrast, describeContrastFailures } from "@/lib/design/contrast-audit";
-import { describeBrandDesign, normalizeBrandDesign } from "@/lib/design/brand-design";
-import { normalizeSectionValue, LAYOUT_PRESETS } from "@/components/public/landing-types";
+import {
+  DESIGN_REVIEW_SYSTEM,
+  designReviewPrompt,
+  DESIGN_FIX_SYSTEM,
+  designFixPrompt,
+} from "@/ai/prompts/design-review";
+import {
+  REFERENCE_SITE_SYSTEM,
+  referenceSitePrompt,
+} from "@/ai/prompts/reference-site";
+import {
+  PAGE_FIELD_REFINE_SYSTEM,
+  pageFieldRefinePrompt,
+} from "@/ai/prompts/page-field-refine";
+import {
+  auditPageContrast,
+  describeContrastFailures,
+} from "@/lib/design/contrast-audit";
+import {
+  describeBrandDesign,
+  normalizeBrandDesign,
+} from "@/lib/design/brand-design";
+import {
+  normalizeSectionValue,
+  LAYOUT_PRESETS,
+} from "@/components/public/landing-types";
 import {
   applyBrandRhythm,
   normalizeSectionDesign,
@@ -53,17 +81,34 @@ import {
   isImageGenConfigured,
   type ImageSlot,
 } from "@/integrations/image-gen";
-import { isUnsplashConfigured, searchUnsplashPhotos } from "@/integrations/unsplash";
-import { trimLogo } from "@/integrations/logo";
-import { captureScreenshot, captureExternalScreenshot, isDesignReviewConfigured } from "@/integrations/screenshot";
-
-import type { LaunchType, AvatarBrief, BrandPalette, BrandFonts, Launch } from "@/db/schema/launches";
-import type { DesignReviewIssue } from "@/db/schema/assets";
-import { resolvePages, pagePath, type PageConfig, type PageDef, type LegalPageKey } from "@/lib/launch-pages";
-import { bodyFromFields, fieldsForKind } from "@/lib/page-fields";
 import {
-  getActiveCampaignClientForOrg,
-} from "@/integrations/activecampaign";
+  isUnsplashConfigured,
+  searchUnsplashPhotos,
+} from "@/integrations/unsplash";
+import { trimLogo } from "@/integrations/logo";
+import {
+  captureScreenshot,
+  captureExternalScreenshot,
+  isDesignReviewConfigured,
+} from "@/integrations/screenshot";
+
+import type {
+  LaunchType,
+  AvatarBrief,
+  BrandPalette,
+  BrandFonts,
+  Launch,
+} from "@/db/schema/launches";
+import type { DesignReviewIssue } from "@/db/schema/assets";
+import {
+  resolvePages,
+  pagePath,
+  type PageConfig,
+  type PageDef,
+  type LegalPageKey,
+} from "@/lib/launch-pages";
+import { bodyFromFields, fieldsForKind } from "@/lib/page-fields";
+import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 
 import {
   getTelegramToken,
@@ -85,7 +130,10 @@ import {
 
 import { milestones } from "@/db/schema";
 import { generateMilestones as buildMilestones } from "@/lib/milestone-templates";
-import { CALENDAR_ANALYSIS_SYSTEM, calendarAnalysisPrompt } from "@/ai/prompts/calendar";
+import {
+  CALENDAR_ANALYSIS_SYSTEM,
+  calendarAnalysisPrompt,
+} from "@/ai/prompts/calendar";
 import { COUNTRIES } from "@/lib/milestone-templates";
 import type { AiWarning } from "@/db/schema/milestones";
 
@@ -94,7 +142,12 @@ async function getOrgLaunch(launchId: string, organizationId: string) {
   const [launch] = await db
     .select()
     .from(launches)
-    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .where(
+      and(
+        eq(launches.id, launchId),
+        eq(launches.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   if (!launch) throw new Error("launch_not_found");
   return launch;
@@ -141,7 +194,10 @@ async function autoResolveImage(
         styleReference: context.styleReference,
       });
     } catch (err) {
-      console.error("auto image generation failed, falling back to Unsplash", err);
+      console.error(
+        "auto image generation failed, falling back to Unsplash",
+        err,
+      );
     }
   }
 
@@ -158,7 +214,10 @@ async function autoResolveImage(
  * fetched as base64 here rather than per image: it's the same reference for all
  * of them, and downloading it a dozen times would be wasteful.
  */
-async function imageContextFor(launch: Launch, slot: ImageSlot): Promise<ImageContext> {
+async function imageContextFor(
+  launch: Launch,
+  slot: ImageSlot,
+): Promise<ImageContext> {
   return {
     slot,
     palette: launch.brandPalette,
@@ -197,9 +256,14 @@ async function runDesignReview(
 
   const audit = auditPageContrast({
     palette: launch.brandPalette,
-    cardStyle: (body.style as { cardStyle?: string } | undefined)?.cardStyle ?? launch.brandDesign?.cardStyle,
-    ctaStyle: (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ?? launch.brandDesign?.ctaStyle,
-    sectionDesign: (body.sectionDesign ?? (body.design as { blocks?: unknown })?.blocks) as never,
+    cardStyle:
+      (body.style as { cardStyle?: string } | undefined)?.cardStyle ??
+      launch.brandDesign?.cardStyle,
+    ctaStyle:
+      (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ??
+      launch.brandDesign?.ctaStyle,
+    sectionDesign: (body.sectionDesign ??
+      (body.design as { blocks?: unknown })?.blocks) as never,
   });
   const measured = describeContrastFailures(audit);
 
@@ -230,7 +294,8 @@ async function runDesignReview(
     ]);
 
     const currentCardStyle: LandingCardStyle =
-      ((body.style as { cardStyle?: LandingCardStyle } | undefined)?.cardStyle ??
+      ((body.style as { cardStyle?: LandingCardStyle } | undefined)
+        ?.cardStyle ??
         launch.brandDesign?.cardStyle) ||
       "glass";
 
@@ -239,7 +304,9 @@ async function runDesignReview(
       prompt: designReviewPrompt({
         pageLabel: pageDef.label,
         cardStyle: currentCardStyle,
-        ctaStyle: (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ?? launch.brandDesign?.ctaStyle,
+        ctaStyle:
+          (body.style as { ctaStyle?: string } | undefined)?.ctaStyle ??
+          launch.brandDesign?.ctaStyle,
         design: body.sectionDesign ?? body.design,
         measuredContrast: measured,
       }),
@@ -248,7 +315,11 @@ async function runDesignReview(
     });
 
     const parsed = extractJson(text) as {
-      issues?: Array<{ severity?: string; description: string; where?: string }>;
+      issues?: Array<{
+        severity?: string;
+        description: string;
+        where?: string;
+      }>;
       suggestedInstruction?: string;
       autoFixCardStyle?: LandingCardStyle | null;
     };
@@ -257,7 +328,10 @@ async function runDesignReview(
       ...extraIssues,
       ...measuredIssues,
       ...(parsed.issues ?? []).map((i) => ({
-        severity: i.severity === "critical" ? ("critical" as const) : ("warning" as const),
+        severity:
+          i.severity === "critical"
+            ? ("critical" as const)
+            : ("warning" as const),
         description: i.description,
         where: i.where,
       })),
@@ -265,8 +339,15 @@ async function runDesignReview(
 
     let updatedBody = body;
     const autoFix = parsed.autoFixCardStyle;
-    if (autoFix && VALID_CARD_STYLES.includes(autoFix) && autoFix !== currentCardStyle) {
-      updatedBody = { ...body, style: { ...(body.style as object), cardStyle: autoFix } };
+    if (
+      autoFix &&
+      VALID_CARD_STYLES.includes(autoFix) &&
+      autoFix !== currentCardStyle
+    ) {
+      updatedBody = {
+        ...body,
+        style: { ...(body.style as object), cardStyle: autoFix },
+      };
       issues.unshift({
         severity: "auto_fixed",
         description: `Estilo de caja cambiado de "${currentCardStyle}" a "${autoFix}" — no encajaba bien con esta paleta.`,
@@ -280,7 +361,8 @@ async function runDesignReview(
         designReview: {
           issues,
           reviewedAt: new Date().toISOString(),
-          suggestedInstruction: parsed.suggestedInstruction?.trim() || undefined,
+          suggestedInstruction:
+            parsed.suggestedInstruction?.trim() || undefined,
           worstContrast: audit.worst,
         },
         updatedAt: new Date(),
@@ -299,7 +381,8 @@ async function runDesignReview(
             ...measuredIssues,
             {
               severity: "warning" as const,
-              description: "La inspección visual falló (no se pudieron tomar las capturas). Lo medido sí es válido.",
+              description:
+                "La inspección visual falló (no se pudieron tomar las capturas). Lo medido sí es válido.",
             },
           ],
           reviewedAt: new Date().toISOString(),
@@ -316,22 +399,39 @@ async function runDesignReview(
  * reports what to fix. Available on every page, and re-runnable — the old review
  * only happened at generation, so it went stale as soon as anything was edited.
  */
-export async function reviewPageDesignAction(launchId: string, pageKey: string) {
+export async function reviewPageDesignAction(
+  launchId: string,
+  pageKey: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  const pageDef = resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
   if (!asset) throw new Error("Genera la página antes de revisarla.");
 
-  await runDesignReview(launch, pageDef, asset.id, (asset.body ?? {}) as Record<string, unknown>);
+  await runDesignReview(
+    launch,
+    pageDef,
+    asset.id,
+    (asset.body ?? {}) as Record<string, unknown>,
+  );
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
 }
@@ -340,19 +440,31 @@ export async function reviewPageDesignAction(launchId: string, pageKey: string) 
  * Takes the reviewer's own suggested brief and regenerates the page with it —
  * turning a list of complaints into one click.
  */
-export async function applyReviewSuggestionAction(launchId: string, pageKey: string) {
+export async function applyReviewSuggestionAction(
+  launchId: string,
+  pageKey: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
-  const suggestion = (asset?.designReview as { suggestedInstruction?: string } | null)?.suggestedInstruction;
-  if (!suggestion) throw new Error("La revisión no propuso ningún cambio que aplicar.");
+  const suggestion = (
+    asset?.designReview as { suggestedInstruction?: string } | null
+  )?.suggestedInstruction;
+  if (!suggestion)
+    throw new Error("La revisión no propuso ningún cambio que aplicar.");
 
   const form = new FormData();
   form.set("instruction", suggestion);
@@ -369,7 +481,11 @@ async function analyzeReferenceUrl(url: string): Promise<string | null> {
   if (!isDesignReviewConfigured()) return null;
 
   try {
-    const screenshot = await captureExternalScreenshot(url, { width: 1440, height: 2400, fullPage: true });
+    const screenshot = await captureExternalScreenshot(url, {
+      width: 1440,
+      height: 2400,
+      fullPage: true,
+    });
     const { text } = await completeWithImages({
       system: REFERENCE_SITE_SYSTEM,
       prompt: referenceSitePrompt(),
@@ -383,11 +499,28 @@ async function analyzeReferenceUrl(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * Prices arrive as euros with decimals, because that's how anybody thinks about a
+ * price — the form used to ask for cents in steps of 100, so "97,50 €" was not
+ * expressible and "9700" was what you had to type.
+ *
+ * The multiplication is rounded on purpose: `39.99 * 100` is 3998.9999999999995 in
+ * floating point, and truncating that undercharges by a cent.
+ */
+const euroAmount = z
+  .string()
+  .trim()
+  .transform((raw) => raw.replace(",", "."))
+  .pipe(z.coerce.number().min(0).max(1_000_000))
+  .transform((euros) => Math.round(euros * 100));
+
 const createSchema = z.object({
   name: z.string().min(2),
   type: z.enum(["venta_directa", "semilla", "plf"]),
   brief: z.string().min(20),
-  priceCents: z.coerce.number().int().min(0).optional(),
+  priceCents: euroAmount.optional(),
+  installmentCount: z.coerce.number().int().min(2).max(24).optional(),
+  installmentPriceCents: euroAmount.optional(),
   referenceUrl: z.string().url().optional().or(z.literal("")),
 });
 
@@ -398,15 +531,27 @@ export async function createLaunchAction(formData: FormData) {
     name: formData.get("name"),
     type: formData.get("type"),
     brief: formData.get("brief"),
-    priceCents: formData.get("priceCents") || undefined,
+    priceCents: formData.get("price") || undefined,
+    installmentCount: formData.get("installmentCount") || undefined,
+    installmentPriceCents: formData.get("installmentPrice") || undefined,
     referenceUrl: formData.get("referenceUrl") || undefined,
   });
+
+  // Half a payment plan is worse than none: the copy would promise instalments
+  // whose amount nobody set, or an amount with no number of payments.
+  const hasPlan =
+    parsed.installmentCount !== undefined &&
+    parsed.installmentPriceCents !== undefined;
 
   let slug = createSlug(parsed.name);
   if (!slug) slug = `lanzamiento-${Date.now().toString(36)}`;
 
   // Avoid slug collisions
-  const [existing] = await db.select().from(launches).where(eq(launches.slug, slug)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(launches)
+    .where(eq(launches.slug, slug))
+    .limit(1);
   if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
   const legalPages: LegalPageKey[] = [];
@@ -420,13 +565,17 @@ export async function createLaunchAction(formData: FormData) {
     .filter(Boolean);
 
   const pageConfig: PageConfig = {
-    registroChannels: registroChannels.length > 0 ? registroChannels : undefined,
-    contentPageCount: Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
+    registroChannels:
+      registroChannels.length > 0 ? registroChannels : undefined,
+    contentPageCount:
+      Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
     includeAffiliateRegistro: formData.get("includeAffiliateRegistro") === "on",
     legalPages,
   };
 
-  const contentDripRaw = String(formData.get("contentDripStartsAt") ?? "").trim();
+  const contentDripRaw = String(
+    formData.get("contentDripStartsAt") ?? "",
+  ).trim();
 
   const [created] = await db
     .insert(launches)
@@ -439,6 +588,8 @@ export async function createLaunchAction(formData: FormData) {
       status: "draft",
       brief: parsed.brief,
       defaultPriceCents: parsed.priceCents ?? null,
+      installmentCount: hasPlan ? parsed.installmentCount! : null,
+      installmentPriceCents: hasPlan ? parsed.installmentPriceCents! : null,
       referenceUrl: parsed.referenceUrl || null,
       pageConfig,
     })
@@ -459,7 +610,10 @@ export async function createLaunchAction(formData: FormData) {
   redirect(`/admin/lanzamientos/${slug}`);
 }
 
-export async function updateReferenceUrlAction(launchId: string, formData: FormData) {
+export async function updateReferenceUrlAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -474,14 +628,21 @@ export async function updateReferenceUrlAction(launchId: string, formData: FormD
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateCartScheduleAction(launchId: string, formData: FormData) {
+export async function updateCartScheduleAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const raw = String(formData.get("cartClosesAt") ?? "").trim();
   const cartClosesAt = raw ? new Date(raw) : null;
-  const rawRegistration = String(formData.get("registrationClosesAt") ?? "").trim();
-  const registrationClosesAt = rawRegistration ? new Date(rawRegistration) : null;
+  const rawRegistration = String(
+    formData.get("registrationClosesAt") ?? "",
+  ).trim();
+  const registrationClosesAt = rawRegistration
+    ? new Date(rawRegistration)
+    : null;
 
   await db
     .update(launches)
@@ -492,12 +653,18 @@ export async function updateCartScheduleAction(launchId: string, formData: FormD
   // The public pages read these dates for their countdown bar, so they have to be
   // revalidated too: saving a date and seeing nothing change on the live page reads
   // as the date not having been saved.
-  for (const pageDef of resolvePages(launch.type as LaunchType, launch.pageConfig)) {
+  for (const pageDef of resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  )) {
     revalidatePath(pagePath(launch.slug, pageDef));
   }
 }
 
-export async function updateContentDripScheduleAction(launchId: string, formData: FormData) {
+export async function updateContentDripScheduleAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -512,9 +679,81 @@ export async function updateContentDripScheduleAction(launchId: string, formData
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
   // Same reason as the cart date: this one decides which content pages are still
   // locked, so a stale public page would keep gating content that has opened.
-  for (const pageDef of resolvePages(launch.type as LaunchType, launch.pageConfig)) {
+  for (const pageDef of resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  )) {
     revalidatePath(pagePath(launch.slug, pageDef));
   }
+}
+
+/**
+ * Saves the brief.
+ *
+ * It was only ever written on the creation form, and everything downstream reads
+ * it: the brand kit, the copy frame, every page. A launch that arrived without one
+ * had no way back — the generate buttons threw `brief_missing`, which reached the
+ * client as a blank error page with a digest and no way to act on it.
+ */
+export async function updateBriefAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const brief = String(formData.get("brief") ?? "").trim();
+  // Same floor as the creation form: below that there is nothing to generate from.
+  if (brief.length < 20) throw new Error("brief_demasiado_corto");
+
+  await db
+    .update(launches)
+    .set({ brief, updatedAt: new Date() })
+    .where(eq(launches.id, launch.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Price and payment plan, editable after creation.
+ *
+ * Same lesson as the brief: a field only writable on the creation form is a field
+ * nobody can fix. Prices change, and the instalment plan is usually decided later
+ * than the launch itself.
+ */
+export async function updatePricingPlanAction(
+  launchId: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const parsed = z
+    .object({
+      price: euroAmount.optional(),
+      installmentCount: z.coerce.number().int().min(2).max(24).optional(),
+      installmentPrice: euroAmount.optional(),
+    })
+    .parse({
+      price: formData.get("price") || undefined,
+      installmentCount: formData.get("installmentCount") || undefined,
+      installmentPrice: formData.get("installmentPrice") || undefined,
+    });
+
+  // Both halves or neither: a count with no amount would have the copy promise
+  // instalments nobody priced.
+  const hasPlan =
+    parsed.installmentCount !== undefined &&
+    parsed.installmentPrice !== undefined;
+
+  await db
+    .update(launches)
+    .set({
+      defaultPriceCents: parsed.price ?? launch.defaultPriceCents,
+      installmentCount: hasPlan ? parsed.installmentCount! : null,
+      installmentPriceCents: hasPlan ? parsed.installmentPrice! : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launch.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
 export async function generateBrandKitAction(launchId: string) {
@@ -583,7 +822,10 @@ const updateBrandKitSchema = z.object({
   moodNotes: z.string().optional(),
 });
 
-export async function updateBrandKitAction(launchId: string, formData: FormData) {
+export async function updateBrandKitAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -629,7 +871,8 @@ export async function updateBrandKitAction(launchId: string, formData: FormData)
       brandMoodNotes: parsed.moodNotes ?? launch.brandMoodNotes,
       // Editing a draft doesn't un-approve it silently — but any manual edit
       // after approval means it needs a fresh look before it counts as approved again.
-      brandKitStatus: launch.brandKitStatus === "approved" ? "draft" : launch.brandKitStatus,
+      brandKitStatus:
+        launch.brandKitStatus === "approved" ? "draft" : launch.brandKitStatus,
       updatedAt: new Date(),
     })
     .where(eq(launches.id, launchId));
@@ -640,7 +883,8 @@ export async function updateBrandKitAction(launchId: string, formData: FormData)
 export async function approveBrandKitAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
-  if (!launch.brandPalette || !launch.brandFonts) throw new Error("brand_kit_incomplete");
+  if (!launch.brandPalette || !launch.brandFonts)
+    throw new Error("brand_kit_incomplete");
 
   await db
     .update(launches)
@@ -650,7 +894,10 @@ export async function approveBrandKitAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateBrandLogoAction(launchId: string, formData: FormData) {
+export async function updateBrandLogoAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -659,7 +906,10 @@ export async function updateBrandLogoAction(launchId: string, formData: FormData
   // Trim the transparent padding now, once, rather than fighting it with CSS on
   // every page that shows the logo. See integrations/logo.ts for why.
   let stored = imageUrl;
-  let logoMeta: { logoAspect: number; logoInk: { dark: number; mid: number; light: number } } | null = null;
+  let logoMeta: {
+    logoAspect: number;
+    logoInk: { dark: number; mid: number; light: number };
+  } | null = null;
   if (imageUrl) {
     const trimmed = await trimLogo(imageUrl);
     if (trimmed) {
@@ -684,7 +934,10 @@ export async function updateBrandLogoAction(launchId: string, formData: FormData
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function generateMarcoCopyAction(launchId: string, formData?: FormData) {
+export async function generateMarcoCopyAction(
+  launchId: string,
+  formData?: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.brief) throw new Error("brief_missing");
@@ -693,14 +946,23 @@ export async function generateMarcoCopyAction(launchId: string, formData?: FormD
   // and hoping for something better. Remembered per launch, like the per-page
   // briefs, so a second pass builds on the first instead of starting over.
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
-  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
-  const instruction = typed || (typeof cache.marcoInstruction === "string" ? cache.marcoInstruction : null);
+  const typed = formData
+    ? String(formData.get("instruction") ?? "").trim()
+    : "";
+  const instruction =
+    typed ||
+    (typeof cache.marcoInstruction === "string"
+      ? cache.marcoInstruction
+      : null);
 
   if (typed !== (cache.marcoInstruction ?? "")) {
     const next = { ...cache };
     if (typed) next.marcoInstruction = typed;
     else delete next.marcoInstruction;
-    await db.update(launches).set({ assetsCache: next, updatedAt: new Date() }).where(eq(launches.id, launchId));
+    await db
+      .update(launches)
+      .set({ assetsCache: next, updatedAt: new Date() })
+      .where(eq(launches.id, launchId));
   }
 
   const { text } = await complete({
@@ -730,7 +992,10 @@ export async function generateMarcoCopyAction(launchId: string, formData?: FormD
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateMarcoCopyAction(launchId: string, formData: FormData) {
+export async function updateMarcoCopyAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -763,7 +1028,12 @@ export async function updateMarcoCopyAction(launchId: string, formData: FormData
 type PageGenCtx = {
   organizationId: string;
   userId: string;
-  launchProducts: Array<{ slug: string; name: string; priceCents: number; currency: string }>;
+  launchProducts: Array<{
+    slug: string;
+    name: string;
+    priceCents: number;
+    currency: string;
+  }>;
   referenceSummary: string | null;
   /** What the admin typed next to the regenerate button for this page. Beats the
    *  launch-wide instructions, because it's the more specific of the two. */
@@ -792,7 +1062,11 @@ async function insertPageAsset(
   return inserted;
 }
 
-async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
+async function generateVentaPage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
   const { text } = await complete({
     system: LANDING_SYSTEM,
     prompt: landingPrompt(
@@ -807,9 +1081,18 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
         moodNotes: launch.brandMoodNotes,
         design: launch.brandDesign,
       },
-      [launch.landingGeneralInstructions, ctx.pageInstruction].filter(Boolean).join("\n\n") || null,
+      [launch.landingGeneralInstructions, ctx.pageInstruction]
+        .filter(Boolean)
+        .join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
+      launch.installmentCount && launch.installmentPriceCents
+        ? {
+            count: launch.installmentCount,
+            priceCents: launch.installmentPriceCents,
+            currency: launch.currency ?? "EUR",
+          }
+        : null,
     ),
     maxTokens: 8000,
     temperature: 0.7,
@@ -828,17 +1111,30 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
   // So: the approved system is the baseline, the rhythm is composed
   // deterministically, and the model's own choices still win over both.
   const brand = launch.brandDesign;
-  const sectionOrder = (body.sectionOrder?.length
-    ? body.sectionOrder
-    : LAYOUT_PRESETS[launch.type as LaunchType] ?? LAYOUT_PRESETS.plf) as SectionDesignKey[];
-  const orderWithEnds: SectionDesignKey[] = ["hero", ...sectionOrder, "finalCta"];
+  const sectionOrder = (
+    body.sectionOrder?.length
+      ? body.sectionOrder
+      : (LAYOUT_PRESETS[launch.type as LaunchType] ?? LAYOUT_PRESETS.plf)
+  ) as SectionDesignKey[];
+  const orderWithEnds: SectionDesignKey[] = [
+    "hero",
+    ...sectionOrder,
+    "finalCta",
+  ];
 
   const contentLength: Partial<Record<SectionDesignKey, number>> = {};
   for (const key of orderWithEnds) {
-    contentLength[key] = JSON.stringify(body[key as keyof LandingBody] ?? "").length;
+    contentLength[key] = JSON.stringify(
+      body[key as keyof LandingBody] ?? "",
+    ).length;
   }
 
-  const composed = applyBrandRhythm(orderWithEnds, brand, body.sectionDesign ?? {}, contentLength);
+  const composed = applyBrandRhythm(
+    orderWithEnds,
+    brand,
+    body.sectionDesign ?? {},
+    contentLength,
+  );
 
   const clean: NonNullable<LandingBody["sectionDesign"]> = {};
   for (const [key, raw] of Object.entries(composed)) {
@@ -863,8 +1159,15 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     });
     if (!design) continue;
 
-    if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
+    if (
+      design.background === "photo" &&
+      !design.imageUrl &&
+      design.imagePrompt
+    ) {
+      const imageUrl = await autoResolveImage(
+        design.imagePrompt,
+        await imageContextFor(launch, "band"),
+      );
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint";
     }
@@ -886,7 +1189,8 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     // rules' "nothing decorative" line as "no photos". A landing with no hero
     // image looks unfinished, so derive one instead of shipping without it.
     if (body.hero && !body.hero.imagePrompt && !body.hero.imageUrl) {
-      body.hero.imagePrompt = `Fotografía editorial para "${launch.name}": ${launch.promise ?? ""}`.trim();
+      body.hero.imagePrompt =
+        `Fotografía editorial para "${launch.name}": ${launch.promise ?? ""}`.trim();
     }
 
     // Resolved once and shared: same palette, same art direction, same style
@@ -897,19 +1201,29 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
       imageContextFor(launch, "card"),
     ]);
 
-    const [heroImageUrl, creatorImageUrl, includeImageUrls, speakerImageUrls] = await Promise.all([
-      autoResolveImage(body.hero?.imagePrompt, heroCtx),
-      // A face, in portrait: asking for a person at 16:9 is what produced the
-      // cropped headshots.
-      typeof body.about === "object"
-        ? autoResolveImage(body.about.creatorImagePrompt, portraitCtx)
-        : Promise.resolve(undefined),
-      Promise.all((body.includes ?? []).map((it) => autoResolveImage(it.imagePrompt, cardCtx))),
-      Promise.all((body.speakers ?? []).map((sp) => autoResolveImage(sp.imagePrompt, portraitCtx))),
-    ]);
+    const [heroImageUrl, creatorImageUrl, includeImageUrls, speakerImageUrls] =
+      await Promise.all([
+        autoResolveImage(body.hero?.imagePrompt, heroCtx),
+        // A face, in portrait: asking for a person at 16:9 is what produced the
+        // cropped headshots.
+        typeof body.about === "object"
+          ? autoResolveImage(body.about.creatorImagePrompt, portraitCtx)
+          : Promise.resolve(undefined),
+        Promise.all(
+          (body.includes ?? []).map((it) =>
+            autoResolveImage(it.imagePrompt, cardCtx),
+          ),
+        ),
+        Promise.all(
+          (body.speakers ?? []).map((sp) =>
+            autoResolveImage(sp.imagePrompt, portraitCtx),
+          ),
+        ),
+      ]);
 
     if (heroImageUrl && body.hero) body.hero.imageUrl = heroImageUrl;
-    if (creatorImageUrl && typeof body.about === "object") body.about.creatorImageUrl = creatorImageUrl;
+    if (creatorImageUrl && typeof body.about === "object")
+      body.about.creatorImageUrl = creatorImageUrl;
     body.includes?.forEach((it, i) => {
       if (includeImageUrls[i]) it.imageUrl = includeImageUrls[i];
     });
@@ -927,13 +1241,26 @@ async function generateVentaPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
     ctaStyle: body.style?.ctaStyle,
     sectionDesign: body.sectionDesign,
   });
-  const contrastIssues: DesignReviewIssue[] = describeContrastFailures(audit).map((description) => ({
+  const contrastIssues: DesignReviewIssue[] = describeContrastFailures(
+    audit,
+  ).map((description) => ({
     severity: "warning" as const,
     description,
   }));
 
-  const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
-  await runDesignReview(launch, pageDef, inserted.id, body as Record<string, unknown>, contrastIssues);
+  const inserted = await insertPageAsset(
+    launch,
+    pageDef,
+    ctx,
+    body as Record<string, unknown>,
+  );
+  await runDesignReview(
+    launch,
+    pageDef,
+    inserted.id,
+    body as Record<string, unknown>,
+    contrastIssues,
+  );
 }
 
 /**
@@ -961,7 +1288,12 @@ async function normalizePageComposition(
 ): Promise<void> {
   const brand = launch.brandDesign;
   const brandDefaults = brand
-    ? { cardStyle: brand.cardStyle, titleFx: brand.titleFx, density: brand.density, divider: brand.divider }
+    ? {
+        cardStyle: brand.cardStyle,
+        titleFx: brand.titleFx,
+        density: brand.density,
+        divider: brand.divider,
+      }
     : null;
 
   // ---- blocks
@@ -974,7 +1306,10 @@ async function normalizePageComposition(
 
     if (b.type === "benefits" && Array.isArray(b.items)) {
       const items = b.items
-        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .filter(
+          (i): i is Record<string, unknown> =>
+            Boolean(i) && typeof i === "object",
+        )
         .map((i) => ({
           icon: typeof i.icon === "string" ? i.icon : undefined,
           title: String(i.title ?? "").trim(),
@@ -982,20 +1317,33 @@ async function normalizePageComposition(
         }))
         .filter((i) => i.title.length > 0)
         .slice(0, 6);
-      if (items.length >= 2) blocks.push({ type: "benefits", title: typeof b.title === "string" ? b.title : undefined, items });
+      if (items.length >= 2)
+        blocks.push({
+          type: "benefits",
+          title: typeof b.title === "string" ? b.title : undefined,
+          items,
+        });
       continue;
     }
 
     if (b.type === "steps" && Array.isArray(b.items)) {
       const items = b.items
-        .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+        .filter(
+          (i): i is Record<string, unknown> =>
+            Boolean(i) && typeof i === "object",
+        )
         .map((i) => ({
           title: String(i.title ?? "").trim(),
           text: typeof i.text === "string" ? i.text.trim() : undefined,
         }))
         .filter((i) => i.title.length > 0)
         .slice(0, 6);
-      if (items.length >= 2) blocks.push({ type: "steps", title: typeof b.title === "string" ? b.title : undefined, items });
+      if (items.length >= 2)
+        blocks.push({
+          type: "steps",
+          title: typeof b.title === "string" ? b.title : undefined,
+          items,
+        });
       continue;
     }
 
@@ -1005,28 +1353,46 @@ async function normalizePageComposition(
         title: typeof b.title === "string" ? b.title : undefined,
         text: typeof b.text === "string" ? b.text : undefined,
         ctaLabel: typeof b.ctaLabel === "string" ? b.ctaLabel : undefined,
-        imagePrompt: typeof b.imagePrompt === "string" ? b.imagePrompt : undefined,
+        imagePrompt:
+          typeof b.imagePrompt === "string" ? b.imagePrompt : undefined,
         imageSide: b.imageSide === "right" ? "right" : "left",
       };
       // A card-shaped image beside text, not a hero: 4:5 rather than 16:9.
       if (block.imagePrompt) {
-        const url = await autoResolveImage(block.imagePrompt, await imageContextFor(launch, "card"));
+        const url = await autoResolveImage(
+          block.imagePrompt,
+          await imageContextFor(launch, "card"),
+        );
         if (url) block.imageUrl = url;
       }
       if (block.title || block.text) blocks.push(block);
     }
   }
 
-  (body as { blocks?: PageBlock[] }).blocks = blocks.length > 0 ? blocks : undefined;
+  (body as { blocks?: PageBlock[] }).blocks =
+    blocks.length > 0 ? blocks : undefined;
 
   // ---- band design, hero + one per block
-  const rawDesign = (body.design ?? {}) as { hero?: unknown; blocks?: unknown[] };
+  const rawDesign = (body.design ?? {}) as {
+    hero?: unknown;
+    blocks?: unknown[];
+  };
   const design: { hero?: SectionDesign; blocks?: SectionDesign[] } = {};
 
-  const heroResult = normalizeSectionDesign(rawDesign.hero, { kind: heroKind, brand: brandDefaults });
+  const heroResult = normalizeSectionDesign(rawDesign.hero, {
+    kind: heroKind,
+    brand: brandDefaults,
+  });
   if (heroResult.design) {
-    if (heroResult.design.background === "photo" && !heroResult.design.imageUrl && heroResult.design.imagePrompt) {
-      const url = await autoResolveImage(heroResult.design.imagePrompt, await imageContextFor(launch, "band"));
+    if (
+      heroResult.design.background === "photo" &&
+      !heroResult.design.imageUrl &&
+      heroResult.design.imagePrompt
+    ) {
+      const url = await autoResolveImage(
+        heroResult.design.imagePrompt,
+        await imageContextFor(launch, "band"),
+      );
       if (url) heroResult.design.imageUrl = url;
       else heroResult.design.background = "tint";
     }
@@ -1042,21 +1408,33 @@ async function normalizePageComposition(
     // On a form band the form is the subject — that's a property of the band, not
     // a preference to negotiate.
     const decorated =
-      heroResult.design.background !== "none" || heroResult.design.effect !== "none";
+      heroResult.design.background !== "none" ||
+      heroResult.design.effect !== "none";
     if (decorated) (body as { hideHeroImage?: boolean }).hideHeroImage = true;
   }
 
   if (blocks.length > 0) {
     const perBlock: SectionDesign[] = [];
     for (let i = 0; i < blocks.length; i++) {
-      const kind = blocks[i]!.type === "benefits" ? "cards" : blocks[i]!.type === "steps" ? "list" : "media";
-      const { design: d } = normalizeSectionDesign(Array.isArray(rawDesign.blocks) ? rawDesign.blocks[i] : undefined, {
-        kind,
-        brand: brandDefaults,
-      });
+      const kind =
+        blocks[i]!.type === "benefits"
+          ? "cards"
+          : blocks[i]!.type === "steps"
+            ? "list"
+            : "media";
+      const { design: d } = normalizeSectionDesign(
+        Array.isArray(rawDesign.blocks) ? rawDesign.blocks[i] : undefined,
+        {
+          kind,
+          brand: brandDefaults,
+        },
+      );
       if (!d) continue;
       if (d.background === "photo" && !d.imageUrl && d.imagePrompt) {
-        const url = await autoResolveImage(d.imagePrompt, await imageContextFor(launch, "band"));
+        const url = await autoResolveImage(
+          d.imagePrompt,
+          await imageContextFor(launch, "band"),
+        );
         if (url) d.imageUrl = url;
         else d.background = "tint";
       }
@@ -1065,15 +1443,28 @@ async function normalizePageComposition(
     if (perBlock.length > 0) design.blocks = perBlock;
   }
 
-  (body as { design?: typeof design }).design = design.hero || design.blocks ? design : undefined;
+  (body as { design?: typeof design }).design =
+    design.hero || design.blocks ? design : undefined;
 }
 
-async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
-  const channel = pageDef.label.startsWith("Registro — ") ? pageDef.label.replace("Registro — ", "") : "General";
+async function generateRegistroPage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
+  const channel = pageDef.label.startsWith("Registro — ")
+    ? pageDef.label.replace("Registro — ", "")
+    : "General";
 
   const { text } = await complete({
     system: REGISTRO_SYSTEM,
-    prompt: registroPrompt(launch.name, launch.avatar as AvatarBrief, launch.promise!, channel, ctx.pageInstruction),
+    prompt: registroPrompt(
+      launch.name,
+      launch.avatar as AvatarBrief,
+      launch.promise!,
+      channel,
+      ctx.pageInstruction,
+    ),
     maxTokens: 2000,
     temperature: 0.7,
   });
@@ -1081,18 +1472,35 @@ async function generateRegistroPage(launch: Launch, pageDef: PageDef, ctx: PageG
   const body = extractJson(text) as RegistroPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
+    const imageUrl = await autoResolveImage(
+      body.imagePrompt,
+      await imageContextFor(launch, "hero"),
+    );
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
   // Blocks and band design, validated and with their images resolved.
   await normalizePageComposition(launch, body, "form");
 
-  const inserted = await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
-  await runDesignReview(launch, pageDef, inserted.id, body as Record<string, unknown>);
+  const inserted = await insertPageAsset(
+    launch,
+    pageDef,
+    ctx,
+    body as Record<string, unknown>,
+  );
+  await runDesignReview(
+    launch,
+    pageDef,
+    inserted.id,
+    body as Record<string, unknown>,
+  );
 }
 
-async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
+async function generateContenidoPage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
   const match = /^contenido-(\d+)$/.exec(pageDef.pageKey);
   const index = match ? Number(match[1]) : 1;
   const total = launch.pageConfig?.contentPageCount ?? 1;
@@ -1115,7 +1523,10 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
   const body = extractJson(text) as ContenidoPageBody;
 
   if (isImageGenConfigured() || isUnsplashConfigured()) {
-    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
+    const imageUrl = await autoResolveImage(
+      body.imagePrompt,
+      await imageContextFor(launch, "hero"),
+    );
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
@@ -1124,7 +1535,12 @@ async function generateContenidoPage(launch: Launch, pageDef: PageDef, ctx: Page
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
 
-async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx, orgName: string) {
+async function generateLegalPage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+  orgName: string,
+) {
   const legalKey = pageDef.pageKey.replace("legal-", "") as LegalPageKey;
 
   const { text } = await complete({
@@ -1138,7 +1554,11 @@ async function generateLegalPage(launch: Launch, pageDef: PageDef, ctx: PageGenC
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
 
-async function generateAfiliadosPage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx) {
+async function generateAfiliadosPage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
   const { text } = await complete({
     system: AFILIADOS_SYSTEM,
     prompt: afiliadosPrompt(
@@ -1157,18 +1577,31 @@ async function generateAfiliadosPage(launch: Launch, pageDef: PageDef, ctx: Page
   await insertPageAsset(launch, pageDef, ctx, body as Record<string, unknown>);
 }
 
-async function generateSinglePage(launch: Launch, pageDef: PageDef, ctx: PageGenCtx, orgName: string) {
+async function generateSinglePage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+  orgName: string,
+) {
   if (pageDef.kind === "venta") return generateVentaPage(launch, pageDef, ctx);
-  if (pageDef.kind === "registro") return generateRegistroPage(launch, pageDef, ctx);
-  if (pageDef.kind === "contenido") return generateContenidoPage(launch, pageDef, ctx);
-  if (pageDef.kind === "legal") return generateLegalPage(launch, pageDef, ctx, orgName);
-  if (pageDef.kind === "afiliados") return generateAfiliadosPage(launch, pageDef, ctx);
+  if (pageDef.kind === "registro")
+    return generateRegistroPage(launch, pageDef, ctx);
+  if (pageDef.kind === "contenido")
+    return generateContenidoPage(launch, pageDef, ctx);
+  if (pageDef.kind === "legal")
+    return generateLegalPage(launch, pageDef, ctx, orgName);
+  if (pageDef.kind === "afiliados")
+    return generateAfiliadosPage(launch, pageDef, ctx);
 }
 
 /** Runs a handful of async jobs at a time instead of all at once (Claude/
  * Magnific/screenshot-service would choke on 10-14 concurrent calls) or
  * fully sequentially (too slow for a PLF's worth of pages). */
-async function runInBatches<T>(items: T[], batchSize: number, fn: (item: T) => Promise<unknown>) {
+async function runInBatches<T>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<unknown>,
+) {
   const results: PromiseSettledResult<unknown>[] = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
@@ -1177,15 +1610,29 @@ async function runInBatches<T>(items: T[], batchSize: number, fn: (item: T) => P
   return results;
 }
 
-async function sharedPageGenContext(launch: Launch, organizationId: string, userId: string): Promise<PageGenCtx> {
+async function sharedPageGenContext(
+  launch: Launch,
+  organizationId: string,
+  userId: string,
+): Promise<PageGenCtx> {
   const [launchProducts, referenceSummary] = await Promise.all([
-    db.select().from(products).where(and(eq(products.launchId, launch.id), eq(products.active, true))),
-    launch.referenceUrl ? analyzeReferenceUrl(launch.referenceUrl) : Promise.resolve(null),
+    db
+      .select()
+      .from(products)
+      .where(and(eq(products.launchId, launch.id), eq(products.active, true))),
+    launch.referenceUrl
+      ? analyzeReferenceUrl(launch.referenceUrl)
+      : Promise.resolve(null),
   ]);
   return {
     organizationId,
     userId,
-    launchProducts: launchProducts.map((p) => ({ slug: p.slug, name: p.name, priceCents: p.priceCents, currency: p.currency })),
+    launchProducts: launchProducts.map((p) => ({
+      slug: p.slug,
+      name: p.name,
+      priceCents: p.priceCents,
+      currency: p.currency,
+    })),
     referenceSummary,
   };
 }
@@ -1215,7 +1662,10 @@ async function writeProgress(launchId: string, progress: GenerationProgress) {
   await db
     .update(launches)
     .set({
-      assetsCache: { ...((current?.cache ?? {}) as Record<string, unknown>), generation: progress },
+      assetsCache: {
+        ...((current?.cache ?? {}) as Record<string, unknown>),
+        generation: progress,
+      },
       updatedAt: new Date(),
     })
     .where(eq(launches.id, launchId));
@@ -1272,7 +1722,12 @@ export async function readGenerationProgress(
   const [row] = await db
     .select({ cache: launches.assetsCache })
     .from(launches)
-    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .where(
+      and(
+        eq(launches.id, launchId),
+        eq(launches.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   const generation = (row?.cache as Record<string, unknown> | null)?.generation;
   return (generation as GenerationProgress | undefined) ?? null;
@@ -1283,11 +1738,19 @@ export async function generateAllPagesAction(launchId: string) {
   const { user, organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
-  if (launch.brandKitStatus !== "approved" || !launch.brandPalette || !launch.brandFonts) {
+  if (
+    launch.brandKitStatus !== "approved" ||
+    !launch.brandPalette ||
+    !launch.brandFonts
+  ) {
     throw new Error("brand_kit_not_approved");
   }
 
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
   const ctx = await sharedPageGenContext(launch, organizationId, user.id);
   const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
 
@@ -1329,13 +1792,22 @@ export async function generateAllPagesAction(launchId: string) {
   // what it looked like: a couple of seconds of spinner and no explanation.
   const failed = results
     .map((r, i) => ({ r, page: pages[i]! }))
-    .filter((x): x is { r: PromiseRejectedResult; page: PageDef } => x.r.status === "rejected");
+    .filter(
+      (x): x is { r: PromiseRejectedResult; page: PageDef } =>
+        x.r.status === "rejected",
+    );
 
   if (failed.length > 0) {
     const detail = failed
-      .map(({ r, page }) => `${page.label}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`)
+      .map(
+        ({ r, page }) =>
+          `${page.label}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+      )
       .join(" · ");
-    console.error("generateAllPagesAction failed pages", failed.map((f) => f.r.reason));
+    console.error(
+      "generateAllPagesAction failed pages",
+      failed.map((f) => f.r.reason),
+    );
     throw new Error(
       `No se pudieron generar ${failed.length} de ${pages.length} páginas. ${detail}`,
     );
@@ -1349,7 +1821,9 @@ export async function regenerateSinglePageAction(
   formData?: FormData,
 ) {
   const { user, organizationId } = await requireOrgAdmin();
-  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const typed = formData
+    ? String(formData.get("instruction") ?? "").trim()
+    : "";
   await generatePageForOrg({
     launchId,
     organizationId,
@@ -1379,11 +1853,18 @@ export async function generatePageForOrg(input: {
   const { launchId, organizationId, userId, pageKey } = input;
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
-  if (launch.brandKitStatus !== "approved" || !launch.brandPalette || !launch.brandFonts) {
+  if (
+    launch.brandKitStatus !== "approved" ||
+    !launch.brandPalette ||
+    !launch.brandFonts
+  ) {
     throw new Error("brand_kit_not_approved");
   }
 
-  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  const pageDef = resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
   // Remembered per page in assetsCache, so regenerating twice doesn't mean
@@ -1399,13 +1880,25 @@ export async function generatePageForOrg(input: {
     else delete next[pageKey];
     await db
       .update(launches)
-      .set({ assetsCache: { ...cache, pageInstructions: next }, updatedAt: new Date() })
+      .set({
+        assetsCache: { ...cache, pageInstructions: next },
+        updatedAt: new Date(),
+      })
       .where(eq(launches.id, launchId));
   }
 
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
   const ctx = await sharedPageGenContext(launch, organizationId, userId);
-  await generateSinglePage(launch, pageDef, { ...ctx, pageInstruction }, org?.name ?? launch.name);
+  await generateSinglePage(
+    launch,
+    pageDef,
+    { ...ctx, pageInstruction },
+    org?.name ?? launch.name,
+  );
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -1418,17 +1911,30 @@ export async function generatePageForOrg(input: {
  * — a resolved `imageUrl`, say — is preserved, so editing the headline can't
  * silently drop the photo.
  */
-export async function updatePageFieldsAction(launchId: string, pageKey: string, formData: FormData) {
+export async function updatePageFieldsAction(
+  launchId: string,
+  pageKey: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  const pageDef = resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -1448,15 +1954,25 @@ export async function updatePageFieldsAction(launchId: string, pageKey: string, 
   );
 
   // A new imagePrompt invalidates the photo resolved from the previous one.
-  const previousPrompt = (asset?.body as Record<string, unknown> | undefined)?.imagePrompt;
-  if (typeof body.imagePrompt === "string" && body.imagePrompt !== previousPrompt) {
-    const imageUrl = await autoResolveImage(body.imagePrompt, await imageContextFor(launch, "hero"));
+  const previousPrompt = (asset?.body as Record<string, unknown> | undefined)
+    ?.imagePrompt;
+  if (
+    typeof body.imagePrompt === "string" &&
+    body.imagePrompt !== previousPrompt
+  ) {
+    const imageUrl = await autoResolveImage(
+      body.imagePrompt,
+      await imageContextFor(launch, "hero"),
+    );
     if (imageUrl) body.imageUrl = imageUrl;
   }
   if (!body.imagePrompt) delete body.imageUrl;
 
   if (asset) {
-    await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+    await db
+      .update(assets)
+      .set({ body, updatedAt: new Date() })
+      .where(eq(assets.id, asset.id));
   } else {
     // No asset yet: the admin is writing this page by hand before generating it.
     await db.insert(assets).values({
@@ -1478,11 +1994,18 @@ export async function updatePageFieldsAction(launchId: string, pageKey: string, 
  * Rewrites ONE part of a simple page with Claude, so those pages get the same
  * per-part editing the sales page has instead of an all-or-nothing regenerate.
  */
-export async function refinePageFieldAction(launchId: string, pageKey: string, formData: FormData) {
+export async function refinePageFieldAction(
+  launchId: string,
+  pageKey: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
+  const pageDef = resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
   const fieldName = String(formData.get("field") ?? "");
@@ -1495,7 +2018,13 @@ export async function refinePageFieldAction(launchId: string, pageKey: string, f
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
   if (!asset) throw new Error("page_not_generated");
@@ -1521,23 +2050,36 @@ export async function refinePageFieldAction(launchId: string, pageKey: string, f
   // The model is asked for a bare value, but it still volunteers a fenced object
   // now and then — accept both rather than failing the edit.
   const answer = extractPageFieldValue(text, field.type === "list", fieldName);
-  if (answer === null) throw new Error("La IA no devolvió un valor usable. No se ha guardado nada.");
+  if (answer === null)
+    throw new Error(
+      "La IA no devolvió un valor usable. No se ha guardado nada.",
+    );
 
   body[fieldName] = answer;
 
   if (fieldName === "imagePrompt" && typeof answer === "string") {
-    const imageUrl = await autoResolveImage(answer, await imageContextFor(launch, "hero"));
+    const imageUrl = await autoResolveImage(
+      answer,
+      await imageContextFor(launch, "hero"),
+    );
     if (imageUrl) body.imageUrl = imageUrl;
   }
 
-  await db.update(assets).set({ body, updatedAt: new Date() }).where(eq(assets.id, asset.id));
+  await db
+    .update(assets)
+    .set({ body, updatedAt: new Date() })
+    .where(eq(assets.id, asset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
   revalidatePath(pagePath(launch.slug, pageDef));
 }
 
 /** Pulls a string or a list out of the model's answer, however it wrapped it. */
-function extractPageFieldValue(text: string, isList: boolean, fieldName: string): string | string[] | null {
+function extractPageFieldValue(
+  text: string,
+  isList: boolean,
+  fieldName: string,
+): string | string[] | null {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = (fence ? fence[1] : text).trim();
 
@@ -1557,11 +2099,17 @@ function extractPageFieldValue(text: string, isList: boolean, fieldName: string)
 
   if (isList) {
     if (Array.isArray(parsed)) {
-      const items = parsed.filter((i): i is string => typeof i === "string").map((i) => i.trim()).filter(Boolean);
+      const items = parsed
+        .filter((i): i is string => typeof i === "string")
+        .map((i) => i.trim())
+        .filter(Boolean);
       return items.length > 0 ? items : null;
     }
     if (typeof parsed === "string") {
-      const items = parsed.split("\n").map((l) => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
+      const items = parsed
+        .split("\n")
+        .map((l) => l.replace(/^[-*•]\s*/, "").trim())
+        .filter(Boolean);
       return items.length > 0 ? items : null;
     }
     return null;
@@ -1571,7 +2119,11 @@ function extractPageFieldValue(text: string, isList: boolean, fieldName: string)
   return null;
 }
 
-export async function updatePageBodyAction(launchId: string, pageKey: string, formData: FormData) {
+export async function updatePageBodyAction(
+  launchId: string,
+  pageKey: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -1581,7 +2133,13 @@ export async function updatePageBodyAction(launchId: string, pageKey: string, fo
   await db
     .update(assets)
     .set({ body, updatedAt: new Date() })
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)));
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    );
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
@@ -1591,14 +2149,23 @@ export async function updatePageBodyAction(launchId: string, pageKey: string, fo
  * JSON (long copy, box style, section order/removal) and re-runs the review
  * on the result. Anything CSS-level stays as a warning — see DESIGN_FIX_SYSTEM.
  */
-export async function applyDesignFixesAction(launchId: string, pageKey: string) {
+export async function applyDesignFixesAction(
+  launchId: string,
+  pageKey: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)))
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
   if (!asset) throw new Error("page_not_found");
@@ -1622,17 +2189,30 @@ export async function applyDesignFixesAction(launchId: string, pageKey: string) 
     .set({ body: fixedBody as Record<string, unknown>, updatedAt: new Date() })
     .where(eq(assets.id, asset.id));
 
-  const pageDef = resolvePages(launch.type as LaunchType, launch.pageConfig).find((p) => p.pageKey === pageKey);
-  if (pageDef) await runDesignReview(launch, pageDef, asset.id, fixedBody as Record<string, unknown>);
+  const pageDef = resolvePages(
+    launch.type as LaunchType,
+    launch.pageConfig,
+  ).find((p) => p.pageKey === pageKey);
+  if (pageDef)
+    await runDesignReview(
+      launch,
+      pageDef,
+      asset.id,
+      fixedBody as Record<string, unknown>,
+    );
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateLandingInstructionsAction(launchId: string, formData: FormData) {
+export async function updateLandingInstructionsAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const instructions = String(formData.get("instructions") ?? "").trim() || null;
+  const instructions =
+    String(formData.get("instructions") ?? "").trim() || null;
 
   await db
     .update(launches)
@@ -1813,7 +2393,13 @@ export async function generateAdsAction(launchId: string) {
   const ctaUrl = `${env.APP_URL}/${launch.slug}`;
   const { text } = await complete({
     system: ADS_SYSTEM,
-    prompt: adsPrompt(launch.name, launch.promise, launch.painPoints ?? [], launch.benefits ?? [], ctaUrl),
+    prompt: adsPrompt(
+      launch.name,
+      launch.promise,
+      launch.painPoints ?? [],
+      launch.benefits ?? [],
+      ctaUrl,
+    ),
     maxTokens: 6000,
     temperature: 0.8,
   });
@@ -1832,14 +2418,23 @@ export async function generateAdsAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function createStripeProductAction(launchId: string, formData: FormData) {
+export async function createStripeProductAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const priceCents = Number(formData.get("priceCents"));
+  // El formulario manda euros con decimales; Stripe cobra en céntimos. El
+  // redondeo importa: 39.99 * 100 son 3998.9999999999995 en coma flotante, y
+  // truncarlo cobraría un céntimo de menos.
+  const priceCents =
+    euroAmount.safeParse(formData.get("price") ?? "").data ?? NaN;
   const currency = String(formData.get("currency") ?? "EUR").toLowerCase();
   const name = String(formData.get("name") ?? launch.name);
-  const description = String(formData.get("description") ?? launch.promise ?? "");
+  const description = String(
+    formData.get("description") ?? launch.promise ?? "",
+  );
   // Only needed once there's more than one tier — keeps single-price launches
   // (the common case) exactly as before, with slug === launch.slug.
   const tierKey = String(formData.get("tierKey") ?? "").trim();
@@ -1848,7 +2443,10 @@ export async function createStripeProductAction(launchId: string, formData: Form
     throw new Error("invalid_price");
   }
 
-  const existingCount = await db.select().from(products).where(eq(products.launchId, launchId));
+  const existingCount = await db
+    .select()
+    .from(products)
+    .where(eq(products.launchId, launchId));
   const slug = tierKey ? `${launch.slug}--${createSlug(tierKey)}` : launch.slug;
 
   const stripe = await getStripeClientForOrg(organizationId);
@@ -1856,7 +2454,11 @@ export async function createStripeProductAction(launchId: string, formData: Form
   const stripeProduct = await stripe.products.create({
     name,
     description: description || undefined,
-    metadata: { launch_id: launchId, launch_slug: launch.slug, tier_key: tierKey || "" },
+    metadata: {
+      launch_id: launchId,
+      launch_slug: launch.slug,
+      tier_key: tierKey || "",
+    },
   });
 
   const stripePrice = await stripe.prices.create({
@@ -1883,14 +2485,21 @@ export async function createStripeProductAction(launchId: string, formData: Form
   if (existingCount.length === 0) {
     await db
       .update(launches)
-      .set({ defaultPriceCents: priceCents, currency: currency.toUpperCase(), updatedAt: new Date() })
+      .set({
+        defaultPriceCents: priceCents,
+        currency: currency.toUpperCase(),
+        updatedAt: new Date(),
+      })
       .where(eq(launches.id, launchId));
   }
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function deleteStripeProductAction(launchId: string, formData: FormData) {
+export async function deleteStripeProductAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
   const productId = String(formData.get("productId") ?? "");
@@ -1905,12 +2514,19 @@ export async function deleteStripeProductAction(launchId: string, formData: Form
   // Archive in Stripe rather than delete — existing orders still reference
   // this price/product and must keep resolving correctly.
   const stripe = await getStripeClientForOrg(organizationId);
-  await stripe.prices.update(product.stripePriceId!, { active: false }).catch(() => {});
+  await stripe.prices
+    .update(product.stripePriceId!, { active: false })
+    .catch(() => {});
   if (product.stripeProductId) {
-    await stripe.products.update(product.stripeProductId, { active: false }).catch(() => {});
+    await stripe.products
+      .update(product.stripeProductId, { active: false })
+      .catch(() => {});
   }
 
-  await db.update(products).set({ active: false, updatedAt: new Date() }).where(eq(products.id, productId));
+  await db
+    .update(products)
+    .set({ active: false, updatedAt: new Date() })
+    .where(eq(products.id, productId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
@@ -1941,7 +2557,10 @@ export async function provisionActiveCampaignAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function pushEmailsToActiveCampaignAction(launchId: string, assetId: string) {
+export async function pushEmailsToActiveCampaignAction(
+  launchId: string,
+  assetId: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
   if (!ac) throw new Error("activecampaign_not_configured");
@@ -1951,11 +2570,15 @@ export async function pushEmailsToActiveCampaignAction(launchId: string, assetId
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)))
+    .where(
+      and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)),
+    )
     .limit(1);
   if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
 
-  const sequence = asset.body as { emails: Array<{ subject: string; preheader?: string; body: string }> };
+  const sequence = asset.body as {
+    emails: Array<{ subject: string; preheader?: string; body: string }>;
+  };
 
   const templateIds: string[] = [];
   for (let i = 0; i < sequence.emails.length; i++) {
@@ -2021,7 +2644,9 @@ export async function scheduleAcCampaignsAction(launchId: string) {
     .where(eq(milestones.launchId, launchId))
     .orderBy(milestones.sortOrder);
 
-  const milestoneByPhase = new Map<string, (typeof launchMilestones)[number]>(launchMilestones.map((m) => [m.phase, m]));
+  const milestoneByPhase = new Map<string, (typeof launchMilestones)[number]>(
+    launchMilestones.map((m) => [m.phase, m]),
+  );
 
   // Delete existing campaigns for this launch (drafts only)
   const existing = await ac.findCampaignsByPrefix(launch.slug);
@@ -2085,14 +2710,22 @@ export async function scheduleAcCampaignsAction(launchId: string) {
  * which no multi-page launch renders. Every section edit looked like it did
  * nothing, and the old version reappeared on refresh.
  */
-async function loadLandingAsset(launchId: string, organizationId: string, pageKey: string) {
+async function loadLandingAsset(
+  launchId: string,
+  organizationId: string,
+  pageKey: string,
+) {
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const [asset] = await db
     .select()
     .from(assets)
     .where(
-      and(eq(assets.launchId, launchId), eq(assets.kind, "landing"), eq(assets.pageKey, pageKey)),
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
     )
     .orderBy(desc(assets.createdAt))
     .limit(1);
@@ -2134,7 +2767,11 @@ export async function refineLandingSectionAction(
   const instruction = String(formData.get("instruction") ?? "").trim();
   if (!instruction) throw new Error("instruction_required");
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
+  const { launch, asset } = await loadLandingAsset(
+    launchId,
+    organizationId,
+    pageKey,
+  );
   const body = (asset?.body ?? {}) as LandingBody;
   const currentSection = (body as Record<string, unknown>)[section] ?? null;
 
@@ -2161,7 +2798,10 @@ export async function refineLandingSectionAction(
   // or as the bare section value (older behaviour, and what it still does when
   // the instruction is purely textual). Accept both.
   const hasEnvelope =
-    parsed && typeof parsed === "object" && !Array.isArray(parsed) && "content" in parsed;
+    parsed &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    "content" in parsed;
   const rawContent = hasEnvelope ? parsed.content : parsed;
   const rawDesign = hasEnvelope ? parsed.design : undefined;
 
@@ -2180,15 +2820,32 @@ export async function refineLandingSectionAction(
   if (design) {
     // A photo background is useless without an actual image, so resolve it now
     // with the same Magnific → Unsplash path the rest of the generator uses.
-    if (design.background === "photo" && !design.imageUrl && design.imagePrompt) {
-      const imageUrl = await autoResolveImage(design.imagePrompt, await imageContextFor(launch, "band"));
+    if (
+      design.background === "photo" &&
+      !design.imageUrl &&
+      design.imagePrompt
+    ) {
+      const imageUrl = await autoResolveImage(
+        design.imagePrompt,
+        await imageContextFor(launch, "band"),
+      );
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint"; // don't leave an empty photo band
     }
-    newBody.sectionDesign = { ...(body.sectionDesign ?? {}), [section]: design };
+    newBody.sectionDesign = {
+      ...(body.sectionDesign ?? {}),
+      [section]: design,
+    };
   }
 
-  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
+  await saveLandingBody(
+    launchId,
+    organizationId,
+    launch.slug,
+    pageKey,
+    newBody,
+    user.id,
+  );
 }
 
 /** Deterministic counterpart to the refine box: the dropdowns in the section
@@ -2201,7 +2858,11 @@ export async function updateSectionDesignAction(
   formData: FormData,
 ) {
   const { user, organizationId } = await requireOrgAdmin();
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
+  const { launch, asset } = await loadLandingAsset(
+    launchId,
+    organizationId,
+    pageKey,
+  );
   const body = (asset?.body ?? {}) as LandingBody;
 
   const { design } = normalizeSectionDesign(
@@ -2221,14 +2882,20 @@ export async function updateSectionDesignAction(
   const nextDesign = { ...(body.sectionDesign ?? {}) };
   if (design) {
     if (design.background === "photo" && !design.imageUrl) {
-      const prompt = design.imagePrompt ?? `Fotografía de fondo para "${launch.name}"`;
-      const imageUrl = await autoResolveImage(prompt, await imageContextFor(launch, "band"));
+      const prompt =
+        design.imagePrompt ?? `Fotografía de fondo para "${launch.name}"`;
+      const imageUrl = await autoResolveImage(
+        prompt,
+        await imageContextFor(launch, "band"),
+      );
       if (imageUrl) design.imageUrl = imageUrl;
       else design.background = "tint";
     }
     // Orbit with no items would render an empty ring — seed it from the launch.
     if (design.effect === "orbit" && !design.orbitItems?.length) {
-      const seeds = (launch.benefits ?? []).slice(0, 6).map((b) => ({ label: b.split(" ").slice(0, 3).join(" ") }));
+      const seeds = (launch.benefits ?? [])
+        .slice(0, 6)
+        .map((b) => ({ label: b.split(" ").slice(0, 3).join(" ") }));
       if (seeds.length >= 3) design.orbitItems = seeds;
       else design.effect = "aurora";
     }
@@ -2251,10 +2918,7 @@ export async function updateSectionDesignAction(
   );
 }
 
-const ALLOWED_IMAGE_SLOTS = new Set([
-  "hero.imageUrl",
-  "about.creatorImageUrl",
-]);
+const ALLOWED_IMAGE_SLOTS = new Set(["hero.imageUrl", "about.creatorImageUrl"]);
 
 export async function setSectionImageAction(
   launchId: string,
@@ -2268,7 +2932,11 @@ export async function setSectionImageAction(
   }
   const imageUrl = String(formData.get("imageUrl") ?? "").trim() || null;
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
+  const { launch, asset } = await loadLandingAsset(
+    launchId,
+    organizationId,
+    pageKey,
+  );
   const body = (asset?.body ?? {}) as LandingBody;
 
   const newBody: LandingBody = JSON.parse(JSON.stringify(body));
@@ -2280,16 +2948,29 @@ export async function setSectionImageAction(
     if (typeof cur === "string") {
       newBody.about = { text: cur, creatorImageUrl: imageUrl ?? undefined };
     } else {
-      newBody.about = { ...(cur ?? { text: "" }), creatorImageUrl: imageUrl ?? undefined };
+      newBody.about = {
+        ...(cur ?? { text: "" }),
+        creatorImageUrl: imageUrl ?? undefined,
+      };
     }
   } else if (slotPath.startsWith("includes.")) {
     const idx = Number(slotPath.split(".")[1]);
     if (Number.isFinite(idx) && newBody.includes && newBody.includes[idx]) {
-      newBody.includes[idx] = { ...newBody.includes[idx], imageUrl: imageUrl ?? undefined };
+      newBody.includes[idx] = {
+        ...newBody.includes[idx],
+        imageUrl: imageUrl ?? undefined,
+      };
     }
   }
 
-  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
+  await saveLandingBody(
+    launchId,
+    organizationId,
+    launch.slug,
+    pageKey,
+    newBody,
+    user.id,
+  );
 }
 
 export async function updateSectionRawAction(
@@ -2307,11 +2988,22 @@ export async function updateSectionRawAction(
     throw new Error("invalid_json");
   }
 
-  const { launch, asset } = await loadLandingAsset(launchId, organizationId, pageKey);
+  const { launch, asset } = await loadLandingAsset(
+    launchId,
+    organizationId,
+    pageKey,
+  );
   const body = (asset?.body ?? {}) as LandingBody;
   const newBody: LandingBody = { ...body, [section]: parsed };
 
-  await saveLandingBody(launchId, organizationId, launch.slug, pageKey, newBody, user.id);
+  await saveLandingBody(
+    launchId,
+    organizationId,
+    launch.slug,
+    pageKey,
+    newBody,
+    user.id,
+  );
 }
 
 function wrapEmailHtml(body: string, preheader: string): string {
@@ -2327,7 +3019,10 @@ async function getOrgBotToken(organizationId: string): Promise<string | null> {
   return getTelegramToken(organizationId);
 }
 
-export async function connectTelegramGroupAction(launchId: string, formData: FormData) {
+export async function connectTelegramGroupAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const orgBotToken = await getOrgBotToken(organizationId);
   if (!orgBotToken) throw new Error("telegram_not_configured");
@@ -2350,9 +3045,11 @@ export async function connectTelegramGroupAction(launchId: string, formData: For
 
   // Auto-register webhook so Telegram pushes updates
   if (env.TELEGRAM_WEBHOOK_SECRET) {
-    registerWebhook(env.APP_URL, env.TELEGRAM_WEBHOOK_SECRET, orgBotToken).catch((err) =>
-      console.error("Webhook registration failed", err),
-    );
+    registerWebhook(
+      env.APP_URL,
+      env.TELEGRAM_WEBHOOK_SECRET,
+      orgBotToken,
+    ).catch((err) => console.error("Webhook registration failed", err));
   }
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -2398,7 +3095,12 @@ export type TelegramMessageItem = {
   title: string;
   body: string;
   timing: string;
-  triggerEvent: "on_lead" | "on_sale" | "on_cart_open" | "on_cart_close" | "manual";
+  triggerEvent:
+    | "on_lead"
+    | "on_sale"
+    | "on_cart_open"
+    | "on_cart_close"
+    | "manual";
 };
 
 export async function generateTelegramMessagesAction(launchId: string) {
@@ -2420,7 +3122,9 @@ export async function generateTelegramMessagesAction(launchId: string) {
   // Delete previous telegram_message asset for this launch
   await db
     .delete(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")));
+    .where(
+      and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")),
+    );
 
   await db.insert(assets).values({
     organizationId,
@@ -2434,7 +3138,10 @@ export async function generateTelegramMessagesAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function sendTelegramAssetMessageAction(launchId: string, messageIndex: number) {
+export async function sendTelegramAssetMessageAction(
+  launchId: string,
+  messageIndex: number,
+) {
   const { organizationId } = await requireOrgAdmin();
   const orgBotToken = await getOrgBotToken(organizationId);
   const launch = await getOrgLaunch(launchId, organizationId);
@@ -2444,7 +3151,9 @@ export async function sendTelegramAssetMessageAction(launchId: string, messageIn
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")))
+    .where(
+      and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -2460,7 +3169,12 @@ export async function sendTelegramAssetMessageAction(launchId: string, messageIn
     .replace(/\{\{ctaUrl\}\}/g, `${env.APP_URL}/${launch.slug}`)
     .replace(/\{\{name\}\}/g, "");
 
-  await sendTelegramMessage(launch.telegramChatId, text, { parseMode: "HTML" }, orgBotToken);
+  await sendTelegramMessage(
+    launch.telegramChatId,
+    text,
+    { parseMode: "HTML" },
+    orgBotToken,
+  );
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
@@ -2480,7 +3194,12 @@ export async function sendAutomatedTelegramMessage(opts: {
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, opts.launchId), eq(assets.kind, "telegram_message")))
+    .where(
+      and(
+        eq(assets.launchId, opts.launchId),
+        eq(assets.kind, "telegram_message"),
+      ),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -2502,11 +3221,19 @@ export async function sendAutomatedTelegramMessage(opts: {
       .replace(/\{\{name\}\}/g, opts.leadName ?? "")
       .replace(/\{\{email\}\}/g, opts.email ?? "");
 
-    await sendTelegramMessage(opts.chatId, text, { parseMode: "HTML" }, orgBotToken);
+    await sendTelegramMessage(
+      opts.chatId,
+      text,
+      { parseMode: "HTML" },
+      orgBotToken,
+    );
   }
 }
 
-export async function triggerTelegramCartAction(launchId: string, event: "on_cart_open" | "on_cart_close") {
+export async function triggerTelegramCartAction(
+  launchId: string,
+  event: "on_cart_open" | "on_cart_close",
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2528,7 +3255,9 @@ async function loadTelegramAsset(launchId: string) {
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")))
+    .where(
+      and(eq(assets.launchId, launchId), eq(assets.kind, "telegram_message")),
+    )
     .orderBy(desc(assets.createdAt))
     .limit(1);
   return asset;
@@ -2561,7 +3290,10 @@ export async function editTelegramMessageAction(
 
   await db
     .update(assets)
-    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .set({
+      body: body as unknown as Record<string, unknown>,
+      updatedAt: new Date(),
+    })
     .where(eq(assets.id, asset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -2605,7 +3337,10 @@ export async function refineTelegramMessageAction(
 
   await db
     .update(assets)
-    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .set({
+      body: body as unknown as Record<string, unknown>,
+      updatedAt: new Date(),
+    })
     .where(eq(assets.id, asset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -2613,13 +3348,22 @@ export async function refineTelegramMessageAction(
 
 // ---- Calendar / Milestones ----
 
-export async function updateLaunchCountryAction(launchId: string, formData: FormData) {
+export async function updateLaunchCountryAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const primaryCountry = String(formData.get("primaryCountry") ?? "").trim() || null;
+  const primaryCountry =
+    String(formData.get("primaryCountry") ?? "").trim() || null;
   const regionsRaw = String(formData.get("targetRegions") ?? "").trim();
-  const targetRegions = regionsRaw ? regionsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const targetRegions = regionsRaw
+    ? regionsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
 
   await db
     .update(launches)
@@ -2629,7 +3373,10 @@ export async function updateLaunchCountryAction(launchId: string, formData: Form
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function generateMilestonesAction(launchId: string, formData: FormData) {
+export async function generateMilestonesAction(
+  launchId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2663,17 +3410,30 @@ export async function generateMilestonesAction(launchId: string, formData: FormD
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateMilestoneAction(milestoneId: string, formData: FormData) {
+export async function updateMilestoneAction(
+  milestoneId: string,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
 
-  const [milestone] = await db.select().from(milestones).where(eq(milestones.id, milestoneId)).limit(1);
+  const [milestone] = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.id, milestoneId))
+    .limit(1);
   if (!milestone) throw new Error("milestone_not_found");
 
   const launch = await getOrgLaunch(milestone.launchId, organizationId);
 
-  const startsAt = formData.get("startsAt") ? new Date(String(formData.get("startsAt"))) : undefined;
-  const endsAt = formData.get("endsAt") ? new Date(String(formData.get("endsAt"))) : undefined;
-  const label = formData.get("label") ? String(formData.get("label")).trim() : undefined;
+  const startsAt = formData.get("startsAt")
+    ? new Date(String(formData.get("startsAt")))
+    : undefined;
+  const endsAt = formData.get("endsAt")
+    ? new Date(String(formData.get("endsAt")))
+    : undefined;
+  const label = formData.get("label")
+    ? String(formData.get("label")).trim()
+    : undefined;
 
   await db
     .update(milestones)
@@ -2701,7 +3461,9 @@ export async function analyzeCalendarAction(launchId: string) {
   if (launchMilestones.length === 0) throw new Error("no_milestones");
 
   const primaryCountry = launch.primaryCountry ?? "AR";
-  const secondaryCountries = ((launch.targetRegions as string[]) ?? []).filter((c) => c !== primaryCountry);
+  const secondaryCountries = ((launch.targetRegions as string[]) ?? []).filter(
+    (c) => c !== primaryCountry,
+  );
 
   const fmt = (d: Date) => d.toISOString().split("T")[0]!;
   const year = launchMilestones[0]!.startsAt.getFullYear();
@@ -2710,7 +3472,9 @@ export async function analyzeCalendarAction(launchId: string) {
     system: CALENDAR_ANALYSIS_SYSTEM,
     prompt: calendarAnalysisPrompt({
       primaryCountry: `${primaryCountry} (${COUNTRIES[primaryCountry] ?? primaryCountry})`,
-      secondaryCountries: secondaryCountries.map((c) => `${c} (${COUNTRIES[c] ?? c})`),
+      secondaryCountries: secondaryCountries.map(
+        (c) => `${c} (${COUNTRIES[c] ?? c})`,
+      ),
       milestones: launchMilestones.map((m) => ({
         phase: m.phase,
         label: m.label,
@@ -2734,7 +3498,9 @@ export async function analyzeCalendarAction(launchId: string) {
 
   // Save warnings on each milestone
   for (const milestone of launchMilestones) {
-    const phaseWarnings = analysis.warnings.filter((w) => w.phase === milestone.phase || w.phase === milestone.label);
+    const phaseWarnings = analysis.warnings.filter(
+      (w) => w.phase === milestone.phase || w.phase === milestone.label,
+    );
     await db
       .update(milestones)
       .set({ aiWarnings: phaseWarnings, updatedAt: new Date() })

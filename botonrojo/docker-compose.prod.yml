@@ -1,0 +1,76 @@
+name: botonrojo
+
+# Producción en un servidor COMPARTIDO.
+#
+# Se usa solo (no como override de docker-compose.yml):
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Diferencias con el de desarrollo, todas por la misma razón — este servidor ya
+# tiene doce sitios, un panel Hestia, Grafana y un n8n corriendo:
+#
+#   · Sin Caddy. Nginx de Hestia ya es dueño del 80 y del 443, y quitárselo
+#     tumbaría el resto de los sitios. El HTTPS lo pone Hestia con su Let's
+#     Encrypt y hace de proxy a la app.
+#   · La app publica en 3020. El 3000 es de Grafana y el 3010 de otro node que ya
+#     estaba corriendo; conviene comprobarlo con `ss -tln` antes de mover esto.
+#   · Postgres y Redis no publican NINGÚN puerto. Solo los usa la app, por la red
+#     interna de Docker, y el 6379 del host ya lo ocupa el Redis del sistema.
+#   · MinIO sí publica en 127.0.0.1:9000, porque nginx tiene que poder servir por
+#     HTTPS las imágenes y los css de las páginas publicadas.
+#
+# Nada escucha en la IP pública salvo lo que nginx decida exponer.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-botonrojo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-botonrojo}
+    volumes:
+      - ./deploy/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-botonrojo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./deploy/data/redis:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?falta S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?falta S3_SECRET_KEY}
+    volumes:
+      - ./deploy/data/minio:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+
+  screenshot:
+    build: ./screenshot-service
+    restart: unless-stopped
+    environment:
+      SCREENSHOT_SERVICE_TOKEN: ${SCREENSHOT_SERVICE_TOKEN:-}
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      screenshot:
+        condition: service_started
+    env_file: .env
+    ports:
+      - "127.0.0.1:3020:3000"

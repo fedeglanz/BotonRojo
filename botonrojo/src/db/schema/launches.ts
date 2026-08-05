@@ -1,14 +1,39 @@
-import { pgTable, text, timestamp, pgEnum, jsonb, integer, boolean, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  pgEnum,
+  jsonb,
+  integer,
+  boolean,
+  index,
+} from "drizzle-orm/pg-core";
 import { createId } from "@/lib/ids";
 import { organizations } from "./organizations";
 import type { PageConfig } from "@/lib/launch-pages";
 
-export const launchType = pgEnum("launch_type", ["venta_directa", "semilla", "plf"]);
-export const launchStatus = pgEnum("launch_status", ["draft", "scheduled", "live", "closed", "archived"]);
-export const brandKitStatus = pgEnum("brand_kit_status", ["pending", "draft", "approved"]);
+export const launchType = pgEnum("launch_type", [
+  "venta_directa",
+  "semilla",
+  "plf",
+]);
+export const launchStatus = pgEnum("launch_status", [
+  "draft",
+  "scheduled",
+  "live",
+  "closed",
+  "archived",
+]);
+export const brandKitStatus = pgEnum("brand_kit_status", [
+  "pending",
+  "draft",
+  "approved",
+]);
 
 export const launches = pgTable("launches", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
   organizationId: text("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
@@ -25,14 +50,24 @@ export const launches = pgTable("launches", {
 
   // Pricing / product link
   defaultPriceCents: integer("default_price_cents"),
+  /**
+   * Pago a plazos, si lo hay: cuántos y de cuánto cada uno.
+   *
+   * Se guarda aparte del precio único porque no es un descuento ni otro nivel:
+   * es el mismo producto pagado en varias veces, y el copy tiene que poder decir
+   * "o 3 pagos de 39 €" sin que nadie lo calcule a mano — 97/3 no da un número
+   * que se pueda cobrar.
+   */
+  installmentCount: integer("installment_count"),
+  installmentPriceCents: integer("installment_price_cents"),
   currency: text("currency").default("EUR"),
 
   // Target market
-  primaryCountry: text("primary_country"),  // ISO 3166-1 alpha-2, e.g. "AR"
-  targetRegions: jsonb("target_regions").$type<string[]>().default([]),  // ["AR","CL","MX"] or ["LATAM","ES"]
+  primaryCountry: text("primary_country"), // ISO 3166-1 alpha-2, e.g. "AR"
+  targetRegions: jsonb("target_regions").$type<string[]>().default([]), // ["AR","CL","MX"] or ["LATAM","ES"]
 
   // Schedule
-  anchorDate: timestamp("anchor_date", { mode: "date" }),  // event / cart-open date
+  anchorDate: timestamp("anchor_date", { mode: "date" }), // event / cart-open date
   /** When registration closes. The capture pages' countdown runs to this, which
    *  used to borrow the content drip date — a different thing entirely: the drip
    *  is when the content starts, not when you can no longer sign up. */
@@ -44,15 +79,21 @@ export const launches = pgTable("launches", {
   contentDripStartsAt: timestamp("content_drip_starts_at", { mode: "date" }),
 
   // Affiliate
-  affiliateCommissionRate: integer("affiliate_commission_rate_bps").default(3000),
+  affiliateCommissionRate: integer("affiliate_commission_rate_bps").default(
+    3000,
+  ),
   affiliateEnabled: boolean("affiliate_enabled").notNull().default(true),
 
   // Generated assets cache
-  assetsCache: jsonb("assets_cache").$type<Record<string, unknown>>().default({}),
+  assetsCache: jsonb("assets_cache")
+    .$type<Record<string, unknown>>()
+    .default({}),
 
   // ActiveCampaign provisioning
   activeCampaignListId: integer("active_campaign_list_id"),
-  activeCampaignTagIds: jsonb("active_campaign_tag_ids").$type<Record<string, number>>().default({}),
+  activeCampaignTagIds: jsonb("active_campaign_tag_ids")
+    .$type<Record<string, number>>()
+    .default({}),
 
   // Telegram provisioning
   telegramChatId: text("telegram_chat_id"),
@@ -63,7 +104,9 @@ export const launches = pgTable("launches", {
   brief: text("brief"),
 
   // Brand kit — mandatory before any landing can be generated (see launch wizard step 1)
-  brandKitStatus: brandKitStatus("brand_kit_status").notNull().default("pending"),
+  brandKitStatus: brandKitStatus("brand_kit_status")
+    .notNull()
+    .default("pending"),
   brandPalette: jsonb("brand_palette").$type<BrandPalette | null>(),
   brandFonts: jsonb("brand_fonts").$type<BrandFonts | null>(),
   brandLogoUrl: text("brand_logo_url"),
@@ -109,7 +152,14 @@ export type AvatarBrief = {
  */
 export type BrandDesign = {
   /** Box treatment for cards, forms and panels. */
-  cardStyle: "glass" | "liquid" | "flat" | "outline" | "soft" | "brutal" | "editorial";
+  cardStyle:
+    | "glass"
+    | "liquid"
+    | "flat"
+    | "outline"
+    | "soft"
+    | "brutal"
+    | "editorial";
   /** Primary button treatment. */
   ctaStyle: "solid" | "glow" | "outline" | "ghost" | "pill-arrow";
   /** How much air the sections get. */
@@ -121,7 +171,9 @@ export type BrandDesign = {
   /** How much decoration the pages should carry overall. */
   intensity: "sobrio" | "equilibrado" | "expresivo";
   /** Ambient effects that suit this brand, in order of preference. */
-  effects: Array<"none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise">;
+  effects: Array<
+    "none" | "orbit" | "geometry" | "aurora" | "grid" | "dots" | "noise"
+  >;
 };
 
 export type BrandPalette = {

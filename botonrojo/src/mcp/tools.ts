@@ -12,7 +12,14 @@ import {
   trackingEvents,
   users,
 } from "@/db/schema";
-import { resolvePages, pagePath, type PageDef } from "@/lib/launch-pages";
+import {
+  resolvePages,
+  pagePath,
+  pageKeyFrom,
+  type PageDef,
+  type PageConfig,
+  type ExtraPage,
+} from "@/lib/launch-pages";
 import type { LaunchType } from "@/lib/launch-types";
 import { env } from "@/lib/env";
 import {
@@ -94,6 +101,77 @@ function requirePage(
 
 /** A message meant for Claude to read out, not a crash. */
 export class ToolError extends Error {}
+
+const PAGE_KINDS = ["registro", "venta", "contenido", "afiliados"] as const;
+
+/**
+ * Adds a page to a launch and returns it.
+ *
+ * The page set used to come entirely from the launch type, so "one more page" had
+ * no answer: the connector could only publish over what already existed. Extra
+ * pages are stored in `pageConfig`, which is also what a launch created before
+ * page config existed lacks entirely — hence the empty config built here rather
+ * than refusing.
+ */
+async function addExtraPage(
+  launch: {
+    id: string;
+    slug: string;
+    type: string;
+    pageConfig: PageConfig | null;
+  },
+  input: { nombre: unknown; tipo: unknown },
+): Promise<PageDef> {
+  const parsed = pageKeyFrom(String(input.nombre ?? "").trim());
+  if ("error" in parsed) throw new ToolError(parsed.error);
+
+  const kind = String(input.tipo ?? "venta");
+  if (!(PAGE_KINDS as readonly string[]).includes(kind)) {
+    throw new ToolError(
+      `El tipo de página tiene que ser uno de: ${PAGE_KINDS.join(", ")}.`,
+    );
+  }
+
+  const existing = resolvePages(launch.type as LaunchType, launch.pageConfig);
+  if (existing.some((page) => page.pageKey === parsed.key)) {
+    throw new ToolError(`Ese lanzamiento ya tiene una página "${parsed.key}".`);
+  }
+
+  const extra: ExtraPage = {
+    pageKey: parsed.key,
+    label: String(input.nombre).trim(),
+    kind: kind as ExtraPage["kind"],
+  };
+
+  // A launch with no config at all is a pre-config one: its only page is "main"
+  // and everything it has published lives there. The flag is what stops writing a
+  // config from switching it onto the typed page set and blanking the live site.
+  const config: PageConfig = launch.pageConfig ?? {
+    legalPages: [],
+    keepLegacyMain: true,
+  };
+  const next: PageConfig = {
+    ...config,
+    extraPages: [...(config.extraPages ?? []), extra],
+  };
+
+  await db
+    .update(launches)
+    .set({ pageConfig: next, updatedAt: new Date() })
+    .where(eq(launches.id, launch.id));
+
+  // The caller's copy is now stale, and it's about to publish onto this page.
+  launch.pageConfig = next;
+
+  const pageDef = resolvePages(launch.type as LaunchType, next).find(
+    (p) => p.pageKey === parsed.key,
+  );
+  if (!pageDef)
+    throw new ToolError(
+      "La página se ha guardado pero no se resuelve; avisa al equipo.",
+    );
+  return pageDef;
+}
 
 function absoluteUrl(path: string): string {
   return `${env.APP_URL.replace(/\/$/, "")}${path}`;
@@ -185,6 +263,17 @@ const contextoLanzamiento: ToolDef = {
         // outside should look like the rest of it, not like a different product.
         diseno: launch.brandDesign,
       },
+      precios: {
+        pago_unico_centimos: launch.defaultPriceCents,
+        moneda: launch.currency ?? "EUR",
+        plazos:
+          launch.installmentCount && launch.installmentPriceCents
+            ? {
+                numero: launch.installmentCount,
+                cada_centimos: launch.installmentPriceCents,
+              }
+            : null,
+      },
       productos: launchProducts.map((p) => ({
         slug: p.slug,
         nombre: p.name,
@@ -243,7 +332,13 @@ const publicarPagina: ToolDef = {
       pagina: {
         type: "string",
         description:
-          'Clave de la página, tal como la da contexto_lanzamiento (p. ej. "registro", "venta")',
+          'Clave de la página, tal como la da contexto_lanzamiento (p. ej. "registro", "venta"). Si no existe y pasas "crear", se crea al publicar.',
+      },
+      crear: {
+        type: "string",
+        enum: ["registro", "venta", "contenido", "afiliados"],
+        description:
+          'Solo si la página no existe todavía: créala con este tipo y publica en ella de una vez. "registro" para captar leads, "venta" para vender, "contenido" para entregar, "afiliados" para reclutar.',
       },
       html: {
         type: "string",
@@ -284,7 +379,18 @@ const publicarPagina: ToolDef = {
     }
 
     const launch = await requireLaunch(auth, args.lanzamiento);
-    const pageDef = requirePage(launch, args.pagina);
+
+    // Publishing onto a page that doesn't exist yet is the common case for a launch
+    // that never had one. Creating it here saves a round trip, and creating it
+    // *before* publishing means a failed publish doesn't leave an empty page behind
+    // — the page and its content arrive together or not at all.
+    const known = resolvePages(launch.type as LaunchType, launch.pageConfig);
+    const asked = String(args.pagina ?? "").trim();
+    const pageDef =
+      args.crear && !known.some((page) => page.pageKey === asked)
+        ? await addExtraPage(launch, { nombre: asked, tipo: args.crear })
+        : requirePage(launch, args.pagina);
+
     if (pageDef.kind === "legal") {
       throw new ToolError(
         "Las páginas legales no se rediseñan: su texto lo mantiene la plataforma.",
@@ -351,6 +457,98 @@ const publicarPagina: ToolDef = {
       aviso:
         "La página ya está en vivo. La medición, el formulario, el pago y los afiliados están cableados por la plataforma.",
     };
+  },
+};
+
+const crearPagina: ToolDef = {
+  name: "crear_pagina",
+  title: "Crear una página nueva",
+  description:
+    "Añade al lanzamiento una página que su tipo no trae de serie: un webinar, una segunda página de venta, una de gracias propia. Devuelve su clave y su URL, listas para publicar o generar.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      nombre: {
+        type: "string",
+        description:
+          'Nombre de la página. De ahí sale la URL: "Webinar de junio" → /slug/webinar-de-junio',
+      },
+      tipo: {
+        type: "string",
+        enum: ["registro", "venta", "contenido", "afiliados"],
+        description:
+          "Para qué es: registro (captar leads), venta (vender), contenido (entregar), afiliados (reclutar). Decide el formulario y los botones que la plataforma cablea.",
+      },
+    },
+    required: ["lanzamiento", "nombre", "tipo"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const pageDef = await addExtraPage(launch, {
+      nombre: args.nombre,
+      tipo: args.tipo,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      creada: true,
+      pagina: pageDef.pageKey,
+      tipo: pageDef.kind,
+      url: absoluteUrl(pagePath(launch.slug, pageDef)),
+      siguiente:
+        "Todavía no tiene contenido: publica un HTML con publicar_pagina o genérala con generar_pagina.",
+    };
+  },
+};
+
+const borrarPagina: ToolDef = {
+  name: "borrar_pagina",
+  title: "Borrar una página añadida",
+  description:
+    "Quita una página de las que se añadieron con crear_pagina, junto con lo que se hubiera publicado en ella. Las páginas que trae el tipo de lanzamiento no se pueden borrar.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" }, pagina: { type: "string" } },
+    required: ["lanzamiento", "pagina"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const key = String(args.pagina ?? "").trim();
+    const config = launch.pageConfig;
+    const extras = config?.extraPages ?? [];
+
+    if (!extras.some((extra) => extra.pageKey === key)) {
+      throw new ToolError(
+        `"${key}" no es una página añadida: o no existe, o viene con el tipo de lanzamiento y no se puede borrar.`,
+      );
+    }
+
+    const pageDef = requirePage(launch, key);
+    const path = pagePath(launch.slug, pageDef);
+
+    await db
+      .update(launches)
+      .set({
+        pageConfig: {
+          ...config!,
+          extraPages: extras.filter((extra) => extra.pageKey !== key),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(launches.id, launch.id));
+
+    // Its assets go too: leaving them would resurrect the old content if somebody
+    // later created a page with the same name.
+    await db
+      .delete(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.pageKey, key)));
+
+    revalidatePath(path);
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return { borrada: true, pagina: key };
   },
 };
 
@@ -641,9 +839,11 @@ export const TOOLS: ToolDef[] = [
   listarLanzamientos,
   contextoLanzamiento,
   contratoPagina,
+  crearPagina,
   publicarPagina,
   verPagina,
   retirarPagina,
+  borrarPagina,
   generarPagina,
   estadoGeneracion,
   metricasLanzamiento,

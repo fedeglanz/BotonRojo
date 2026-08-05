@@ -27,7 +27,11 @@ async function assertSessionStillValid(userId: string, organizationId: string) {
     .where(eq(users.id, userId))
     .limit(1);
 
-  if (!row || row.organizationId !== organizationId) redirect("/login?sesion=caducada");
+  // Through the route handler, not straight to the login: it deletes the dead
+  // cookie on the way. Redirecting to the login directly left it in place, so the
+  // next navigation bounced back here and the message looked like a login that
+  // hadn't worked.
+  if (!row || row.organizationId !== organizationId) redirect("/sesion-caducada");
 }
 
 /**
