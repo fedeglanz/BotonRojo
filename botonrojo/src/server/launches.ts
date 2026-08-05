@@ -1220,6 +1220,63 @@ async function writeProgress(launchId: string, progress: GenerationProgress) {
     .where(eq(launches.id, launchId));
 }
 
+/**
+ * Starts generating one page and returns immediately.
+ *
+ * For the MCP connector. An MCP client gives a tool call about a minute before it
+ * gives up, and generating a page takes several — so waiting means the caller
+ * always sees a timeout while the work quietly succeeds. Instead the work runs
+ * detached and reports itself through the same progress record the panel already
+ * polls, and the connector asks for the state when it wants it.
+ */
+export async function startPageGeneration(input: {
+  launchId: string;
+  organizationId: string;
+  userId: string;
+  pageKey: string;
+  instruction?: string;
+}) {
+  const progress: GenerationProgress = {
+    startedAt: new Date().toISOString(),
+    total: 1,
+    done: [],
+    failed: [],
+  };
+  await writeProgress(input.launchId, progress);
+
+  // Deliberately not awaited. Self-hosted Node keeps the task alive after the
+  // response; if it ever dies mid-run, the record stays unfinished, which reads as
+  // "it didn't finish" rather than as success.
+  void generatePageForOrg(input)
+    .then(() => {
+      progress.done.push(input.pageKey);
+    })
+    .catch((err: unknown) => {
+      progress.failed.push({
+        page: input.pageKey,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    })
+    .finally(() => {
+      progress.finishedAt = new Date().toISOString();
+      void writeProgress(input.launchId, progress).catch(() => {});
+    });
+}
+
+/** The progress record of the last generation run on this launch. */
+export async function readGenerationProgress(
+  launchId: string,
+  organizationId: string,
+): Promise<GenerationProgress | null> {
+  const [row] = await db
+    .select({ cache: launches.assetsCache })
+    .from(launches)
+    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .limit(1);
+  const generation = (row?.cache as Record<string, unknown> | null)?.generation;
+  return (generation as GenerationProgress | undefined) ?? null;
+}
+
 /** Generates every page this launch's type/config calls for, in one pass. */
 export async function generateAllPagesAction(launchId: string) {
   const { user, organizationId } = await requireOrgAdmin();
@@ -1291,6 +1348,34 @@ export async function regenerateSinglePageAction(
   formData?: FormData,
 ) {
   const { user, organizationId } = await requireOrgAdmin();
+  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  await generatePageForOrg({
+    launchId,
+    organizationId,
+    userId: user.id,
+    pageKey,
+    instruction: typed,
+  });
+}
+
+/**
+ * Generates one page, given who is asking rather than a session.
+ *
+ * Split out of the action because the MCP connector generates pages too, and it
+ * authenticates with a token: it has an organization and a user id but no session
+ * to `requireOrgAdmin()` against. Same work either way — one code path, so the
+ * connector can't drift from the panel.
+ */
+export async function generatePageForOrg(input: {
+  launchId: string;
+  organizationId: string;
+  /** Recorded as the asset's author. */
+  userId: string;
+  pageKey: string;
+  /** Empty string means "keep whatever brief was stored for this page". */
+  instruction?: string;
+}) {
+  const { launchId, organizationId, userId, pageKey } = input;
   const launch = await getOrgLaunch(launchId, organizationId);
   if (!launch.promise || !launch.avatar) throw new Error("marco_copy_missing");
   if (launch.brandKitStatus !== "approved" || !launch.brandPalette || !launch.brandFonts) {
@@ -1304,7 +1389,7 @@ export async function regenerateSinglePageAction(
   // retyping the brief — and so you can see what produced what you're looking at.
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
   const stored = (cache.pageInstructions ?? {}) as Record<string, string>;
-  const typed = formData ? String(formData.get("instruction") ?? "").trim() : "";
+  const typed = (input.instruction ?? "").trim();
   const pageInstruction = typed || stored[pageKey] || null;
 
   if (typed !== (stored[pageKey] ?? "")) {
@@ -1318,7 +1403,7 @@ export async function regenerateSinglePageAction(
   }
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  const ctx = await sharedPageGenContext(launch, organizationId, user.id);
+  const ctx = await sharedPageGenContext(launch, organizationId, userId);
   await generateSinglePage(launch, pageDef, { ...ctx, pageInstruction }, org?.name ?? launch.name);
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);

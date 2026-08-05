@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin/estadisticas", label: "Estadísticas" },
   { href: "/admin/emails", label: "Emails" },
   { href: "/admin/anuncios", label: "Anuncios" },
+  { href: "/admin/conexion-claude", label: "Conectar Claude" },
   { href: "/admin/ajustes", label: "Ajustes" },
 ];
 

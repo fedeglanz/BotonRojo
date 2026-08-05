@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { assets, organizations } from "@/db/schema";
+import { assets, organizations, products } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 
 import { LaunchLandingPage } from "@/components/public/launch-landing";
@@ -9,6 +9,8 @@ import { LegalPage } from "@/components/public/legal-page";
 import { AfiliadosPage } from "@/components/public/afiliados-page";
 import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
 import { canEditLaunch, EDIT_DISABLED, type EditContext } from "@/components/public/edit-mode";
+import { CustomHtmlPage } from "@/components/public/custom-html-page";
+import { isCustomPageBody } from "@/lib/custom-page";
 import type { Launch } from "@/db/schema/launches";
 import type {
   RegistroPageBody,
@@ -33,16 +35,35 @@ export async function renderLaunchPage(
     ? { enabled: true, launchId: launch.id, launchSlug: launch.slug, pageKey: pageDef.pageKey }
     : EDIT_DISABLED;
 
-  if (pageDef.kind === "venta") {
-    return <LaunchLandingPage launch={launch} pageKey={pageDef.pageKey} edit={edit} />;
-  }
-
   const [asset] = await db
     .select()
     .from(assets)
     .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, pageDef.pageKey)))
     .orderBy(desc(assets.createdAt))
     .limit(1);
+
+  // A page designed outside the app wins over every generated renderer: that's
+  // what publishing one means. Checked before the kind dispatch so it works on the
+  // sales page too, which otherwise loads its own body further down.
+  if (isCustomPageBody(asset?.body)) {
+    const activeProducts = await db
+      .select()
+      .from(products)
+      .where(and(eq(products.launchId, launch.id), eq(products.active, true)));
+
+    return (
+      <CustomHtmlPage
+        launch={launch}
+        body={asset.body}
+        pageKey={pageDef.pageKey}
+        products={activeProducts}
+      />
+    );
+  }
+
+  if (pageDef.kind === "venta") {
+    return <LaunchLandingPage launch={launch} pageKey={pageDef.pageKey} edit={edit} />;
+  }
 
   if (pageDef.kind === "registro") {
     return <RegistroPage launch={launch} body={(asset?.body as RegistroPageBody) ?? null} edit={edit} />;
