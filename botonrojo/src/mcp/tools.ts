@@ -143,7 +143,13 @@ async function addExtraPage(
     kind: kind as ExtraPage["kind"],
   };
 
-  const config: PageConfig = launch.pageConfig ?? { legalPages: [] };
+  // A launch with no config at all is a pre-config one: its only page is "main"
+  // and everything it has published lives there. The flag is what stops writing a
+  // config from switching it onto the typed page set and blanking the live site.
+  const config: PageConfig = launch.pageConfig ?? {
+    legalPages: [],
+    keepLegacyMain: true,
+  };
   const next: PageConfig = {
     ...config,
     extraPages: [...(config.extraPages ?? []), extra],
@@ -315,7 +321,13 @@ const publicarPagina: ToolDef = {
       pagina: {
         type: "string",
         description:
-          'Clave de la página, tal como la da contexto_lanzamiento (p. ej. "registro", "venta")',
+          'Clave de la página, tal como la da contexto_lanzamiento (p. ej. "registro", "venta"). Si no existe y pasas "crear", se crea al publicar.',
+      },
+      crear: {
+        type: "string",
+        enum: ["registro", "venta", "contenido", "afiliados"],
+        description:
+          'Solo si la página no existe todavía: créala con este tipo y publica en ella de una vez. "registro" para captar leads, "venta" para vender, "contenido" para entregar, "afiliados" para reclutar.',
       },
       html: {
         type: "string",
@@ -356,7 +368,18 @@ const publicarPagina: ToolDef = {
     }
 
     const launch = await requireLaunch(auth, args.lanzamiento);
-    const pageDef = requirePage(launch, args.pagina);
+
+    // Publishing onto a page that doesn't exist yet is the common case for a launch
+    // that never had one. Creating it here saves a round trip, and creating it
+    // *before* publishing means a failed publish doesn't leave an empty page behind
+    // — the page and its content arrive together or not at all.
+    const known = resolvePages(launch.type as LaunchType, launch.pageConfig);
+    const asked = String(args.pagina ?? "").trim();
+    const pageDef =
+      args.crear && !known.some((page) => page.pageKey === asked)
+        ? await addExtraPage(launch, { nombre: asked, tipo: args.crear })
+        : requirePage(launch, args.pagina);
+
     if (pageDef.kind === "legal") {
       throw new ToolError(
         "Las páginas legales no se rediseñan: su texto lo mantiene la plataforma.",

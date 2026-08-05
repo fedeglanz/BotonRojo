@@ -36,6 +36,16 @@ export type PageConfig = {
   legalPages: LegalPageKey[];
   /** Pages added after the fact — from the connector or the panel. */
   extraPages?: ExtraPage[];
+  /**
+   * Set when a launch that predated page config gains its first extra page.
+   *
+   * Those launches resolve to a single page keyed "main", which is where every
+   * asset they ever published lives. Writing a config to store the new page would
+   * otherwise switch them onto the typed page set and "main" would vanish, taking
+   * the live site with it. Recorded explicitly rather than inferred from the launch
+   * type, because the type says nothing about what was published under it.
+   */
+  keepLegacyMain?: boolean;
 };
 
 export type PageKind =
@@ -81,7 +91,7 @@ export function resolvePages(
   const pages: PageDef[] = [];
   // A launch that predates the typed page set keeps its "main" page: it's where
   // everything it has ever published lives, and dropping it would blank the site.
-  if (config.extraPages?.length && !hasTypedPages(type)) {
+  if (config.keepLegacyMain) {
     pages.push({
       pageKey: "main",
       kind: "venta",
@@ -170,11 +180,6 @@ export function resolvePages(
   if (!pages.some((page) => page.isEntry) && pages[0]) pages[0].isEntry = true;
 
   return pages;
-}
-
-/** Whether this launch type brings its own pages, or only has what was added. */
-function hasTypedPages(type: LaunchType): boolean {
-  return type === "semilla" || type === "venta_directa" || type === "plf";
 }
 
 /**
