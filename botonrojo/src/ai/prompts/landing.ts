@@ -1,4 +1,9 @@
-import type { AvatarBrief, BrandPalette, BrandFonts, BrandDesign } from "@/db/schema/launches";
+import type {
+  AvatarBrief,
+  BrandPalette,
+  BrandFonts,
+  BrandDesign,
+} from "@/db/schema/launches";
 import { describeBrandDesign } from "@/lib/design/brand-design";
 import { DESIGN_RULES } from "./design-rules";
 
@@ -51,8 +56,15 @@ export function landingPrompt(
     design?: BrandDesign | null;
   },
   generalInstructions?: string | null,
-  products?: Array<{ slug: string; name: string; priceCents: number; currency: string }>,
+  products?: Array<{
+    slug: string;
+    name: string;
+    priceCents: number;
+    currency: string;
+  }>,
   referenceSummary?: string | null,
+  /** Pago a plazos del lanzamiento, si lo tiene. */
+  installments?: { count: number; priceCents: number; currency: string } | null,
 ) {
   return `Genera la landing del lanzamiento "${launchName}".
 
@@ -69,14 +81,24 @@ texto "${brandKit.fonts.body}".
 Productos disponibles para este lanzamiento (para "pricingTiers" — usa EXACTAMENTE estos
 productSlug, no inventes otros): ${
     products && products.length > 0
-      ? JSON.stringify(products.map((p) => ({ productSlug: p.slug, name: p.name, price: `${(p.priceCents / 100).toFixed(2)} ${p.currency}` })))
+      ? JSON.stringify(
+          products.map((p) => ({
+            productSlug: p.slug,
+            name: p.name,
+            price: `${(p.priceCents / 100).toFixed(2)} ${p.currency}`,
+          })),
+        )
       : "ninguno todavía — no incluyas pricingTiers"
   }
 ${
-  generalInstructions?.trim()
-    ? `\nInstrucciones del cliente para ESTA landing en concreto (tienen prioridad sobre cualquier\nindicación anterior si entran en conflicto — pueden pedir otro enfoque, otra estructura, omitir\nsecciones, o un tratamiento de imagen/fondo distinto): ${generalInstructions.trim()}\n`
+  installments
+    ? `\nEste lanzamiento se puede pagar a plazos: ${installments.count} pagos de ${(installments.priceCents / 100).toFixed(2)} ${installments.currency}. Menciónalo donde ayude a decidir\n(junto al precio, en el cierre o en las preguntas), con estas cifras exactas y sin calcular nada tú.\n`
     : ""
 }${
+    generalInstructions?.trim()
+      ? `\nInstrucciones del cliente para ESTA landing en concreto (tienen prioridad sobre cualquier\nindicación anterior si entran en conflicto — pueden pedir otro enfoque, otra estructura, omitir\nsecciones, o un tratamiento de imagen/fondo distinto): ${generalInstructions.trim()}\n`
+      : ""
+  }${
     referenceSummary?.trim()
       ? `\nLa landing debe inspirarse en la ESTRUCTURA y el TONO de esta referencia que le gusta al\ncliente (nunca en sus colores — la identidad visual de arriba manda siempre):\n${referenceSummary.trim()}\n`
       : ""

@@ -55,6 +55,12 @@ export function CustomHtmlPage({
     precio: product ? formatPrice(product.priceCents, product.currency) : "",
     precio_sin_formato: product ? String(product.priceCents / 100) : "",
     moneda: product?.currency?.toUpperCase() ?? "EUR",
+    // Frase hecha, no cifras sueltas: el diseñador no tiene que redactarla ni
+    // dividir el total, que casi nunca da un número cobrable.
+    plazos:
+      launch.installmentCount && launch.installmentPriceCents
+        ? `${launch.installmentCount} pagos de ${formatPrice(launch.installmentPriceCents, launch.currency ?? "EUR")}`
+        : "",
     cierre_carrito: launch.cartClosesAt?.toISOString() ?? "",
     cierre_registro: launch.registrationClosesAt?.toISOString() ?? "",
     url_registro: registro

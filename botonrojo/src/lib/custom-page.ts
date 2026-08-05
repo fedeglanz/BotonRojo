@@ -53,6 +53,8 @@ export type PageTokens = {
   precio: string;
   precio_sin_formato: string;
   moneda: string;
+  /** "3 pagos de 39,90 €", o vacío si el lanzamiento no tiene plazos. */
+  plazos: string;
   cierre_carrito: string;
   cierre_registro: string;
   url_registro: string;

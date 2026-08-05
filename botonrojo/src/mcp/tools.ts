@@ -263,6 +263,17 @@ const contextoLanzamiento: ToolDef = {
         // outside should look like the rest of it, not like a different product.
         diseno: launch.brandDesign,
       },
+      precios: {
+        pago_unico_centimos: launch.defaultPriceCents,
+        moneda: launch.currency ?? "EUR",
+        plazos:
+          launch.installmentCount && launch.installmentPriceCents
+            ? {
+                numero: launch.installmentCount,
+                cada_centimos: launch.installmentPriceCents,
+              }
+            : null,
+      },
       productos: launchProducts.map((p) => ({
         slug: p.slug,
         nombre: p.name,

@@ -46,6 +46,9 @@ Se sustituyen al publicar. Escríbelos tal cual en el HTML:
 - \`{{precio}}\` — precio formateado ("97 €")
 - \`{{precio_sin_formato}}\` — el número ("97")
 - \`{{moneda}}\` — "EUR"
+- \`{{plazos}}\` — "3 pagos de 39,90 €" si el lanzamiento admite pago a plazos, y
+  vacío si no. Úsalo tal cual: no dividas el precio tú, porque el importe de cada
+  plazo lo decide el cliente y casi nunca es el total entre el número de pagos
 - \`{{cierre_carrito}}\` / \`{{cierre_registro}}\` — fechas en ISO
 - \`{{url_registro}}\` / \`{{url_venta}}\` / \`{{url_gracias}}\` — rutas internas
 - \`{{slug}}\` — slug del lanzamiento

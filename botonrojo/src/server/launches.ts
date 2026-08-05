@@ -498,11 +498,28 @@ async function analyzeReferenceUrl(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * Prices arrive as euros with decimals, because that's how anybody thinks about a
+ * price — the form used to ask for cents in steps of 100, so "97,50 €" was not
+ * expressible and "9700" was what you had to type.
+ *
+ * The multiplication is rounded on purpose: `39.99 * 100` is 3998.9999999999995 in
+ * floating point, and truncating that undercharges by a cent.
+ */
+const euroAmount = z
+  .string()
+  .trim()
+  .transform((raw) => raw.replace(",", "."))
+  .pipe(z.coerce.number().min(0).max(1_000_000))
+  .transform((euros) => Math.round(euros * 100));
+
 const createSchema = z.object({
   name: z.string().min(2),
   type: z.enum(["venta_directa", "semilla", "plf"]),
   brief: z.string().min(20),
-  priceCents: z.coerce.number().int().min(0).optional(),
+  priceCents: euroAmount.optional(),
+  installmentCount: z.coerce.number().int().min(2).max(24).optional(),
+  installmentPriceCents: euroAmount.optional(),
   referenceUrl: z.string().url().optional().or(z.literal("")),
 });
 
@@ -513,9 +530,17 @@ export async function createLaunchAction(formData: FormData) {
     name: formData.get("name"),
     type: formData.get("type"),
     brief: formData.get("brief"),
-    priceCents: formData.get("priceCents") || undefined,
+    priceCents: formData.get("price") || undefined,
+    installmentCount: formData.get("installmentCount") || undefined,
+    installmentPriceCents: formData.get("installmentPrice") || undefined,
     referenceUrl: formData.get("referenceUrl") || undefined,
   });
+
+  // Half a payment plan is worse than none: the copy would promise instalments
+  // whose amount nobody set, or an amount with no number of payments.
+  const hasPlan =
+    parsed.installmentCount !== undefined &&
+    parsed.installmentPriceCents !== undefined;
 
   let slug = createSlug(parsed.name);
   if (!slug) slug = `lanzamiento-${Date.now().toString(36)}`;
@@ -562,6 +587,8 @@ export async function createLaunchAction(formData: FormData) {
       status: "draft",
       brief: parsed.brief,
       defaultPriceCents: parsed.priceCents ?? null,
+      installmentCount: hasPlan ? parsed.installmentCount! : null,
+      installmentPriceCents: hasPlan ? parsed.installmentPriceCents! : null,
       referenceUrl: parsed.referenceUrl || null,
       pageConfig,
     })
@@ -678,6 +705,51 @@ export async function updateBriefAction(launchId: string, formData: FormData) {
   await db
     .update(launches)
     .set({ brief, updatedAt: new Date() })
+    .where(eq(launches.id, launch.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Price and payment plan, editable after creation.
+ *
+ * Same lesson as the brief: a field only writable on the creation form is a field
+ * nobody can fix. Prices change, and the instalment plan is usually decided later
+ * than the launch itself.
+ */
+export async function updatePricingPlanAction(
+  launchId: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const parsed = z
+    .object({
+      price: euroAmount.optional(),
+      installmentCount: z.coerce.number().int().min(2).max(24).optional(),
+      installmentPrice: euroAmount.optional(),
+    })
+    .parse({
+      price: formData.get("price") || undefined,
+      installmentCount: formData.get("installmentCount") || undefined,
+      installmentPrice: formData.get("installmentPrice") || undefined,
+    });
+
+  // Both halves or neither: a count with no amount would have the copy promise
+  // instalments nobody priced.
+  const hasPlan =
+    parsed.installmentCount !== undefined &&
+    parsed.installmentPrice !== undefined;
+
+  await db
+    .update(launches)
+    .set({
+      defaultPriceCents: parsed.price ?? launch.defaultPriceCents,
+      installmentCount: hasPlan ? parsed.installmentCount! : null,
+      installmentPriceCents: hasPlan ? parsed.installmentPrice! : null,
+      updatedAt: new Date(),
+    })
     .where(eq(launches.id, launch.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -1013,6 +1085,13 @@ async function generateVentaPage(
         .join("\n\n") || null,
       ctx.launchProducts,
       ctx.referenceSummary,
+      launch.installmentCount && launch.installmentPriceCents
+        ? {
+            count: launch.installmentCount,
+            priceCents: launch.installmentPriceCents,
+            currency: launch.currency ?? "EUR",
+          }
+        : null,
     ),
     maxTokens: 8000,
     temperature: 0.7,
@@ -2240,7 +2319,11 @@ export async function createStripeProductAction(
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  const priceCents = Number(formData.get("priceCents"));
+  // El formulario manda euros con decimales; Stripe cobra en céntimos. El
+  // redondeo importa: 39.99 * 100 son 3998.9999999999995 en coma flotante, y
+  // truncarlo cobraría un céntimo de menos.
+  const priceCents =
+    euroAmount.safeParse(formData.get("price") ?? "").data ?? NaN;
   const currency = String(formData.get("currency") ?? "EUR").toLowerCase();
   const name = String(formData.get("name") ?? launch.name);
   const description = String(

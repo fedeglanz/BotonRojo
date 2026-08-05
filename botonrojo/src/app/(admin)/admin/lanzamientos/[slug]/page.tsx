@@ -26,6 +26,7 @@ import {
   regenerateSinglePageAction,
   updateLandingInstructionsAction,
   updateBriefAction,
+  updatePricingPlanAction,
   generateEmailsAction,
   generateAdsAction,
   createStripeProductAction,
@@ -76,6 +77,7 @@ import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
 import { EmailSequence } from "@/components/admin/email-sequence";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
+import { PricingPlanForm } from "@/components/admin/pricing-plan-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
 import { CalendarPanel } from "@/components/admin/calendar-panel";
@@ -700,6 +702,21 @@ export default async function LaunchHubPage(props: {
             subtitle="Crea el producto y el price ID. La landing pública usará este checkout."
             status={hasProduct ? "ready" : "empty"}
           >
+            {/* El precio y los plazos, antes del producto: son la decisión, y el
+                producto de Stripe es su consecuencia. Editables aquí porque un
+                campo que solo se escribe al crear el lanzamiento es un campo que
+                nadie puede corregir. */}
+            <div className="mb-4">
+              <PricingPlanForm
+                launchId={launch.id}
+                currentPriceCents={launch.defaultPriceCents}
+                currentInstallmentCount={launch.installmentCount}
+                currentInstallmentPriceCents={launch.installmentPriceCents}
+                currency={launch.currency ?? "EUR"}
+                saveAction={updatePricingPlanAction}
+              />
+            </div>
+
             <StripeProductForm
               launchId={launch.id}
               defaultName={launch.name}

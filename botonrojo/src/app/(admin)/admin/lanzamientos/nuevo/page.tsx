@@ -6,7 +6,9 @@ import Link from "next/link";
 
 type SearchParams = Promise<{ type?: string }>;
 
-export default async function NuevoLanzamientoPage(props: { searchParams: SearchParams }) {
+export default async function NuevoLanzamientoPage(props: {
+  searchParams: SearchParams;
+}) {
   const sp = await props.searchParams;
   const defaultType = (sp.type ?? "venta_directa") as LaunchType;
   const meta = LAUNCH_TYPES[defaultType] ?? LAUNCH_TYPES.venta_directa;
@@ -25,7 +27,8 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
             Nuevo lanzamiento
           </h1>
           <p className="mt-1 text-zinc-400">
-            Tipo seleccionado: <span className="text-white">{meta.label}</span> — {meta.description}
+            Tipo seleccionado: <span className="text-white">{meta.label}</span>{" "}
+            — {meta.description}
           </p>
         </div>
         <div className="text-4xl">{meta.icon}</div>
@@ -33,7 +36,9 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
 
       <form action={createLaunchAction} className="glass space-y-6 p-6">
         <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Nombre del lanzamiento</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Nombre del lanzamiento
+          </span>
           <input
             type="text"
             name="name"
@@ -43,14 +48,17 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
             className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
           />
           <span className="mt-1 block text-xs text-zinc-500">
-            Se usará para generar el slug público (ej. <code>/semilla-productividad-7-dias</code>).
+            Se usará para generar el slug público (ej.{" "}
+            <code>/semilla-productividad-7-dias</code>).
           </span>
         </label>
 
         <LaunchPageOptionsFields defaultType={defaultType} />
 
         <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Brief</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Brief
+          </span>
           <textarea
             name="brief"
             required
@@ -64,18 +72,69 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
           </span>
         </label>
 
+        {/* En euros, con decimales. Antes pedía céntimos con salto de 100, así que
+            "97,50 €" no se podía escribir y había que teclear 9700. */}
         <label className="block">
-          <span className="block text-xs uppercase tracking-widest text-zinc-400">Precio (€) — opcional</span>
+          <span className="block text-xs uppercase tracking-widest text-zinc-400">
+            Precio (€) — opcional
+          </span>
           <input
             type="number"
-            name="priceCents"
+            name="price"
             min={0}
-            step={100}
-            placeholder="9700 = 97.00 €"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="97,50"
             className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
           />
-          <span className="mt-1 block text-xs text-zinc-500">En céntimos. Lo podrás cambiar luego.</span>
+          <span className="mt-1 block text-xs text-zinc-500">
+            El precio de pago único. Lo podrás cambiar luego.
+          </span>
         </label>
+
+        {/* Los plazos no son otro nivel de precio ni un descuento: es el mismo
+            producto pagado en varias veces, y el importe no se puede deducir del
+            total (97 entre 3 no da un número que se pueda cobrar). */}
+        <fieldset className="rounded-lg border border-white/10 bg-black/20 p-4">
+          <legend className="px-1 text-xs uppercase tracking-widest text-zinc-400">
+            Pago a plazos — opcional
+          </legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="block text-xs text-zinc-400">
+                ¿En cuántos plazos?
+              </span>
+              <input
+                type="number"
+                name="installmentCount"
+                min={2}
+                max={24}
+                step={1}
+                placeholder="3"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-xs text-zinc-400">
+                Precio de cada plazo (€)
+              </span>
+              <input
+                type="number"
+                name="installmentPrice"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                placeholder="39,90"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
+              />
+            </label>
+          </div>
+          <span className="mt-2 block text-xs text-zinc-500">
+            Déjalo vacío si no hay plazos. Hacen falta los dos campos: el copy
+            dirá “o 3 pagos de 39,90 €”, y con uno solo no habría frase que
+            escribir.
+          </span>
+        </fieldset>
 
         <label className="block">
           <span className="block text-xs uppercase tracking-widest text-zinc-400">
@@ -88,8 +147,8 @@ export default async function NuevoLanzamientoPage(props: { searchParams: Search
             className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[var(--color-red)]"
           />
           <span className="mt-1 block text-xs text-zinc-500">
-            Una página que te guste — se analiza su estructura y tono (nunca sus colores) para
-            inspirar la landing. También lo podrás añadir luego.
+            Una página que te guste — se analiza su estructura y tono (nunca sus
+            colores) para inspirar la landing. También lo podrás añadir luego.
           </span>
         </label>
 
