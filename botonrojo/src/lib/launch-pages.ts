@@ -89,9 +89,13 @@ export function resolvePages(
   }
 
   const pages: PageDef[] = [];
-  // A launch that predates the typed page set keeps its "main" page: it's where
-  // everything it has ever published lives, and dropping it would blank the site.
-  if (config.keepLegacyMain) {
+
+  // A launch that predates the typed page set keeps "main": it's where everything
+  // it has ever published lives, and dropping it would blank the site. It does NOT
+  // gain the pages its type would bring — it never had them, and adding a second
+  // sales page next to the one in use only makes the panel lie about what exists.
+  const legacy = Boolean(config.keepLegacyMain);
+  if (legacy) {
     pages.push({
       pageKey: "main",
       kind: "venta",
@@ -102,7 +106,7 @@ export function resolvePages(
 
   // Semilla y PLF siempre llevan registro + venta (con su "gracias" respectivo
   // — ver nota más abajo, no son PageDef porque no necesitan generarse).
-  if (type === "semilla") {
+  if (!legacy && type === "semilla") {
     pages.push({
       pageKey: "registro",
       kind: "registro",
@@ -112,7 +116,7 @@ export function resolvePages(
     pages.push({ pageKey: "venta", kind: "venta", label: "Venta" });
   }
 
-  if (type === "venta_directa") {
+  if (!legacy && type === "venta_directa") {
     pages.push({
       pageKey: "venta",
       kind: "venta",
@@ -121,7 +125,7 @@ export function resolvePages(
     });
   }
 
-  if (type === "plf") {
+  if (!legacy && type === "plf") {
     const channels = config.registroChannels?.length
       ? config.registroChannels
       : ["General"];
