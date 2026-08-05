@@ -3,8 +3,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema/organizations";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
-import { getMe } from "@/integrations/telegram";
-import { TelegramTokenForm } from "@/components/admin/telegram-token-form";
 import { env } from "@/lib/env";
 import { listLaunchesForFilter } from "@/server/stats";
 import {
@@ -36,21 +34,10 @@ export default async function AjustesPage() {
   if (!organizationId) throw new Error("no_organization");
 
   const [org] = await db
-    .select({ name: organizations.name, telegramBotToken: organizations.telegramBotToken })
+    .select({ name: organizations.name })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
     .limit(1);
-
-  // Try to get bot username if token exists
-  let botUsername: string | null = null;
-  if (org?.telegramBotToken) {
-    try {
-      const bot = await getMe(org.telegramBotToken);
-      botUsername = bot.username;
-    } catch {
-      // Token might be invalid
-    }
-  }
 
   const [launches, sources, connected] = await Promise.all([
     listLaunchesForFilter(),
@@ -105,21 +92,6 @@ export default async function AjustesPage() {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
-            Telegram Bot
-          </h2>
-          <p className="text-sm text-zinc-500">
-            Conecta tu bot de Telegram para enviar mensajes automaticos desde los lanzamientos.
-          </p>
-        </div>
-        <TelegramTokenForm
-          currentToken={org?.telegramBotToken ?? null}
-          currentBotUsername={botUsername}
-        />
       </section>
 
       <section>

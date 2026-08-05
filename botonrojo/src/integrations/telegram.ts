@@ -1,8 +1,10 @@
 // Telegram Bot API client.
 // Docs: https://core.telegram.org/bots/api
-// Auth: token in URL path. Each org can have its own bot token.
+// Auth: token in URL path. Each org stores its bot token encrypted in
+// organization_integrations (same pattern as ActiveCampaign / Stripe).
 
-import { env } from "@/lib/env";
+import { getDecryptedCredential } from "@/server/integrations";
+import type { SingleTokenCredentials } from "@/server/integrations";
 
 export class TelegramError extends Error {
   constructor(public status: number, public body: string) {
@@ -10,18 +12,20 @@ export class TelegramError extends Error {
   }
 }
 
-/**
- * Check if Telegram is configured.
- * Accepts an org-level token; falls back to the global env token.
- */
-export function isTelegramConfigured(orgBotToken?: string | null): boolean {
-  return Boolean(orgBotToken || env.TELEGRAM_BOT_TOKEN);
+/** Resolve the Telegram bot token for an organization from the DB. */
+export async function getTelegramToken(organizationId: string): Promise<string | null> {
+  const creds = await getDecryptedCredential<SingleTokenCredentials>(organizationId, "telegram");
+  return creds?.token ?? null;
 }
 
-function resolveToken(orgBotToken?: string | null): string {
-  const token = orgBotToken || env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new TelegramError(0, "No Telegram bot token configured");
-  return token;
+/** Check if Telegram is configured for an org (token exists in DB). */
+export async function isTelegramConfigured(organizationId: string): Promise<boolean> {
+  return Boolean(await getTelegramToken(organizationId));
+}
+
+function requireToken(orgBotToken: string | null | undefined): string {
+  if (!orgBotToken) throw new TelegramError(0, "No Telegram bot token configured");
+  return orgBotToken;
 }
 
 // ---- Low-level API wrapper ----
@@ -31,7 +35,7 @@ async function tg<T>(
   body: Record<string, unknown>,
   orgBotToken?: string | null,
 ): Promise<T> {
-  const token = resolveToken(orgBotToken);
+  const token = requireToken(orgBotToken);
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -65,7 +65,7 @@ import {
 } from "@/integrations/activecampaign";
 
 import {
-  isTelegramConfigured,
+  getTelegramToken,
   connectTelegramGroup,
   sendMessage as sendTelegramMessage,
   registerWebhook,
@@ -2218,17 +2218,13 @@ ${body}
 // ---- Telegram ----
 
 async function getOrgBotToken(organizationId: string): Promise<string | null> {
-  const [org] = await db.select({ token: organizations.telegramBotToken }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  return org?.token ?? null;
+  return getTelegramToken(organizationId);
 }
 
 export async function connectTelegramGroupAction(launchId: string, formData: FormData) {
   const { organizationId } = await requireOrgAdmin();
   const orgBotToken = await getOrgBotToken(organizationId);
-
-  if (!isTelegramConfigured(orgBotToken)) {
-    throw new Error("telegram_not_configured");
-  }
+  if (!orgBotToken) throw new Error("telegram_not_configured");
 
   const launch = await getOrgLaunch(launchId, organizationId);
   const chatId = String(formData.get("chatId") ?? "").trim();
@@ -2657,10 +2653,7 @@ export async function analyzeCalendarAction(launchId: string) {
 export async function discoverTelegramGroupsAction() {
   const { organizationId } = await requireOrgAdmin();
   const orgBotToken = await getOrgBotToken(organizationId);
-
-  if (!isTelegramConfigured(orgBotToken)) {
-    return [];
-  }
+  if (!orgBotToken) return [];
 
   const { discoverGroups } = await import("@/integrations/telegram");
   return discoverGroups(orgBotToken);

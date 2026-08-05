@@ -50,8 +50,8 @@ export const PROVIDER_SPECS: ProviderSpec[] = [
   {
     provider: "telegram",
     label: "Telegram",
-    hint: "Para futuros avisos/bots por Telegram.",
-    fields: [{ name: "token", label: "Bot token", type: "password" }],
+    hint: "Bot de Telegram para enviar mensajes automáticos desde los lanzamientos. Creá tu bot con @BotFather.",
+    fields: [{ name: "token", label: "Bot token (de @BotFather)", type: "password", placeholder: "123456:ABC-DEF1234ghIkl-zyx57W2v…" }],
   },
   {
     provider: "notion",

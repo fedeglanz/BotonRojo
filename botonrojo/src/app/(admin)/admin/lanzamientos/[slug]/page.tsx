@@ -6,8 +6,7 @@ import { db } from "@/db";
 import { launches, assets, products, trackingEvents, milestones, users } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
-import { isTelegramConfigured, getMe as getTelegramBot } from "@/integrations/telegram";
-import { organizations } from "@/db/schema/organizations";
+import { getMe as getTelegramBot, getTelegramToken } from "@/integrations/telegram";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
 
 import {
@@ -151,13 +150,8 @@ export default async function LaunchHubPage(props: {
 
   const [mediaItems, adImages] = await Promise.all([listMediaItems(), listAdImages(launch.id)]);
 
-  const [org] = await db
-    .select({ telegramBotToken: organizations.telegramBotToken })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  const orgBotToken = org?.telegramBotToken ?? null;
-  const telegramConfigured = isTelegramConfigured(orgBotToken);
+  const orgBotToken = await getTelegramToken(organizationId);
+  const telegramConfigured = Boolean(orgBotToken);
 
   const [telegramAsset] = await db
     .select()
