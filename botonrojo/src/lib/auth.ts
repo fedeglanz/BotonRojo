@@ -31,6 +31,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  // Required behind the reverse proxy: in production Auth.js refuses any request
+  // whose Host it wasn't told to expect, and every request arrives from Caddy. The
+  // symptom is nasty because it doesn't look like an auth problem — the session
+  // silently reads as absent and every admin page bounces to /login forever.
+  //
+  // Safe here because Caddy is the only thing that can reach the app: it sets Host
+  // and X-Forwarded-* itself, and the app's port is bound to localhost.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {

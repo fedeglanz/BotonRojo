@@ -64,6 +64,13 @@
       "when": 1785511025364,
       "tag": "0008_sudden_johnny_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785918607539,
+      "tag": "0009_silent_the_stranger",
+      "breakpoints": true
     }
   ]
 }
