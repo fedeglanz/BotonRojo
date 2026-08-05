@@ -25,6 +25,7 @@ import {
   generateAllPagesAction,
   regenerateSinglePageAction,
   updateLandingInstructionsAction,
+  updateBriefAction,
   generateEmailsAction,
   generateAdsAction,
   createStripeProductAction,
@@ -80,6 +81,7 @@ import { TelegramPanel } from "@/components/admin/telegram-panel";
 import { CalendarPanel } from "@/components/admin/calendar-panel";
 import { DomainPanel } from "@/components/admin/domain-panel";
 import { BrandKitPanel } from "@/components/admin/brand-kit-panel";
+import { BriefForm } from "@/components/admin/brief-form";
 import { LandingInstructionsForm } from "@/components/admin/landing-instructions-form";
 import { ReferenceUrlForm } from "@/components/admin/reference-url-form";
 import { CartScheduleForm } from "@/components/admin/cart-schedule-form";
@@ -238,6 +240,8 @@ export default async function LaunchHubPage(props: {
     .limit(50);
 
   const hasMarco = Boolean(launch.promise);
+  // Everything downstream reads the brief, so its absence is worth naming once.
+  const hasBrief = Boolean(launch.brief && launch.brief.trim().length >= 20);
   const brandKitApproved = launch.brandKitStatus === "approved";
   const hasLanding = Boolean(landingAsset);
   const hasEmails = Boolean(emailAsset);
@@ -328,6 +332,24 @@ export default async function LaunchHubPage(props: {
       {(active === "todo" || active === "marca") && (
         <>
           {active === "todo" && <GroupHeading>Marca y copy</GroupHeading>}
+
+          {/* Step 0 — El brief. Antes solo se escribía al crear el lanzamiento, así
+              que uno que llegara sin él no tenía salida: los botones de generar
+              lanzaban brief_missing y eso llegaba al cliente como una página de
+              error con un digest y nada que hacer. */}
+          <WizardStep
+            index={0}
+            title="Brief"
+            subtitle="Qué vendes, a quién y cómo es el lanzamiento. De aquí sale todo lo demás."
+            status={hasBrief ? "ready" : "empty"}
+          >
+            <BriefForm
+              launchId={launch.id}
+              currentBrief={launch.brief}
+              saveAction={updateBriefAction}
+            />
+          </WizardStep>
+
           {/* Step 1 — Identidad visual (brand kit) */}
           <WizardStep
             index={1}
@@ -343,6 +365,7 @@ export default async function LaunchHubPage(props: {
           >
             <BrandKitPanel
               launchId={launch.id}
+              canGenerate={hasBrief}
               status={launch.brandKitStatus}
               palette={launch.brandPalette}
               fonts={launch.brandFonts}
@@ -391,10 +414,16 @@ export default async function LaunchHubPage(props: {
                     className="field-input mt-1.5 w-full px-3 py-2 text-sm text-white"
                   />
                 </label>
-                <div className="flex justify-end">
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {!hasBrief && (
+                    <p className="mr-auto text-xs text-amber-300">
+                      Escribe primero el brief: el marco de copy sale de ahí.
+                    </p>
+                  )}
                   <SubmitButton
                     variant={hasMarco ? "outline" : "primary"}
                     pendingLabel="Generando…"
+                    disabled={!hasBrief}
                   >
                     {hasMarco ? "Regenerar con Claude" : "Generar con Claude"}
                   </SubmitButton>
