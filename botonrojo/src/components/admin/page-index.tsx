@@ -16,6 +16,9 @@ const KIND_LABELS: Record<PageDef["kind"], string> = {
  * Every kind except legal: those are boilerplate, deliberately outside the
  * composable system. Offering the link there would open a page with no overlay on
  * it, which reads as the editor being broken rather than as not applying.
+ *
+ * Same reason a page designed in Claude is excluded at the call site: its content
+ * is one HTML document, so there are no sections to point at.
  */
 const IN_PAGE_EDITABLE = new Set<PageDef["kind"]>([
   "registro",
@@ -35,18 +38,22 @@ export function PageIndex({
   pages,
   launchSlug,
   generatedKeys,
+  claudeKeys,
   dripStartsAt,
 }: {
   pages: PageDef[];
   launchSlug: string;
   /** pageKeys that already have content. */
   generatedKeys: Set<string>;
+  /** pageKeys whose content is an HTML page designed in Claude. */
+  claudeKeys: Set<string>;
   dripStartsAt: Date | null;
 }) {
   return (
     <ul className="space-y-2">
       {pages.map((page) => {
         const generated = generatedKeys.has(page.pageKey);
+        const fromClaude = claudeKeys.has(page.pageKey);
         const unlock = contentUnlockDate(dripStartsAt, page.pageKey);
 
         return (
@@ -75,6 +82,12 @@ export function PageIndex({
                 {KIND_LABELS[page.kind]}
               </span>
 
+              {fromClaude && (
+                <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-emerald-300">
+                  Claude Design
+                </span>
+              )}
+
               {!generated && (
                 <span className="shrink-0 text-[10px] uppercase tracking-widest text-amber-300/80">
                   sin generar
@@ -90,7 +103,7 @@ export function PageIndex({
                 Ver ↗
               </a>
 
-              {generated && IN_PAGE_EDITABLE.has(page.kind) && (
+              {generated && !fromClaude && IN_PAGE_EDITABLE.has(page.kind) && (
                 <a
                   href={`${pagePath(launchSlug, page)}?editar=1`}
                   target="_blank"

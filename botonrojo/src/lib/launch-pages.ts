@@ -9,6 +9,23 @@ export const LEGAL_PAGE_LABELS: Record<LegalPageKey, string> = {
   cookies: "Política de cookies",
 };
 
+/**
+ * A page somebody added that the launch type doesn't include by itself.
+ *
+ * The page set used to be entirely derived from the launch type, which is right
+ * for the pages a launch always needs and wrong the moment a client wants one
+ * more — a webinar page, a second sales page for a different angle. These are
+ * stored rather than derived, and they carry their own kind so the renderer knows
+ * what to do with them.
+ */
+export type ExtraPage = {
+  pageKey: string;
+  label: string;
+  /** Which renderer and which generator prompt it uses. Never "legal": those are
+   *  boilerplate the platform maintains, and one more of them means nothing. */
+  kind: Exclude<PageKind, "legal">;
+};
+
 export type PageConfig = {
   /** PLF only — one registro page per channel label (e.g. "Instagram", "Email"). */
   registroChannels?: string[];
@@ -17,9 +34,16 @@ export type PageConfig = {
   /** PLF only — whether an affiliate-signup teaser page is included. */
   includeAffiliateRegistro?: boolean;
   legalPages: LegalPageKey[];
+  /** Pages added after the fact — from the connector or the panel. */
+  extraPages?: ExtraPage[];
 };
 
-export type PageKind = "registro" | "venta" | "contenido" | "legal" | "afiliados";
+export type PageKind =
+  | "registro"
+  | "venta"
+  | "contenido"
+  | "legal"
+  | "afiliados";
 
 export type PageDef = {
   pageKey: string;
@@ -43,50 +67,159 @@ export type PageDef = {
  * `PageDef`. Semilla and PLF both always have registro + venta (+ their
  * gracias) — that pairing is never optional.
  */
-export function resolvePages(type: LaunchType, config: PageConfig | null): PageDef[] {
+export function resolvePages(
+  type: LaunchType,
+  config: PageConfig | null,
+): PageDef[] {
   if (!config) {
+    // Pre-config launches resolve to the single legacy page every existing asset
+    // already uses. They can still gain pages: adding one writes a config with the
+    // extra list, and this branch stops applying.
     return [{ pageKey: "main", kind: "venta", label: "Venta", isEntry: true }];
   }
 
   const pages: PageDef[] = [];
+  // A launch that predates the typed page set keeps its "main" page: it's where
+  // everything it has ever published lives, and dropping it would blank the site.
+  if (config.extraPages?.length && !hasTypedPages(type)) {
+    pages.push({
+      pageKey: "main",
+      kind: "venta",
+      label: "Venta",
+      isEntry: true,
+    });
+  }
 
   // Semilla y PLF siempre llevan registro + venta (con su "gracias" respectivo
   // — ver nota más abajo, no son PageDef porque no necesitan generarse).
   if (type === "semilla") {
-    pages.push({ pageKey: "registro", kind: "registro", label: "Registro", isEntry: true });
+    pages.push({
+      pageKey: "registro",
+      kind: "registro",
+      label: "Registro",
+      isEntry: true,
+    });
     pages.push({ pageKey: "venta", kind: "venta", label: "Venta" });
   }
 
   if (type === "venta_directa") {
-    pages.push({ pageKey: "venta", kind: "venta", label: "Venta", isEntry: true });
+    pages.push({
+      pageKey: "venta",
+      kind: "venta",
+      label: "Venta",
+      isEntry: true,
+    });
   }
 
   if (type === "plf") {
-    const channels = config.registroChannels?.length ? config.registroChannels : ["General"];
+    const channels = config.registroChannels?.length
+      ? config.registroChannels
+      : ["General"];
     channels.forEach((channel, i) => {
       const pageKey = i === 0 ? "registro" : `registro-${createSlug(channel)}`;
-      pages.push({ pageKey, kind: "registro", label: `Registro — ${channel}`, isEntry: i === 0 });
+      pages.push({
+        pageKey,
+        kind: "registro",
+        label: `Registro — ${channel}`,
+        isEntry: i === 0,
+      });
     });
 
     // Only 3 or 4 are offered; clamp anything else (e.g. a value stored by an
     // older version of the form) rather than silently inflating it.
     const contentCount = (config.contentPageCount ?? 4) <= 3 ? 3 : 4;
     for (let i = 1; i <= contentCount; i++) {
-      pages.push({ pageKey: `contenido-${i}`, kind: "contenido", label: `Contenido ${i} de ${contentCount}` });
+      pages.push({
+        pageKey: `contenido-${i}`,
+        kind: "contenido",
+        label: `Contenido ${i} de ${contentCount}`,
+      });
     }
 
     pages.push({ pageKey: "venta", kind: "venta", label: "Venta" });
 
     if (config.includeAffiliateRegistro) {
-      pages.push({ pageKey: "afiliados", kind: "afiliados", label: "Registro de afiliados" });
+      pages.push({
+        pageKey: "afiliados",
+        kind: "afiliados",
+        label: "Registro de afiliados",
+      });
     }
   }
 
-  for (const legal of config.legalPages ?? []) {
-    pages.push({ pageKey: `legal-${legal}`, kind: "legal", label: LEGAL_PAGE_LABELS[legal] });
+  for (const extra of config.extraPages ?? []) {
+    // Never shadow a page the type already provides: the typed one is the one every
+    // other part of the app expects to find.
+    if (pages.some((page) => page.pageKey === extra.pageKey)) continue;
+    pages.push({
+      pageKey: extra.pageKey,
+      kind: extra.kind,
+      label: extra.label,
+    });
   }
 
+  for (const legal of config.legalPages ?? []) {
+    pages.push({
+      pageKey: `legal-${legal}`,
+      kind: "legal",
+      label: LEGAL_PAGE_LABELS[legal],
+    });
+  }
+
+  // Somebody has to be the entry page: without one, `/slug` renders nothing.
+  if (!pages.some((page) => page.isEntry) && pages[0]) pages[0].isEntry = true;
+
   return pages;
+}
+
+/** Whether this launch type brings its own pages, or only has what was added. */
+function hasTypedPages(type: LaunchType): boolean {
+  return type === "semilla" || type === "venta_directa" || type === "plf";
+}
+
+/**
+ * Turns a name into a usable pageKey, or explains why it can't.
+ *
+ * The key ends up in the public URL and in the asset rows, so it has to be
+ * url-safe and stable. The reserved list is what would collide with a route or a
+ * page the platform manages itself.
+ */
+const RESERVED_PAGE_KEYS = new Set([
+  "main",
+  "venta",
+  "registro",
+  "afiliados",
+  "gracias",
+  "api",
+  "admin",
+  "login",
+  "archivos",
+  "_sites",
+]);
+
+export function pageKeyFrom(
+  input: string,
+): { key: string } | { error: string } {
+  const key = createSlug(input);
+  if (!key)
+    return { error: "Ese nombre no deja ninguna letra ni número usable." };
+  if (key.length < 3) return { error: "El nombre es demasiado corto." };
+  if (RESERVED_PAGE_KEYS.has(key)) {
+    return {
+      error: `"${key}" está reservado por la plataforma. Usa otro nombre.`,
+    };
+  }
+  if (key.startsWith("legal-")) {
+    return {
+      error: "Las páginas legales las mantiene la plataforma; no se crean así.",
+    };
+  }
+  if (/^contenido-\d+$/.test(key)) {
+    return {
+      error: `"${key}" es de las páginas de contenido con goteo. Usa otro nombre.`,
+    };
+  }
+  return { key };
 }
 
 /** `/slug` for the entry page, `/slug/pageKey` for every other page. */
@@ -100,7 +233,10 @@ export function pagePath(slug: string, pageDef: PageDef): string {
  * when there's nothing to gate (no schedule set, or not a numbered content
  * page), in which case the page is always visible.
  */
-export function contentUnlockDate(dripStartsAt: Date | null, pageKey: string): Date | null {
+export function contentUnlockDate(
+  dripStartsAt: Date | null,
+  pageKey: string,
+): Date | null {
   if (!dripStartsAt) return null;
   const match = /^contenido-(\d+)$/.exec(pageKey);
   if (!match) return null;

@@ -10,6 +10,7 @@ import { complete } from "@/lib/ai";
 import { resolvePages, pagePath } from "@/lib/launch-pages";
 import type { LaunchType } from "@/lib/launch-types";
 import { normalizeSectionDesign } from "@/components/public/section-design";
+import { isCustomPageBody } from "@/lib/custom-page";
 import {
   BLOCK_SYSTEM,
   blockPrompt,
@@ -388,6 +389,48 @@ export async function addBlockAction(formData: FormData) {
  * nothing, so "one position up" in the stored order is not the band the admin sees
  * above. Sending the neighbour's identity removes that guesswork.
  */
+/**
+ * Removes the HTML published from Claude and brings the generated page back.
+ *
+ * Same work as the connector's `retirar_pagina`, reachable from the panel: the
+ * point of the connector is not to be the only door. Only the custom versions
+ * stacked on top are deleted, so whatever generated version sat underneath becomes
+ * the newest again.
+ */
+export async function retireCustomPageAction(
+  launchId: string,
+  pageKey: string,
+) {
+  const { launch, pageDef, asset } = await loadPage(launchId, pageKey);
+
+  const rows = await db
+    .select()
+    .from(assets)
+    .where(
+      and(
+        eq(assets.launchId, launch.id),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, pageKey),
+      ),
+    )
+    .orderBy(desc(assets.createdAt));
+
+  const toDelete: string[] = [];
+  for (const row of rows) {
+    if (!isCustomPageBody(row.body)) break;
+    toDelete.push(row.id);
+  }
+  if (!toDelete.length) return;
+
+  for (const id of toDelete) await db.delete(assets).where(eq(assets.id, id));
+
+  revalidatePath(pagePath(launch.slug, pageDef));
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  // `asset` is read only to reuse loadPage's ownership check; the work is above.
+  void asset;
+}
+
 export async function movePartAction(formData: FormData) {
   const launchId = String(formData.get("launchId") ?? "");
   const pageKey = String(formData.get("pageKey") ?? "");

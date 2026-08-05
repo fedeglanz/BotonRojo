@@ -18,9 +18,14 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const response = NextResponse.redirect(new URL("/login?sesion=caducada", url.origin));
+  const response = NextResponse.redirect(
+    new URL("/login?sesion=caducada", url.origin),
+  );
 
-  for (const name of ["authjs.session-token", "__Secure-authjs.session-token"]) {
+  for (const name of [
+    "authjs.session-token",
+    "__Secure-authjs.session-token",
+  ]) {
     response.cookies.set(name, "", { path: "/", maxAge: 0 });
   }
   return response;
