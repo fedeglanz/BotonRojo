@@ -13,16 +13,20 @@
  * is the honest word for it and tells the admin the fix is to generate again.
  */
 export async function register() {
-  // Only in the Node runtime: the edge one has no database.
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-
-  const { closeOrphanGenerations } = await import("@/server/generation-sweep");
-  await closeOrphanGenerations().catch((err) => {
-    // Never let this stop the server from starting: a stale progress record is a
-    // cosmetic problem, an app that won't boot is not.
-    console.error(
-      "[startup] no se pudieron cerrar las generaciones huérfanas",
-      err,
-    );
-  });
+  // The import has to sit INSIDE the check, not after an early return: this file is
+  // compiled for the edge runtime too, and webpack follows a dynamic import it can
+  // see regardless of the guard around it. With the import at the top level of the
+  // function, the edge bundle tried to include the Postgres driver and the build
+  // failed — a runtime check can't fix a bundling problem.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { closeOrphanGenerations } = await import("@/server/generation-sweep");
+    await closeOrphanGenerations().catch((err) => {
+      // Never let this stop the server from starting: a stale progress record is a
+      // cosmetic problem, an app that won't boot is not.
+      console.error(
+        "[startup] no se pudieron cerrar las generaciones huérfanas",
+        err,
+      );
+    });
+  }
 }
