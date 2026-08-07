@@ -69,6 +69,20 @@ mándalos en \`archivos\` al publicar. La plataforma los aloja y reescribe las r
 No hace falta que los pongas en línea ni que sepas la URL final. Una referencia
 relativa sin archivo hace que publicar falle: es mejor eso que una imagen rota.
 
+**Las imágenes van por \`url\`, nunca en base64.** Para mandar una foto en
+\`contenido\` tendrías que escribirla entera como texto: una imagen de 3 MB son más
+de un millón de tokens, la llamada no termina y la publicación se queda colgada.
+Pon la url y la descarga el servidor:
+
+\`\`\`json
+{ "nombre": "jc.jpg", "url": "https://donde-este/la-foto.jpg" }
+\`\`\`
+
+\`contenido\` es solo para css y js pequeños. Si la imagen no está en ninguna url —
+por ejemplo, la acabas de generar tú—, súbela antes al lanzamiento desde el panel
+(Marca → imágenes) y usa la url que te dé, o enlázala con su url absoluta en el
+HTML y no la mandes en \`archivos\`: una url absoluta se deja tal cual.
+
 ## Páginas nuevas
 
 Si el lanzamiento no tiene la página que hace falta, créala: \`crear_pagina\` con un

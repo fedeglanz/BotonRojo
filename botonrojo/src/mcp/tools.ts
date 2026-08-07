@@ -349,7 +349,7 @@ const publicarPagina: ToolDef = {
       archivos: {
         type: "array",
         description:
-          "Los css/js/imágenes que el HTML referencia con rutas relativas. Sin ellos, publicar falla antes que dejar la página con referencias roras.",
+          'Los css/js/imágenes que el HTML referencia con rutas relativas. Para IMÁGENES usa siempre "url" y deja que el servidor la descargue: mandarlas en base64 te obliga a escribir megas de texto y la llamada no termina. "contenido" solo para css/js pequeños.',
         items: {
           type: "object",
           properties: {
@@ -357,13 +357,21 @@ const publicarPagina: ToolDef = {
               type: "string",
               description: "La ruta tal como aparece en el HTML",
             },
-            contenido: { type: "string" },
+            url: {
+              type: "string",
+              description:
+                "De dónde bajarlo. Es la forma recomendada para imágenes, vídeos y fuentes: lo descarga el servidor.",
+            },
+            contenido: {
+              type: "string",
+              description: "El contenido en texto. Solo para css/js pequeños.",
+            },
             base64: {
               type: "boolean",
-              description: "true si el contenido viene en base64 (imágenes)",
+              description: "true si contenido viene en base64",
             },
           },
-          required: ["nombre", "contenido"],
+          required: ["nombre"],
           additionalProperties: false,
         },
       },
@@ -885,8 +893,9 @@ async function uploadFiles(
   for (const entry of raw) {
     const name = String((entry as { nombre?: unknown }).nombre ?? "").trim();
     const content = String((entry as { contenido?: unknown }).contenido ?? "");
+    const from = String((entry as { url?: unknown }).url ?? "").trim();
     const isBase64 = Boolean((entry as { base64?: unknown }).base64);
-    if (!name || !content) continue;
+    if (!name || (!content && !from)) continue;
 
     // No directory traversal: the name is only ever a key in the HTML, never a
     // path we resolve on disk, but it does become part of an object key.
@@ -902,9 +911,16 @@ async function uploadFiles(
       );
     }
 
-    const buffer = isBase64
-      ? Buffer.from(content, "base64")
-      : Buffer.from(content, "utf8");
+    // Por URL siempre que sea una foto. Mandarla en base64 obliga al modelo a
+    // ESCRIBIR el fichero entero como texto: 3 MB de imagen son más de un millón
+    // de tokens, así que la llamada no termina nunca — se queda "publicando" un
+    // buen rato y no llega nada. Con la URL, quien descarga es el servidor.
+    const buffer = from
+      ? await downloadFile(from, name)
+      : isBase64
+        ? Buffer.from(content, "base64")
+        : Buffer.from(content, "utf8");
+
     if (buffer.byteLength > MAX_FILE_BYTES) {
       throw new ToolError(`"${name}" pesa más de 10 MB.`);
     }
@@ -918,6 +934,48 @@ async function uploadFiles(
     out[clean] = publicUrlFor(key);
   }
   return out;
+}
+
+/**
+ * Trae un archivo por URL para alojarlo nosotros.
+ *
+ * Solo http/https y con límite de tamaño: la URL la elige quien habla con el
+ * conector, así que esto puede pedir cualquier cosa desde nuestro servidor. No
+ * seguimos redirecciones a hosts privados porque no hace falta: lo que se aloja
+ * son imágenes públicas.
+ */
+async function downloadFile(url: string, name: string): Promise<Buffer> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new ToolError(`La url de "${name}" no es válida: ${url}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new ToolError(`La url de "${name}" tiene que ser http o https.`);
+  }
+
+  const response = await fetch(parsed, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(30_000),
+  }).catch((err: unknown) => {
+    throw new ToolError(
+      `No se ha podido descargar "${name}" desde ${url}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
+  if (!response.ok) {
+    throw new ToolError(
+      `No se ha podido descargar "${name}": el servidor respondió ${response.status}.`,
+    );
+  }
+
+  const declared = Number(response.headers.get("content-length") ?? "0");
+  if (declared > MAX_FILE_BYTES) {
+    throw new ToolError(`"${name}" pesa más de 10 MB.`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
 }
 
 /** Exported for the panel's preview, which needs the same path rewriting. */

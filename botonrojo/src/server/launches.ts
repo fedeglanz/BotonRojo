@@ -1649,6 +1649,9 @@ export type GenerationProgress = {
   total: number;
   done: string[];
   failed: Array<{ page: string; error: string }>;
+  /** Cerrada al arrancar porque el proceso que la ejecutaba ya no existe: un
+   *  despliegue o una caída a mitad. Ver src/server/generation-sweep.ts. */
+  interrupted?: boolean;
 };
 
 async function writeProgress(launchId: string, progress: GenerationProgress) {

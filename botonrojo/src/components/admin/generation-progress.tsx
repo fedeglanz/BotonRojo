@@ -14,7 +14,11 @@ import type { GenerationProgress as Progress } from "@/server/launches";
  * its progress per page, and this refreshes the server components until it's
  * finished — so the page list fills in on its own.
  */
-export function GenerationProgress({ progress }: { progress: Progress | null }) {
+export function GenerationProgress({
+  progress,
+}: {
+  progress: Progress | null;
+}) {
   const router = useRouter();
   const running = Boolean(progress && !progress.finishedAt);
 
@@ -30,10 +34,13 @@ export function GenerationProgress({ progress }: { progress: Progress | null }) 
 
   const finished = Boolean(progress.finishedAt);
   const settled = progress.done.length + progress.failed.length;
-  const pct = progress.total > 0 ? Math.round((settled / progress.total) * 100) : 0;
+  const pct =
+    progress.total > 0 ? Math.round((settled / progress.total) * 100) : 0;
 
-  // A finished run with nothing to report doesn't need to stay on screen.
-  if (finished && progress.failed.length === 0) return null;
+  // A finished run with nothing to report doesn't need to stay on screen — but an
+  // interrupted one does, precisely because it left pages ungenerated.
+  if (finished && progress.failed.length === 0 && !progress.interrupted)
+    return null;
 
   return (
     <div
@@ -43,12 +50,16 @@ export function GenerationProgress({ progress }: { progress: Progress | null }) 
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm font-medium text-white">
-          {finished
-            ? `Generación terminada con ${progress.failed.length} error${progress.failed.length === 1 ? "" : "es"}`
-            : `Generando páginas… ${settled} de ${progress.total}`}
+          {progress.interrupted
+            ? `Generación interrumpida en ${settled} de ${progress.total}`
+            : finished
+              ? `Generación terminada con ${progress.failed.length} error${progress.failed.length === 1 ? "" : "es"}`
+              : `Generando páginas… ${settled} de ${progress.total}`}
         </div>
         {!finished && (
-          <div className="font-[family-name:var(--font-mono)] text-xs text-zinc-400">{pct}%</div>
+          <div className="font-[family-name:var(--font-mono)] text-xs text-zinc-400">
+            {pct}%
+          </div>
         )}
       </div>
 
@@ -61,8 +72,19 @@ export function GenerationProgress({ progress }: { progress: Progress | null }) 
         </div>
       )}
 
-      {progress.done.length > 0 && !finished && (
-        <p className="mt-2 text-xs text-zinc-500">Listas: {progress.done.join(" · ")}</p>
+      {progress.done.length > 0 && (!finished || progress.interrupted) && (
+        <p className="mt-2 text-xs text-zinc-500">
+          Listas: {progress.done.join(" · ")}
+        </p>
+      )}
+
+      {progress.interrupted && (
+        <p className="mt-2 text-xs text-amber-300">
+          El servidor se reinició mientras generaba (un despliegue,
+          normalmente), así que las páginas que faltan no llegaron a escribirse.
+          Vuelve a darle a generar: las que ya están se rehacen igual, no se
+          duplican.
+        </p>
       )}
 
       {progress.failed.length > 0 && (
