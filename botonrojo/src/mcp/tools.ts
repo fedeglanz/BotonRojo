@@ -958,6 +958,13 @@ async function downloadFile(url: string, name: string): Promise<Buffer> {
   const response = await fetch(parsed, {
     redirect: "follow",
     signal: AbortSignal.timeout(30_000),
+    // Con User-Agent porque sin él hay hosts que devuelven 400 sin más
+    // explicación — Wikimedia, entre otros —, y el error que llega no dice que
+    // el problema sea la cabecera que falta.
+    headers: {
+      "User-Agent": "BotonRojo/1.0 (+https://escuelanomadadigital.com)",
+      Accept: "*/*",
+    },
   }).catch((err: unknown) => {
     throw new ToolError(
       `No se ha podido descargar "${name}" desde ${url}: ${err instanceof Error ? err.message : String(err)}`,
