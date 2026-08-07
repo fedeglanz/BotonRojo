@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
+import { ClaudeButton } from "@/components/admin/claude-button";
+import { claudeDesignPageUrl, claudeEditPageUrl } from "@/lib/claude-link";
 
 const KIND_LABELS: Record<PageDef["kind"], string> = {
   registro: "Captación",
@@ -37,16 +39,24 @@ const IN_PAGE_EDITABLE = new Set<PageDef["kind"]>([
 export function PageIndex({
   pages,
   launchSlug,
+  launchName,
+  appUrl,
   generatedKeys,
   claudeKeys,
+  hasConnector,
   dripStartsAt,
 }: {
   pages: PageDef[];
   launchSlug: string;
+  launchName: string;
+  /** Para poder darle a Claude la URL pública completa de cada página. */
+  appUrl: string;
   /** pageKeys that already have content. */
   generatedKeys: Set<string>;
   /** pageKeys whose content is an HTML page designed in Claude. */
   claudeKeys: Set<string>;
+  /** Si la cuenta tiene el conector conectado; si no, el botón lleva a conectarlo. */
+  hasConnector: boolean;
   dripStartsAt: Date | null;
 }) {
   return (
@@ -102,6 +112,31 @@ export function PageIndex({
               >
                 Ver ↗
               </a>
+
+              {page.kind !== "legal" && (
+                <ClaudeButton
+                  hasConnector={hasConnector}
+                  label={fromClaude ? "Cambiar en Claude" : "Con Claude"}
+                  href={
+                    fromClaude
+                      ? claudeEditPageUrl({
+                          launchSlug,
+                          launchName,
+                          pageKey: page.pageKey,
+                          pageLabel: page.label,
+                          publicUrl: `${appUrl}${pagePath(launchSlug, page)}`,
+                        })
+                      : claudeDesignPageUrl({
+                          launchSlug,
+                          launchName,
+                          pageKey: page.pageKey,
+                          pageLabel: page.label,
+                          pageKind: page.kind,
+                          publicUrl: `${appUrl}${pagePath(launchSlug, page)}`,
+                        })
+                  }
+                />
+              )}
 
               {generated && !fromClaude && IN_PAGE_EDITABLE.has(page.kind) && (
                 <a

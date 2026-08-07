@@ -100,6 +100,28 @@ export function canPublishCustomPages(organization: Organization): boolean {
   return organization.plan === "pro" || organization.plan === "enterprise";
 }
 
+/**
+ * Si la cuenta tiene algún token vivo del conector.
+ *
+ * Lo usa el panel para decidir si un botón "hazlo con Claude" tiene sentido:
+ * sin token, el chat se abriría con una instrucción que Claude no puede cumplir.
+ */
+export async function hasActiveConnector(
+  organizationId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: mcpTokens.id })
+    .from(mcpTokens)
+    .where(
+      and(
+        eq(mcpTokens.organizationId, organizationId),
+        isNull(mcpTokens.revokedAt),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function listTokens(organizationId: string) {
   return db
     .select()

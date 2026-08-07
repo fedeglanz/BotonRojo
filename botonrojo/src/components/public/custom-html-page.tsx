@@ -89,20 +89,15 @@ export function CustomHtmlPage({
 
   return (
     <>
-      {page.styles.map((style, i) =>
-        style.kind === "inline" ? (
-          // eslint-disable-next-line react/no-danger
-          <style key={i} dangerouslySetInnerHTML={{ __html: style.css }} />
-        ) : (
-          <link key={i} rel="stylesheet" href={style.href} />
-        ),
-      )}
-
       <div
+        data-br-pagina=""
         className={page.bodyClass || undefined}
         style={page.bodyStyle ? parseStyleAttribute(page.bodyStyle) : undefined}
+        // The reset goes first and the design's own CSS right after it, both as raw
+        // HTML so React can't hoist them into the head and reorder them. See the
+        // note on SplitPage.markup.
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: page.markup }}
+        dangerouslySetInnerHTML={{ __html: SHELL_RESET + page.markup }}
       />
 
       {/* The design's own scripts, put back as elements so they execute. */}
@@ -136,6 +131,35 @@ export function CustomHtmlPage({
     </>
   );
 }
+
+/**
+ * Undoes what the app's shell imposes on every page.
+ *
+ * A hosted page renders inside the app's layout, and that layout is not neutral:
+ * `globals.css` sets a background, a colour and a font on `html, body` with no
+ * cascade layer, and the layout paints three decorative divs plus a film grain over
+ * everything. All of it was landing on top of designs that had their own ideas —
+ * that's the "otro fondo y otro tipo de letra" a published page came out with.
+ *
+ * Only the app's own decoration carries `!important`: those elements belong to us
+ * and nobody else styles them. Everything the design might want to set instead —
+ * background, colour, font — is left at plain specificity, so its own rules, which
+ * come right after this one, win on document order without a fight.
+ */
+const SHELL_RESET = `<style>
+  .mesh-bg, .circuit-grid, .vignette { display: none !important; }
+  body.grain::before { display: none !important; }
+  html, body {
+    background: #ffffff;
+    color: #18181b;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  /* El envoltorio hace de lienzo: si el diseño puso el fondo en el atributo style
+     del <body>, sin esto solo cubriría el alto de su contenido. */
+  [data-br-pagina] { min-height: 100svh; }
+</style>`;
 
 /**
  * `style="a:b;c:d"` as a React style object.

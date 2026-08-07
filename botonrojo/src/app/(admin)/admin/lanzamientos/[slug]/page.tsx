@@ -97,6 +97,9 @@ import {
 } from "@/server/domains";
 import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
+import { hasActiveConnector } from "@/mcp/auth";
+import { ClaudeButton } from "@/components/admin/claude-button";
+import { claudeNewPageUrl } from "@/lib/claude-link";
 
 export const dynamic = "force-dynamic";
 
@@ -244,6 +247,7 @@ export default async function LaunchHubPage(props: {
     .limit(50);
 
   const hasMarco = Boolean(launch.promise);
+  const connector = await hasActiveConnector(organizationId);
   // Everything downstream reads the brief, so its absence is worth naming once.
   const hasBrief = Boolean(launch.brief && launch.brief.trim().length >= 20);
   const brandKitApproved = launch.brandKitStatus === "approved";
@@ -567,6 +571,9 @@ export default async function LaunchHubPage(props: {
             <PageIndex
               pages={pages}
               launchSlug={launch.slug}
+              launchName={launch.name}
+              appUrl={env.APP_URL.replace(/\/$/, "")}
+              hasConnector={connector}
               generatedKeys={new Set(latestByPageKey.keys())}
               claudeKeys={
                 new Set(
@@ -577,6 +584,23 @@ export default async function LaunchHubPage(props: {
               }
               dripStartsAt={launch.contentDripStartsAt}
             />
+
+            {/* Una página que el tipo de lanzamiento no trae: la crea Claude, que es
+            quien sabe para qué la quieres. */}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <ClaudeButton
+                hasConnector={connector}
+                label="Página nueva con Claude"
+                href={claudeNewPageUrl({
+                  launchSlug: launch.slug,
+                  launchName: launch.name,
+                })}
+              />
+              <span className="text-xs text-zinc-500">
+                Abre un chat con el conector puesto: acordáis para qué es, la
+                crea y la publica.
+              </span>
+            </div>
 
             {/* Generation inputs: they steer every page, so they belong with the
             index rather than inside one page's editor. */}
@@ -635,7 +659,11 @@ export default async function LaunchHubPage(props: {
           >
             <EmailEditor
               launchId={launch.id}
-              body={(emailAsset?.body ?? null) as Parameters<typeof EmailEditor>[0]["body"]}
+              body={
+                (emailAsset?.body ?? null) as Parameters<
+                  typeof EmailEditor
+                >[0]["body"]
+              }
               refineAction={refineEmailAction}
               updateAction={updateEmailAction}
             />

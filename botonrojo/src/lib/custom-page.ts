@@ -78,15 +78,24 @@ export function replaceTokens(
 /* ------------------------------------------------------------------- parse -- */
 
 export type SplitPage = {
-  /** Everything inside <body>, scripts removed. */
+  /**
+   * Everything inside <body>, with the document's own stylesheets moved to the
+   * front and its scripts taken out.
+   *
+   * The CSS stays INSIDE the markup on purpose. React hoists any `<style>` or
+   * `<link>` it renders into the `<head>`, where it lands next to the app's own
+   * stylesheet at the same specificity — and then which one wins depends on
+   * insertion order, which isn't ours to decide. That's the bug where a published
+   * page came out with the app's background and font instead of its own.
+   *
+   * Injected as raw HTML it isn't hoisted: it sits after the app's stylesheet in
+   * document order, so the design wins every time, and without a single
+   * `!important`.
+   */
   markup: string;
   /** class attribute of <body>, so a design that styles the body still works. */
   bodyClass: string;
   bodyStyle: string;
-  /** <style> blocks and stylesheet hrefs, in document order. */
-  styles: Array<
-    { kind: "inline"; css: string } | { kind: "link"; href: string }
-  >;
   /** <script> blocks, in document order. Kept apart because markup injected with
    *  dangerouslySetInnerHTML never executes its scripts — they have to be
    *  re-emitted as real elements. */
@@ -111,18 +120,17 @@ export function splitDocument(html: string): SplitPage {
     blockTextElements: { script: true, noscript: true, style: true, pre: true },
   });
 
-  const styles: SplitPage["styles"] = [];
   const scripts: SplitPage["scripts"] = [];
 
-  for (const el of root.querySelectorAll("style")) {
-    styles.push({ kind: "inline", css: el.innerHTML });
+  // The design's stylesheets, in document order, as raw HTML. Taken out of wherever
+  // they were (usually the head, which isn't rendered) so they can be put back at
+  // the top of the body — see the note on `markup`.
+  const styleHtml: string[] = [];
+  for (const el of root.querySelectorAll('style, link[rel="stylesheet"]')) {
+    styleHtml.push(el.toString());
     el.remove();
   }
-  for (const el of root.querySelectorAll('link[rel="stylesheet"]')) {
-    const href = el.getAttribute("href");
-    if (href) styles.push({ kind: "link", href });
-    el.remove();
-  }
+
   for (const el of root.querySelectorAll("script")) {
     const src = el.getAttribute("src");
     const module = el.getAttribute("type") === "module";
@@ -136,10 +144,9 @@ export function splitDocument(html: string): SplitPage {
   const titleEl = root.querySelector("title");
 
   return {
-    markup: (body ?? root).innerHTML,
+    markup: styleHtml.join("\n") + (body ?? root).innerHTML,
     bodyClass: body?.getAttribute("class") ?? "",
     bodyStyle: body?.getAttribute("style") ?? "",
-    styles,
     scripts,
     title: titleEl?.text?.trim() || null,
   };

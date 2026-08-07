@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 
 import { isCustomPageBody } from "@/lib/custom-page";
 import { retireCustomPageAction } from "@/server/page-edit";
+import { env } from "@/lib/env";
+import { hasActiveConnector } from "@/mcp/auth";
+import { ClaudeButton } from "@/components/admin/claude-button";
+import { claudeDesignPageUrl, claudeEditPageUrl } from "@/lib/claude-link";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -78,6 +82,16 @@ export default async function LaunchPageEditor(props: {
   // can reproduce, and the JSON editors have nothing to edit — the content is a
   // finished HTML document.
   const fromClaude = isCustomPageBody(asset?.body);
+  // Un botón que abre Claude solo sirve si la cuenta tiene el conector conectado.
+  const connector = await hasActiveConnector(launch.organizationId);
+  const publicUrl = pagePath(launch.slug, pageDef);
+  const claudeLinkArgs = {
+    launchSlug: launch.slug,
+    launchName: launch.name,
+    pageKey,
+    pageLabel: pageDef.label,
+    publicUrl: `${env.APP_URL.replace(/\/$/, "")}${publicUrl}`,
+  };
   const publicPath = pagePath(launch.slug, pageDef);
   const unlockDate = contentUnlockDate(launch.contentDripStartsAt, pageKey);
 
@@ -165,6 +179,24 @@ export default async function LaunchPageEditor(props: {
             >
               Ver esta página ↗
             </a>
+
+            {/* Diseñar o rediseñar en Claude, sin tener que explicarle nada: el
+                enlace abre un chat con la instrucción y las herramientas puestas. */}
+            {pageDef.kind !== "legal" && (
+              <ClaudeButton
+                hasConnector={connector}
+                tone={fromClaude ? "neutral" : "primary"}
+                label={fromClaude ? "Cambiar en Claude" : "Diseñar en Claude"}
+                href={
+                  fromClaude
+                    ? claudeEditPageUrl(claudeLinkArgs)
+                    : claudeDesignPageUrl({
+                        ...claudeLinkArgs,
+                        pageKind: pageDef.kind,
+                      })
+                }
+              />
+            )}
           </div>
         </div>
 
