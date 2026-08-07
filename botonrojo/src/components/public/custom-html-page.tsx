@@ -159,6 +159,33 @@ const SHELL_RESET = `<style>
   /* El envoltorio hace de lienzo: si el diseño puso el fondo en el atributo style
      del <body>, sin esto solo cubriría el alto de su contenido. */
   [data-br-pagina] { min-height: 100svh; }
+
+  /* Y los estilos de elemento de la app, que también son suyos y no del diseño:
+     globals.css da a los titulares su tipografía, su peso, su interletraje y un
+     tamaño fluido, y a code/pre la monoespaciada. Un h1 que el diseño esperaba
+     heredando su serif salía con la tipografía de la plataforma.
+
+     "revert" y no "inherit": devuelve cada propiedad a lo que diría el navegador,
+     que es lo que un documento HTML normal hace. Así un h1 sin estilos propios
+     sale en negrita y a 2em —lo esperable— en vez de heredar el tamaño del cuerpo.
+
+     Sin !important a propósito: esta regla no lleva capa y la de la app va en
+     @layer base, así que esta gana; y el CSS del diseño, que viene después y
+     tampoco lleva capa, gana a esta. Cada uno en su sitio.
+
+     Los márgenes y el box-sizing del preflight de Tailwind se quedan: son una base
+     neutra que casi cualquier diseño moderno da por hecha, y devolverlos también
+     rompería más de lo que arregla. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: revert;
+    font-size: revert;
+    font-weight: revert;
+    line-height: revert;
+    letter-spacing: revert;
+    text-wrap: revert;
+  }
+  p, li { line-height: revert; text-wrap: revert; }
+  code, kbd, samp, pre { font-family: revert; }
 </style>`;
 
 /**

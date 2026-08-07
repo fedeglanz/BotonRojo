@@ -14,10 +14,18 @@
  * saber de verdad lo pide él con `contrato_pagina` y `contexto_lanzamiento`.
  */
 
-const CLAUDE_NEW_CHAT = "https://claude.ai/new";
+/**
+ * Dos destinos, porque son dos trabajos distintos.
+ *
+ * Diseñar una página es trabajo de Claude Design: ahí es donde se ve lo que sale
+ * mientras se hace. Crear una página nueva empieza por una conversación —para qué
+ * es, de qué tipo— y eso va en un chat normal.
+ */
+const CLAUDE_DESIGN = "https://claude.ai/design";
+const CLAUDE_CHAT = "https://claude.ai/new";
 
-function claudeUrl(prompt: string): string {
-  return `${CLAUDE_NEW_CHAT}?q=${encodeURIComponent(prompt)}`;
+function claudeUrl(base: string, prompt: string): string {
+  return `${base}?q=${encodeURIComponent(prompt)}`;
 }
 
 /** Rediseñar una página que ya se diseñó en Claude. */
@@ -29,6 +37,7 @@ export function claudeEditPageUrl(input: {
   publicUrl: string;
 }): string {
   return claudeUrl(
+    CLAUDE_DESIGN,
     `Con el conector de Botón Rojo, cambia la página "${input.pageLabel}" del lanzamiento ${input.launchSlug}.
 
 1. ver_pagina con lanzamiento="${input.launchSlug}" y pagina="${input.pageKey}" para tener el HTML que está publicado ahora.
@@ -49,6 +58,7 @@ export function claudeDesignPageUrl(input: {
   publicUrl: string;
 }): string {
   return claudeUrl(
+    CLAUDE_DESIGN,
     `Con el conector de Botón Rojo, diseña la página "${input.pageLabel}" del lanzamiento ${input.launchSlug} y publícala.
 
 1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": marca, promesa, avatar, precios y fechas.
@@ -68,6 +78,7 @@ export function claudeNewPageUrl(input: {
   launchName: string;
 }): string {
   return claudeUrl(
+    CLAUDE_CHAT,
     `Con el conector de Botón Rojo, quiero una página nueva en el lanzamiento ${input.launchSlug}.
 
 1. contexto_lanzamiento con lanzamiento="${input.launchSlug}", para ver qué páginas tiene ya.
