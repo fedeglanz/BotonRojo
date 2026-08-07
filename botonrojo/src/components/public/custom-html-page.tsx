@@ -186,6 +186,16 @@ const SHELL_RESET = `<style>
   }
   p, li { line-height: revert; text-wrap: revert; }
   code, kbd, samp, pre { font-family: revert; }
+
+  /* Los controles de formulario, enteros. El preflight de Tailwind les quita el
+     borde, el relleno y el fondo —cosa razonable cuando cada input lleva sus
+     clases—, pero en una página alojada dejaba el campo de email y el botón
+     invisibles: un formulario que no parecía un formulario.
+
+     "all: revert" es tosco a propósito: lo que queremos es exactamente lo que el
+     navegador pintaría, y cualquier regla del diseño, que va después y sin capa,
+     sigue ganando a esto. */
+  input, textarea, select, button, fieldset, legend { all: revert; }
 </style>`;
 
 /**
