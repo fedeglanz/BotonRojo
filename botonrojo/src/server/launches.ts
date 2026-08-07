@@ -20,6 +20,7 @@ import {
   refineSectionPrompt,
 } from "@/ai/prompts/landing-refine";
 import { EMAILS_SYSTEM, emailsPrompt } from "@/ai/prompts/emails";
+import { EMAIL_REFINE_SYSTEM, emailRefinePrompt } from "@/ai/prompts/email-refine";
 import { ADS_SYSTEM, adsPrompt } from "@/ai/prompts/ads";
 import {
   TELEGRAM_SYSTEM,
@@ -2277,6 +2278,111 @@ export async function generateEmailsAction(launchId: string) {
     title: `Secuencia · ${launch.name}`,
     body,
     generatedByAi: env.ANTHROPIC_MODEL,
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+type EmailItem = {
+  subject: string;
+  preheader?: string;
+  body: string;
+  ctaText?: string;
+  ctaUrl?: string;
+  phase?: string;
+  timing?: string;
+  sendOffsetDays?: number;
+};
+
+async function loadEmailAsset(launchId: string, organizationId: string) {
+  const launch = await getOrgLaunch(launchId, organizationId);
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+  if (!asset) throw new Error("no_email_asset");
+  const body = asset.body as { emails: EmailItem[] };
+  if (!body?.emails?.length) throw new Error("no_emails");
+  return { launch, asset, body };
+}
+
+export async function refineEmailAction(launchId: string, emailIndex: number, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!instruction) throw new Error("instruction_required");
+
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const { text } = await complete({
+    system: EMAIL_REFINE_SYSTEM,
+    prompt: emailRefinePrompt({
+      email,
+      instruction,
+      launchContext: {
+        name: launch.name,
+        promise: launch.promise ?? "",
+        painPoints: launch.painPoints ?? [],
+        benefits: launch.benefits ?? [],
+        primaryCountry: launch.primaryCountry,
+      },
+    }),
+    maxTokens: 3000,
+    temperature: 0.6,
+  });
+
+  const refined = extractJson(text) as EmailItem;
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = {
+    ...email,
+    subject: refined.subject ?? email.subject,
+    preheader: refined.preheader ?? email.preheader,
+    body: refined.body ?? email.body,
+    ctaText: refined.ctaText ?? email.ctaText,
+    ctaUrl: refined.ctaUrl ?? email.ctaUrl,
+  };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+    generatedByAi: env.ANTHROPIC_MODEL,
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function updateEmailAction(launchId: string, emailIndex: number, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const subject = String(formData.get("subject") ?? "").trim();
+  const preheader = String(formData.get("preheader") ?? "").trim();
+  const htmlBody = String(formData.get("body") ?? "").trim();
+  const ctaText = String(formData.get("ctaText") ?? "").trim();
+
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = {
+    ...email,
+    ...(subject && { subject }),
+    ...(preheader && { preheader }),
+    ...(htmlBody && { body: htmlBody }),
+    ...(ctaText && { ctaText }),
+  };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
   });
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
