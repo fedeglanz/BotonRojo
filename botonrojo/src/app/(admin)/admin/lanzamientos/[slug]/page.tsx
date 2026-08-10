@@ -30,6 +30,8 @@ import {
   generateEmailsAction,
   refineEmailAction,
   updateEmailAction,
+  approveEmailAction,
+  approveAllEmailsAction,
   generateAdsAction,
   createStripeProductAction,
   deleteStripeProductAction,
@@ -664,8 +666,15 @@ export default async function LaunchHubPage(props: {
                   typeof EmailEditor
                 >[0]["body"]
               }
+              brand={{
+                logoUrl: launch.brandLogoUrl,
+                palette: launch.brandPalette,
+                fonts: launch.brandFonts,
+              }}
               refineAction={refineEmailAction}
               updateAction={updateEmailAction}
+              approveAction={approveEmailAction}
+              approveAllAction={approveAllEmailsAction}
             />
           </WizardStep>
 
