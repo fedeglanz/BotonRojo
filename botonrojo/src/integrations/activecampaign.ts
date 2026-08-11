@@ -40,6 +40,14 @@ export type ACCampaign = {
   status: number;
   sdate?: string;
 };
+export type ACAutomation = {
+  id: string;
+  name: string;
+  status: string; // "1" = active, "0" = inactive
+  entered: string; // total contacts entered
+  cdate: string;
+  mdate: string;
+};
 
 export type ActiveCampaignClient = ReturnType<typeof createActiveCampaignClient>;
 
@@ -240,6 +248,14 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     });
   }
 
+  // ---- Automations ----
+
+  /** List all automations in the account (paginated, fetches up to 100). */
+  async function listAutomations(): Promise<ACAutomation[]> {
+    const res = await ac<{ automations: ACAutomation[] }>("/automations?limit=100&orders[name]=ASC");
+    return res.automations ?? [];
+  }
+
   // ---- High-level helpers ----
 
   async function provisionLaunchInAc(input: { launchSlug: string; launchName: string; publicUrl: string }) {
@@ -271,6 +287,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     launchSlug: string;
     launchListId?: number | null;
     launchTagIds?: Record<string, number>;
+    automationIds?: string[];
     intent: "registro" | "comprador" | "evento";
   }) {
     const [firstName, ...rest] = (input.name ?? "").split(" ");
@@ -287,6 +304,13 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     const tagId = input.launchTagIds?.[input.intent];
     if (tagId) {
       await applyTag(contact.id, String(tagId)).catch(() => {});
+    }
+
+    // Add contact to linked automations
+    if (input.automationIds?.length) {
+      for (const autoId of input.automationIds) {
+        await addContactToAutomation(contact.id, autoId).catch(() => {});
+      }
     }
 
     return contact;
@@ -307,6 +331,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     findCampaignsByPrefix,
     deleteCampaign,
     addContactToAutomation,
+    listAutomations,
     provisionLaunchInAc,
     syncLeadToAc,
   };
