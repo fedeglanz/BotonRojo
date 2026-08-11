@@ -2426,6 +2426,68 @@ export async function approveAllEmailsAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
+export async function updateEmailOffsetAction(launchId: string, emailIndex: number, newOffset: number) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = { ...email, sendOffsetDays: newOffset };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function fetchAcAutomationsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) return [];
+  return ac.listAutomations();
+}
+
+export async function linkAcAutomationAction(launchId: string, automationId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const linked = (cache.acLinkedAutomationIds as string[]) ?? [];
+  if (!linked.includes(automationId)) {
+    linked.push(automationId);
+  }
+  cache.acLinkedAutomationIds = linked;
+
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function unlinkAcAutomationAction(launchId: string, automationId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const linked = (cache.acLinkedAutomationIds as string[]) ?? [];
+  cache.acLinkedAutomationIds = linked.filter((id) => id !== automationId);
+
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function generateAdsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);

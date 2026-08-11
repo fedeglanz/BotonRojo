@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   let organizationId: string | null = null;
   let launchAcListId: number | null = null;
   let launchAcTagIds: Record<string, number> = {};
+  let launchAcAutomationIds: string[] = [];
   let launchSlug: string | null = null;
   let launchTelegramChatId: string | null = null;
   let launchOrganizationId: string | null = null;
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       organizationId = launch.organizationId;
       launchAcListId = launch.activeCampaignListId ?? null;
       launchAcTagIds = (launch.activeCampaignTagIds ?? {}) as Record<string, number>;
+      launchAcAutomationIds = ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [];
       launchSlug = launch.slug;
       launchTelegramChatId = launch.telegramChatId ?? null;
       launchOrganizationId = launch.organizationId ?? null;
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
           launchSlug,
           launchListId: launchAcListId,
           launchTagIds: launchAcTagIds,
+          automationIds: launchAcAutomationIds,
           intent,
         }),
       )

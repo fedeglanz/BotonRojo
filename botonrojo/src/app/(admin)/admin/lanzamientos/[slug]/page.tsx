@@ -41,6 +41,10 @@ import {
   provisionActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
   scheduleAcCampaignsAction,
+  updateEmailOffsetAction,
+  fetchAcAutomationsAction,
+  linkAcAutomationAction,
+  unlinkAcAutomationAction,
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
@@ -83,6 +87,8 @@ import { EmailEditor } from "@/components/admin/email-editor";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { PricingPlanForm } from "@/components/admin/pricing-plan-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
+import { CampaignCalendar } from "@/components/admin/campaign-calendar";
+import { AcAutomationsPanel } from "@/components/admin/ac-automations-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
 import { CalendarPanel } from "@/components/admin/calendar-panel";
 import { DomainPanel } from "@/components/admin/domain-panel";
@@ -262,6 +268,11 @@ export default async function LaunchHubPage(props: {
   const launchDomains = await listDomainsForLaunch(launch.id);
   const hasActiveDomain = launchDomains.some((d) => d.status === "active");
   const acConfigured = await isActiveCampaignConfigured(organizationId);
+  const acAutomations = acConfigured
+    ? await fetchAcAutomationsAction(launch.id).catch(() => [])
+    : [];
+  const acLinkedAutomationIds =
+    ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [];
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
@@ -795,6 +806,53 @@ export default async function LaunchHubPage(props: {
               pushEmailsAction={pushEmailsToActiveCampaignAction}
               scheduleCampaignsAction={scheduleAcCampaignsAction}
             />
+
+            {/* Campaign Calendar */}
+            {hasEmails && hasMilestones && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Calendario de envios
+                </h3>
+                <CampaignCalendar
+                  launchId={launch.id}
+                  emails={
+                    (emailAsset?.body as { emails: Array<{ subject: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> })
+                      ?.emails ?? []
+                  }
+                  milestones={launchMilestones.map((m) => ({
+                    phase: m.phase,
+                    label: m.label,
+                    startsAt: m.startsAt.toISOString(),
+                    endsAt: m.endsAt.toISOString(),
+                  }))}
+                  hasCampaigns={Boolean(
+                    (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
+                  )}
+                  updateOffsetAction={updateEmailOffsetAction}
+                />
+              </div>
+            )}
+
+            {/* AC Automations */}
+            {acConfigured && acAutomations.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Automatizaciones AC
+                </h3>
+                <AcAutomationsPanel
+                  launchId={launch.id}
+                  automations={acAutomations.map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    status: a.status,
+                    entered: a.entered,
+                  }))}
+                  linkedAutomationIds={acLinkedAutomationIds}
+                  linkAction={linkAcAutomationAction}
+                  unlinkAction={unlinkAcAutomationAction}
+                />
+              </div>
+            )}
           </WizardStep>
 
           {/* Step 8 — Dominio propio */}

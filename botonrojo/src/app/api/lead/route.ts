@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     launchSlug: launch.slug,
     launchListId: launch.activeCampaignListId ?? null,
     launchTagIds: (launch.activeCampaignTagIds ?? {}) as Record<string, number>,
+    automationIds: ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [],
     intent: "registro",
   }).catch((err) => console.error("AC sync (custom page lead) failed", err));
 
