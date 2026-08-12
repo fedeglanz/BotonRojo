@@ -66,6 +66,41 @@ lanzamientos de otro cliente ni acertando su id.
 | `retirar_pagina` | Quita el HTML y devuelve la página generada, que seguía debajo |
 | `generar_pagina` | Genera la página con el sistema de Botón Rojo desde un brief |
 | `metricas_lanzamiento` | Visitas, leads, ventas, ingresos y reparto por afiliado |
+| `trabajo_pendiente` | La cola que el panel ha dejado apuntada, en orden |
+| `guardar_identidad` | Guarda paleta, tipografías y estilo, y los deja aprobados |
+
+## Crear un lanzamiento entero desde el panel
+
+Al crear un lanzamiento se elige quién diseña. Con **Claude Design**, Botón Rojo no
+propone su propia identidad visual —que iba a sustituirse— sino que escribe una
+**cola de trabajo**: la identidad visual primero y después cada página no legal.
+
+Esto existe por un límite del protocolo, no por gusto. MCP va en una sola
+dirección: Claude llama al servidor, nunca al contrario. La plataforma no puede
+poner a trabajar a nadie, así que lo más cerca que se puede estar de "créalo en
+Claude" es dejar el trabajo definido y dar un botón que abre Claude Design
+diciéndole que lo recorra.
+
+El circuito completo:
+
+1. En el formulario, "Quién diseña este lanzamiento" → Claude Design.
+2. Se escriben las tareas en `launch_tasks` y el lanzamiento queda con
+   `designMode: "claude"`.
+3. El panel muestra la cola y un botón que abre `claude.ai/design` con la
+   instrucción de recorrerla.
+4. Claude llama a `trabajo_pendiente`, propone la identidad, la guarda con
+   `guardar_identidad`, y luego diseña y publica cada página.
+5. Cada tarea **se cierra sola**: al guardar la identidad y al publicar cada
+   página. Pedir una llamada aparte para decir "ya está" sería una llamada que se
+   puede olvidar, y entonces el panel mentiría sobre lo que falta.
+
+En ese modo el panel no ofrece su generador de identidad visual, que sustituiría lo
+que Claude acabe de decidir.
+
+El estilo que llega en `guardar_identidad` pasa por el mismo normalizador que el
+panel (`normalizeBrandDesign`), así que un valor que no esté en el vocabulario se
+ajusta al más cercano en vez de llegar a la página. Los colores, en cambio, se
+rechazan si no son hexadecimales: ahí no hay valor cercano que adivinar.
 
 ## El contrato
 
