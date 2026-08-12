@@ -472,6 +472,16 @@ const publicarPagina: ToolDef = {
       generatedByAi: "claude-design",
     });
 
+    // La tarea de esta página, si estaba en la cola, se cierra sola. Pedir una
+    // llamada aparte para decir "ya está" sería una llamada que se puede olvidar, y
+    // entonces el panel mentiría sobre lo que falta.
+    await completeTask({
+      launchId: launch.id,
+      kind: "page",
+      pageKey: pageDef.pageKey,
+      result: "Diseñada en Claude y publicada",
+    });
+
     const path = pagePath(launch.slug, pageDef);
     revalidatePath(path);
     revalidatePath(`/admin/lanzamientos/${launch.slug}`);
@@ -947,6 +957,9 @@ const generarPagina: ToolDef = {
       instruction: String(args.brief ?? ""),
     });
 
+    // Generada con nuestro sistema en vez de diseñada en Claude, pero la página
+    // queda hecha igual: la tarea se cierra cuando la generación termina, no aquí,
+    // porque aquí solo ha arrancado. Ver startPageGeneration.
     return {
       iniciada: true,
       url: absoluteUrl(pagePath(launch.slug, pageDef)),
