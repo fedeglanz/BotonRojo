@@ -1,4 +1,4 @@
-import { ClaudeButton } from "./claude-button";
+import { ClaudeGoButton } from "./claude-go-button";
 import { CopyPromptButton } from "./copy-prompt-button";
 
 type QueueTask = {
@@ -87,11 +87,11 @@ export function ClaudeQueue({
           </p>
         </div>
         {!finished && (
-          <ClaudeButton
+          <ClaudeGoButton
             hasConnector={hasConnector}
-            tone="primary"
             label={done === 0 ? "Abrir Claude Design" : "Seguir en Claude"}
             href={queueHref}
+            prompt={queuePrompt}
           />
         )}
       </div>
@@ -178,10 +178,9 @@ export function ClaudeQueue({
           <ol className="space-y-2 text-sm text-zinc-300">
             <li>
               <strong className="font-semibold text-white">1.</strong> Pulsa el
-              botón de arriba: abre Claude Design con la instrucción escrita. Si
-              el mensaje no aparece en el cuadro de texto,{" "}
-              <span className="text-zinc-200">cópialo aquí abajo y pégalo</span>
-              .
+              botón de arriba. Abre Claude Design con la instrucción y además te
+              la deja copiada: si el cuadro de texto sale vacío,{" "}
+              <span className="text-zinc-200">pégala y listo</span>.
             </li>
             <li>
               <strong className="font-semibold text-white">2.</strong> Claude te

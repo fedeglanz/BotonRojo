@@ -24,8 +24,16 @@
 const CLAUDE_DESIGN = "https://claude.ai/design";
 const CLAUDE_CHAT = "https://claude.ai/new";
 
+/**
+ * El mensaje va en `q` y en `prompt`.
+ *
+ * El chat de claude.ai lee `q`; de Design no tenemos forma de comprobarlo desde
+ * aquí, y un parámetro que no se reconoce se ignora sin más. Mandar los dos cuesta
+ * unos bytes de URL y evita que el cuadro salga vacío por el nombre de una clave.
+ */
 function claudeUrl(base: string, prompt: string): string {
-  return `${base}?q=${encodeURIComponent(prompt)}`;
+  const encoded = encodeURIComponent(prompt);
+  return `${base}?q=${encoded}&prompt=${encoded}`;
 }
 
 /** Rediseñar una página que ya se diseñó en Claude. */
