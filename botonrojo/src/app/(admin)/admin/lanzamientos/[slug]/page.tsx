@@ -108,8 +108,8 @@ import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
 import {
+  CLAUDE_DESIGN_URL,
   claudeNewPageUrl,
-  claudeQueueUrl,
   claudeQueuePrompt,
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
@@ -370,10 +370,7 @@ export default async function LaunchHubPage(props: {
             result: task.result,
           }))}
           hasConnector={connector}
-          queueHref={claudeQueueUrl({
-            launchSlug: launch.slug,
-            launchName: launch.name,
-          })}
+          queueHref={CLAUDE_DESIGN_URL}
           queuePrompt={claudeQueuePrompt({
             launchSlug: launch.slug,
             launchName: launch.name,

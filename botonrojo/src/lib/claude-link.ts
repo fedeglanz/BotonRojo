@@ -1,63 +1,51 @@
 /**
- * Enlaces que abren un chat de Claude con la instrucción ya escrita.
+ * Lo que se le manda a Claude para trabajar en un lanzamiento: a dónde va cada
+ * botón y qué instrucción lleva.
  *
- * `claude.ai/new?q=…` deja el mensaje puesto en el cuadro de texto, sin enviarlo:
- * da tiempo a añadir "y cámbiale el titular" antes de darle. Eso es justo lo que
- * queremos aquí — el botón no hace el trabajo, lo empieza.
+ * Los dos destinos no son intercambiables. Diseñar una página es trabajo de Claude
+ * Design, que es donde se ve lo que sale mientras se hace; crear una página nueva
+ * empieza por una conversación —para qué es, de qué tipo— y eso va en un chat.
  *
- * Los prompts nombran las herramientas del conector porque Claude tiene muchas y
- * necesita saber cuáles son las de esto; y nombran el lanzamiento y la página por
- * su clave, no por su título, porque son los identificadores que aceptan.
+ * Y llevan la instrucción de forma distinta porque no queda otra. El chat lee el
+ * mensaje de `?q=` y aparece escrito. Design no: su compositor es un contenteditable
+ * de ProseMirror que no mira la URL, y escribir en la página de otro dominio no lo
+ * puede hacer nadie desde aquí. Así que los botones de Design abren la página limpia
+ * y copian la instrucción al portapapeles en el mismo clic (ver ClaudeGoButton):
+ * pegarla es un paso real, y es mejor documentarlo que prometer un autorrelleno que
+ * no va a pasar.
  *
- * Van cortos a propósito: el mensaje viaja en la URL y un navegador empieza a
- * cortar por encima de unos pocos miles de caracteres. Lo que Claude necesita
- * saber de verdad lo pide él con `contrato_pagina` y `contexto_lanzamiento`.
+ * Las instrucciones nombran las herramientas del conector, porque Claude tiene
+ * muchas y necesita saber cuáles son las de esto; y nombran el lanzamiento y la
+ * página por su clave, no por su título, porque son los identificadores que aceptan.
  */
 
-/**
- * Dos destinos, porque son dos trabajos distintos.
- *
- * Diseñar una página es trabajo de Claude Design: ahí es donde se ve lo que sale
- * mientras se hace. Crear una página nueva empieza por una conversación —para qué
- * es, de qué tipo— y eso va en un chat normal.
- */
-const CLAUDE_DESIGN = "https://claude.ai/design";
+export const CLAUDE_DESIGN_URL = "https://claude.ai/design";
 const CLAUDE_CHAT = "https://claude.ai/new";
 
-/**
- * El mensaje va en `q` y en `prompt`.
- *
- * El chat de claude.ai lee `q`; de Design no tenemos forma de comprobarlo desde
- * aquí, y un parámetro que no se reconoce se ignora sin más. Mandar los dos cuesta
- * unos bytes de URL y evita que el cuadro salga vacío por el nombre de una clave.
- */
-function claudeUrl(base: string, prompt: string): string {
-  const encoded = encodeURIComponent(prompt);
-  return `${base}?q=${encoded}&prompt=${encoded}`;
+/** El chat sí lee `?q=`, así que ahí el mensaje va en el enlace. */
+function claudeChatUrl(prompt: string): string {
+  return `${CLAUDE_CHAT}?q=${encodeURIComponent(prompt)}`;
 }
 
 /** Rediseñar una página que ya se diseñó en Claude. */
-export function claudeEditPageUrl(input: {
+export function claudeEditPagePrompt(input: {
   launchSlug: string;
   launchName: string;
   pageKey: string;
   pageLabel: string;
   publicUrl: string;
 }): string {
-  return claudeUrl(
-    CLAUDE_DESIGN,
-    `Con el conector de Botón Rojo, cambia la página "${input.pageLabel}" del lanzamiento ${input.launchSlug}.
+  return `Con el conector de Botón Rojo, cambia la página "${input.pageLabel}" del lanzamiento ${input.launchSlug}.
 
 1. ver_pagina con lanzamiento="${input.launchSlug}" y pagina="${input.pageKey}" para tener el HTML que está publicado ahora.
 2. contrato_pagina, para no perder los atributos data-br ni los {{tokens}} al retocarlo.
 3. Cámbialo y publícalo con publicar_pagina en la misma página.
 
-Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.`,
-  );
+Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.`;
 }
 
 /** Diseñar desde cero una página del lanzamiento. */
-export function claudeDesignPageUrl(input: {
+export function claudeDesignPagePrompt(input: {
   launchSlug: string;
   launchName: string;
   pageKey: string;
@@ -65,9 +53,7 @@ export function claudeDesignPageUrl(input: {
   pageKind: string;
   publicUrl: string;
 }): string {
-  return claudeUrl(
-    CLAUDE_DESIGN,
-    `Con el conector de Botón Rojo, diseña la página "${input.pageLabel}" del lanzamiento ${input.launchSlug} y publícala.
+  return `Con el conector de Botón Rojo, diseña la página "${input.pageLabel}" del lanzamiento ${input.launchSlug} y publícala.
 
 1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": marca, promesa, avatar, precios y fechas.
 2. contrato_pagina: los atributos data-br y los {{tokens}} que tiene que llevar el HTML.
@@ -76,8 +62,7 @@ export function claudeDesignPageUrl(input: {
 
 Es una página de tipo "${input.pageKind}" y quedará en ${input.publicUrl}. Las imágenes mándalas por url en "archivos", nunca en base64.
 
-Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.`,
-  );
+Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.`;
 }
 
 /**
@@ -112,27 +97,12 @@ No hace falta avisar de nada al terminar: cada tarea se cierra sola al guardar l
 Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.`;
 }
 
-/**
- * Hacer la cola de trabajo entera: identidad visual y todas las páginas.
- *
- * A Claude Design, y con la lista sin enumerar aquí a propósito: la pide él con
- * `trabajo_pendiente`, que es la única versión que está al día. Repetirla en la URL
- * sería una copia que envejece en cuanto se cierra la primera tarea.
- */
-export function claudeQueueUrl(input: {
-  launchSlug: string;
-  launchName: string;
-}): string {
-  return claudeUrl(CLAUDE_DESIGN, claudeQueuePrompt(input));
-}
-
 /** Crear una página que el lanzamiento todavía no tiene. */
 export function claudeNewPageUrl(input: {
   launchSlug: string;
   launchName: string;
 }): string {
-  return claudeUrl(
-    CLAUDE_CHAT,
+  return claudeChatUrl(
     `Con el conector de Botón Rojo, quiero una página nueva en el lanzamiento ${input.launchSlug}.
 
 1. contexto_lanzamiento con lanzamiento="${input.launchSlug}", para ver qué páginas tiene ya.
