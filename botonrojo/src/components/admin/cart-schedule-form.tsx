@@ -34,7 +34,9 @@ export function CartScheduleForm({
           Cierre del carrito
         </span>
         <span className="mt-1 block text-xs text-zinc-500">
-          Alimenta el countdown de la landing. Vacío = sin countdown.
+          Alimenta el countdown de la landing. Se rellena sola desde el
+          calendario (fin de “Cierre de carrito”), así que normalmente no hay
+          que tocarla.
         </span>
         <input
           type="datetime-local"
@@ -48,7 +50,8 @@ export function CartScheduleForm({
           Cierre del registro
         </span>
         <span className="mt-1 block text-xs text-zinc-500">
-          Countdown de las páginas de captación. Vacío = sin countdown.
+          Countdown de las páginas de captación. Sale del calendario (fin de
+          “Captación”); si mueves esa fase, esta fecha se mueve con ella.
         </span>
         <input
           type="datetime-local"

@@ -37,23 +37,31 @@ Si se te olvida \`data-br="lead"\`, la plataforma trata como captación cualquie
 formulario que tenga un campo de email. Es una red de seguridad, no una excusa:
 márcalo.
 
-## Valores del lanzamiento ({{tokens}})
+## Los valores del lanzamiento: escribe el de verdad
 
-Se sustituyen al publicar. Escríbelos tal cual en el HTML:
+Escribe en el diseño el valor real, el que te da \`contexto_lanzamiento\` en
+\`valores_listos\` (precio, plazos, fechas de cierre, nombre, promesa y las rutas
+internas, ya formateados). Así la vista previa se ve terminada y puedes juzgar el
+diseño: un \`{{precio}}\` en medio de una página se lee como un error, porque lo es.
 
-- \`{{nombre}}\` — nombre del lanzamiento
-- \`{{promesa}}\` — la promesa
-- \`{{precio}}\` — precio formateado ("97 €")
-- \`{{precio_sin_formato}}\` — el número ("97")
-- \`{{moneda}}\` — "EUR"
-- \`{{plazos}}\` — "3 pagos de 39,90 €" si el lanzamiento admite pago a plazos, y
-  vacío si no. Úsalo tal cual: no dividas el precio tú, porque el importe de cada
-  plazo lo decide el cliente y casi nunca es el total entre el número de pagos
-- \`{{cierre_carrito}}\` / \`{{cierre_registro}}\` — fechas en ISO
-- \`{{url_registro}}\` / \`{{url_venta}}\` / \`{{url_gracias}}\` — rutas internas
-- \`{{slug}}\` — slug del lanzamiento
+Y para lo que puede cambiar después, marca además el elemento:
 
-Un \`{{...}}\` que no esté en esta lista se queda como está: no inventes tokens.
+| Marca | Qué hace la plataforma al servir la página |
+|---|---|
+| \`data-br="precio"\` | Sustituye el texto por el precio que haya en ese momento |
+| \`data-br="plazos"\` | Igual con "3 pagos de 39,90 €" |
+| \`data-br="cuenta-atras"\` | Recalcula el tiempo que queda |
+
+Es decir: \`<span data-br="precio">97 €</span>\`. En la vista previa se ve "97 €" y
+en la página en vivo se ve lo que valga el día que alguien entre. Lo mismo con la
+cuenta atrás: pon números creíbles como relleno y déjala marcada.
+
+Con la promesa, el nombre y las rutas internas no hace falta marcar nada: escríbelos
+tal cual. Si el cliente cambia la promesa, la página se rediseña.
+
+Los \`{{tokens}}\` de antes (\`{{precio}}\`, \`{{promesa}}\`, \`{{cierre_carrito}}\`…)
+siguen funcionando por si te encuentras una página vieja que los usa, pero no los
+escribas en un diseño nuevo: no se ven hasta que la página está publicada.
 
 ## Afiliados
 

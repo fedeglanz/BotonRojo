@@ -183,6 +183,27 @@ async function addExtraPage(
   return pageDef;
 }
 
+/** "97 €", "39,90 €" — como se lee, no en céntimos. */
+function formatMoney(cents: number, currency: string): string {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
+}
+
+/** "6 de octubre a las 12:00", o vacío si no hay fecha. */
+function formatDate(date: Date | null): string {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  }).format(date);
+}
+
 /** Un color de marca o un error que se entiende. */
 function hexOrFail(raw: unknown, field: string): string {
   const value = String(raw ?? "").trim();
@@ -283,6 +304,37 @@ const contextoLanzamiento: ToolDef = {
         // The design system already chosen for this launch — a page designed
         // outside should look like the rest of it, not like a different product.
         diseno: launch.brandDesign,
+      },
+      /**
+       * Los mismos datos ya escritos como se leen, para pegarlos en el diseño.
+       *
+       * Antes solo se daban en céntimos y en ISO, así que para poner un precio en
+       * la página había que calcularlo o tirar de un {{token}} — y un token se ve
+       * literal en la vista previa de Claude Design, donde no se puede juzgar el
+       * diseño. Con el valor hecho, el diseño se ve terminado desde el primer
+       * momento.
+       */
+      valores_listos: {
+        nombre: launch.name,
+        promesa: launch.promise ?? "",
+        precio: launch.defaultPriceCents
+          ? formatMoney(launch.defaultPriceCents, launch.currency ?? "EUR")
+          : "",
+        plazos:
+          launch.installmentCount && launch.installmentPriceCents
+            ? `${launch.installmentCount} pagos de ${formatMoney(launch.installmentPriceCents, launch.currency ?? "EUR")}`
+            : "",
+        cierre_carrito: formatDate(launch.cartClosesAt),
+        cierre_registro: formatDate(launch.registrationClosesAt),
+        url_registro: (() => {
+          const page = pages.find((p) => p.kind === "registro");
+          return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+        })(),
+        url_venta: (() => {
+          const page = pages.find((p) => p.kind === "venta");
+          return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+        })(),
+        url_gracias: "/gracias",
       },
       precios: {
         pago_unico_centimos: launch.defaultPriceCents,
@@ -489,9 +541,20 @@ const publicarPagina: ToolDef = {
       `/admin/lanzamientos/${launch.slug}/paginas/${pageDef.pageKey}`,
     );
 
+    // Los {{tokens}} siguen funcionando, pero avisan: en la vista previa se ven
+    // literales, así que quien diseña no puede juzgar la página.
+    const tokensUsados = [
+      ...new Set(html.match(/\{\{\s*[a-z_]+\s*\}\}/gi) ?? []),
+    ];
+
     return {
       publicada: true,
       url: absoluteUrl(path),
+      ...(tokensUsados.length
+        ? {
+            aviso_tokens: `El HTML lleva ${tokensUsados.join(", ")}. Funcionan, pero en la vista previa se ven literales: mejor escribe el valor real (lo tienes en contexto_lanzamiento → valores_listos) y marca con data-br lo que puede cambiar.`,
+          }
+        : {}),
       archivos_alojados: Object.keys(files).length,
       aviso:
         "La página ya está en vivo. La medición, el formulario, el pago y los afiliados están cableados por la plataforma.",

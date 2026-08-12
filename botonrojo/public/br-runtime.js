@@ -255,11 +255,21 @@
 
   /* ---------------------------------------------------------------- precio -- */
 
+  /* El precio y los plazos, al servir la página.
+     El diseño escribe el valor de hoy para que la vista previa se vea terminada, y
+     esto lo sustituye por el que haya en Botón Rojo en ese momento: así cambiar el
+     precio en el panel no deja mintiendo a la página. */
   function fillPrices() {
-    if (!cfg.price) return;
-    document.querySelectorAll('[data-br="precio"]').forEach(function (el) {
-      el.textContent = cfg.price;
-    });
+    if (cfg.price) {
+      document.querySelectorAll('[data-br="precio"]').forEach(function (el) {
+        el.textContent = cfg.price;
+      });
+    }
+    if (cfg.installments) {
+      document.querySelectorAll('[data-br="plazos"]').forEach(function (el) {
+        el.textContent = cfg.installments;
+      });
+    }
   }
 
   function start() {

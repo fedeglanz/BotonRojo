@@ -1903,6 +1903,10 @@ export async function generatePageForOrg(input: {
   ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
 
+  // Antes de escribir la página, refrescar las fechas desde el calendario: es hacia
+  // ellas hacia donde va a contar su cuenta atrás.
+  await syncLaunchDatesFromCalendar(launchId);
+
   // Remembered per page in assetsCache, so regenerating twice doesn't mean
   // retyping the brief — and so you can see what produced what you're looking at.
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
@@ -3684,7 +3688,59 @@ export async function generateMilestonesAction(
     })),
   );
 
+  // Las páginas cuentan hacia estas fechas: se toman del calendario recién escrito.
+  await syncLaunchDatesFromCalendar(launchId);
+
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Las fechas de cierre salen del calendario, no de escribirlas dos veces.
+ *
+ * El calendario ya dice cuándo acaba la captación y cuándo cierra el carrito; que
+ * además hubiera que teclear esas dos fechas en el paso de páginas era pedir lo
+ * mismo dos veces y, en cuanto una se movía, dejar la otra mintiendo — la cuenta
+ * atrás de la página contando hacia un día que el calendario ya había cambiado.
+ *
+ * El calendario manda: esto se llama cada vez que se genera o se mueve un hito, así
+ * que cambiar una fase mueve la cuenta atrás de las páginas con ella. Las columnas
+ * se quedan porque son lo que leen las páginas, el runtime y el conector; son una
+ * proyección del calendario, no una segunda fuente.
+ *
+ * `endsAt` y no `startsAt`: el carrito se cierra cuando acaba la fase de cierre, y
+ * el registro cuando acaba la captación. La fase es el tramo, no el instante.
+ */
+export async function syncLaunchDatesFromCalendar(launchId: string): Promise<{
+  cartClosesAt: Date | null;
+  registrationClosesAt: Date | null;
+}> {
+  const rows = await db
+    .select({
+      phase: milestones.phase,
+      endsAt: milestones.endsAt,
+    })
+    .from(milestones)
+    .where(eq(milestones.launchId, launchId));
+
+  const endOf = (phase: string) =>
+    rows.find((row) => row.phase === phase)?.endsAt ?? null;
+
+  const cartClosesAt = endOf("cierre_carrito");
+  const registrationClosesAt = endOf("captacion");
+  if (!cartClosesAt && !registrationClosesAt) {
+    return { cartClosesAt: null, registrationClosesAt: null };
+  }
+
+  await db
+    .update(launches)
+    .set({
+      ...(cartClosesAt ? { cartClosesAt } : {}),
+      ...(registrationClosesAt ? { registrationClosesAt } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  return { cartClosesAt, registrationClosesAt };
 }
 
 export async function updateMilestoneAction(
@@ -3721,6 +3777,9 @@ export async function updateMilestoneAction(
       updatedAt: new Date(),
     })
     .where(eq(milestones.id, milestoneId));
+
+  // Mover una fase mueve la cuenta atrás de las páginas con ella.
+  await syncLaunchDatesFromCalendar(milestone.launchId);
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
