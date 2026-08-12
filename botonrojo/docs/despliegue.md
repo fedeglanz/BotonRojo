@@ -75,6 +75,28 @@ Lo segundo tiene que devolver la lista de herramientas. Si devuelve
 crean en cada instalación desde **Panel → Conectar Claude**, y los de tu portátil
 no valen en el servidor.
 
+## Tokens del conector: no tocar los de nadie
+
+Los tokens no caducan. El único sitio que los revoca es el botón del panel, filtrado
+por id y por organización, así que un token deja de valer solo cuando alguien lo
+revoca a propósito.
+
+Si haces pruebas contra producción, **revoca los tuyos por id**:
+
+```sql
+update mcp_tokens set revoked_at = now() where id = 'tok_lo_que_sea';
+```
+
+Nunca por estado:
+
+```sql
+-- MAL: se lleva por delante los tokens que están en uso
+update mcp_tokens set revoked_at = now() where revoked_at is null;
+```
+
+Esto pasó dos veces: el token de trabajo de JC apareció revocado al mismo segundo
+que un token de prueba, y desde fuera parecía que el producto los caducaba solo.
+
 ## Actualizar
 
 ```bash
