@@ -2314,6 +2314,7 @@ type EmailItem = {
   phase?: string;
   timing?: string;
   sendOffsetDays?: number;
+  approved?: boolean;
 };
 
 async function loadEmailAsset(launchId: string, organizationId: string) {
@@ -2414,6 +2415,105 @@ export async function updateEmailAction(
     title: `Secuencia · ${launch.name}`,
     body: { emails: updatedEmails },
   });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function approveEmailAction(launchId: string, emailIndex: number, approved: boolean) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = { ...email, approved };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function approveAllEmailsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+
+  const updatedEmails = body.emails.map((e) => ({ ...e, approved: true }));
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function updateEmailOffsetAction(launchId: string, emailIndex: number, newOffset: number) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = { ...email, sendOffsetDays: newOffset };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function fetchAcAutomationsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) return [];
+  return ac.listAutomations();
+}
+
+export async function linkAcAutomationAction(launchId: string, automationId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const linked = (cache.acLinkedAutomationIds as string[]) ?? [];
+  if (!linked.includes(automationId)) {
+    linked.push(automationId);
+  }
+  cache.acLinkedAutomationIds = linked;
+
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function unlinkAcAutomationAction(launchId: string, automationId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const linked = (cache.acLinkedAutomationIds as string[]) ?? [];
+  cache.acLinkedAutomationIds = linked.filter((id) => id !== automationId);
+
+  await db
+    .update(launches)
+    .set({ assetsCache: cache, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
@@ -2610,8 +2710,21 @@ export async function pushEmailsToActiveCampaignAction(
   if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
 
   const sequence = asset.body as {
-    emails: Array<{ subject: string; preheader?: string; body: string }>;
+    emails: Array<{ subject: string; preheader?: string; body: string; ctaText?: string; ctaUrl?: string; approved?: boolean }>;
   };
+
+  const brand: EmailBrandKit = {
+    logoUrl: launch.brandLogoUrl,
+    palette: launch.brandPalette,
+    fonts: launch.brandFonts,
+    launchName: launch.name,
+  };
+
+  // Only push approved emails (or all if none have the approved field yet — backwards compat)
+  const hasApprovalField = sequence.emails.some((e) => "approved" in e);
+  if (hasApprovalField && !sequence.emails.every((e) => e.approved)) {
+    throw new Error("not_all_emails_approved");
+  }
 
   const templateIds: string[] = [];
   for (let i = 0; i < sequence.emails.length; i++) {
@@ -2620,7 +2733,7 @@ export async function pushEmailsToActiveCampaignAction(
     const tpl = await ac.createEmailTemplate({
       name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
       subject: email.subject,
-      html: wrapEmailHtml(email.body, email.preheader ?? ""),
+      html: wrapEmailHtml(email.body, email.preheader ?? "", email.ctaText, email.ctaUrl, brand),
     });
     templateIds.push(tpl.id);
   }
@@ -3039,11 +3152,99 @@ export async function updateSectionRawAction(
   );
 }
 
-function wrapEmailHtml(body: string, preheader: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title></title></head><body>
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
-${body}
-</body></html>`;
+type EmailBrandKit = {
+  logoUrl?: string | null;
+  palette?: { primary: string; accent: string; background: string; foreground: string } | null;
+  fonts?: { display: string; body: string } | null;
+  launchName?: string;
+};
+
+function wrapEmailHtml(
+  body: string,
+  preheader: string,
+  ctaText?: string,
+  ctaUrl?: string,
+  brand?: EmailBrandKit,
+): string {
+  const bg = brand?.palette?.background ?? "#ffffff";
+  const fg = brand?.palette?.foreground ?? "#1a1a1a";
+  const primary = brand?.palette?.primary ?? "#e63946";
+  const accent = brand?.palette?.accent ?? primary;
+  const fontDisplay = brand?.fonts?.display ?? "Arial, Helvetica, sans-serif";
+  const fontBody = brand?.fonts?.body ?? "Arial, Helvetica, sans-serif";
+
+  const logoBlock = brand?.logoUrl
+    ? `<tr><td align="center" style="padding: 32px 0 24px;">
+        <img src="${brand.logoUrl}" alt="${brand.launchName ?? ""}" height="48" style="height:48px;max-width:200px;display:block;" />
+      </td></tr>`
+    : "";
+
+  const ctaBlock =
+    ctaText && ctaUrl
+      ? `<tr><td align="center" style="padding: 24px 0 8px;">
+          <a href="${ctaUrl}" target="_blank" style="display:inline-block;background:${primary};color:#ffffff;font-family:${fontDisplay};font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:6px;letter-spacing:0.5px;text-transform:uppercase;">
+            ${ctaText}
+          </a>
+        </td></tr>`
+      : "";
+
+  const footerText = brand?.launchName
+    ? `<p style="margin:0;font-size:12px;color:#999999;">${brand.launchName}</p>`
+    : "";
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${preheader}</title>
+  <!--[if !mso]><!-->
+  <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontDisplay.split(",")[0]!.trim())}:wght@400;700&family=${encodeURIComponent(fontBody.split(",")[0]!.trim())}:wght@400;700&display=swap" rel="stylesheet">
+  <!--<![endif]-->
+  <style>
+    body, table, td { margin:0; padding:0; }
+    body { background-color: ${bg}; }
+    a { color: ${accent}; }
+    p { margin: 0 0 16px 0; line-height: 1.6; }
+    ul, ol { margin: 0 0 16px 0; padding-left: 24px; }
+    li { margin-bottom: 6px; line-height: 1.5; }
+    strong { color: ${fg}; }
+    h1, h2, h3 { font-family: ${fontDisplay}; color: ${fg}; margin: 0 0 12px 0; }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:${bg};font-family:${fontBody};font-size:16px;color:${fg};">
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:${bg};">${preheader}${"‌ ".repeat(30)}</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${bg};">
+    <tr>
+      <td align="center" style="padding:0;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+          <!-- Logo -->
+          ${logoBlock}
+          <!-- Body -->
+          <tr>
+            <td style="padding:0 32px;font-family:${fontBody};font-size:16px;line-height:1.6;color:${fg};">
+              ${body}
+            </td>
+          </tr>
+          <!-- CTA -->
+          ${ctaBlock}
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:32px 32px 40px;border-top:1px solid #e5e5e5;margin-top:24px;">
+              ${footerText}
+              <p style="margin:4px 0 0;font-size:11px;color:#bbbbbb;">
+                Si no quieres recibir mas emails, <a href="%unsubscribeurl%" style="color:#999999;">cancela tu suscripcion</a>.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 // ---- Telegram ----

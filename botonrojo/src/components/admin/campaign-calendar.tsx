@@ -1,0 +1,254 @@
+"use client";
+
+import { useState } from "react";
+import { SubmitButton } from "./submit-button";
+
+type EmailItem = {
+  subject: string;
+  phase?: string;
+  timing?: string;
+  sendOffsetDays?: number;
+  approved?: boolean;
+};
+
+type MilestoneItem = {
+  phase: string;
+  label: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+type ScheduledEmail = EmailItem & {
+  index: number;
+  sendDate: Date | null;
+  milestonLabel: string | null;
+};
+
+type Props = {
+  launchId: string;
+  emails: EmailItem[];
+  milestones: MilestoneItem[];
+  hasCampaigns: boolean;
+  updateOffsetAction: (launchId: string, emailIndex: number, newOffset: number) => Promise<void>;
+};
+
+function computeSchedule(emails: EmailItem[], milestones: MilestoneItem[]): ScheduledEmail[] {
+  const milestoneByPhase = new Map(milestones.map((m) => [m.phase, m]));
+
+  return emails.map((email, index) => {
+    let sendDate: Date | null = null;
+    let milestonLabel: string | null = null;
+
+    if (email.phase) {
+      const milestone = milestoneByPhase.get(email.phase);
+      if (milestone) {
+        milestonLabel = milestone.label;
+        const base = new Date(milestone.startsAt);
+        const offset = email.sendOffsetDays ?? 0;
+        base.setDate(base.getDate() + offset);
+        base.setHours(10, 0, 0, 0);
+        sendDate = base;
+      }
+    }
+
+    return { ...email, index, sendDate, milestonLabel };
+  });
+}
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString("es-AR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+}
+
+const PHASE_COLORS: Record<string, string> = {
+  pre_captacion: "border-blue-500/40 text-blue-400",
+  captacion: "border-cyan-500/40 text-cyan-400",
+  calentamiento: "border-amber-500/40 text-amber-400",
+  evento_vivo: "border-red-500/40 text-red-400",
+  replay: "border-orange-500/40 text-orange-400",
+  apertura_carrito: "border-emerald-500/40 text-emerald-400",
+  venta: "border-green-500/40 text-green-400",
+  cierre_carrito: "border-rose-500/40 text-rose-400",
+  urgencia: "border-red-500/40 text-red-400",
+  pre_pre_lanzamiento: "border-violet-500/40 text-violet-400",
+  plc_1: "border-indigo-500/40 text-indigo-400",
+  plc_2: "border-indigo-500/40 text-indigo-400",
+  plc_3: "border-indigo-500/40 text-indigo-400",
+  plc_4: "border-indigo-500/40 text-indigo-400",
+};
+
+export function CampaignCalendar({
+  launchId,
+  emails,
+  milestones,
+  hasCampaigns,
+  updateOffsetAction,
+}: Props) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+
+  if (!emails.length) {
+    return (
+      <p className="text-sm text-zinc-500">
+        Genera la secuencia de emails primero para ver el calendario de envios.
+      </p>
+    );
+  }
+
+  if (!milestones.length) {
+    return (
+      <p className="text-sm text-zinc-500">
+        Genera el calendario (milestones) primero para poder programar los envios.
+      </p>
+    );
+  }
+
+  const scheduled = computeSchedule(emails, milestones);
+  const sorted = [...scheduled].sort((a, b) => {
+    if (!a.sendDate && !b.sendDate) return a.index - b.index;
+    if (!a.sendDate) return 1;
+    if (!b.sendDate) return -1;
+    return a.sendDate.getTime() - b.sendDate.getTime();
+  });
+
+  // Group by date
+  const groups = new Map<string, ScheduledEmail[]>();
+  for (const item of sorted) {
+    const key = item.sendDate ? formatDate(item.sendDate) : "Sin fecha";
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (
+    <div className="space-y-1">
+      {hasCampaigns && (
+        <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-200">
+          Las campanas ya fueron creadas en AC. Si cambias fechas aqui, debes re-crear las campanas
+          desde el paso de ActiveCampaign para que se actualicen.
+        </div>
+      )}
+
+      {Array.from(groups.entries()).map(([dateStr, items]) => {
+        const isPast = items[0]?.sendDate && items[0].sendDate < today;
+        return (
+          <div key={dateStr} className="relative">
+            {/* Date header */}
+            <div
+              className={`sticky top-0 z-10 flex items-center gap-3 rounded-t-lg border-b border-white/5 bg-zinc-900/80 px-4 py-2 backdrop-blur ${
+                isPast ? "opacity-50" : ""
+              }`}
+            >
+              <div className="h-2.5 w-2.5 rounded-full border-2 border-white/20 bg-white/10" />
+              <span className="text-xs font-medium text-zinc-300">{dateStr}</span>
+              {items[0]?.sendDate && (
+                <span className="text-[10px] text-zinc-600">{formatTime(items[0].sendDate)}</span>
+              )}
+            </div>
+
+            {/* Emails for this date */}
+            {items.map((item) => {
+              const phaseColor = item.phase ? PHASE_COLORS[item.phase] ?? "border-white/10 text-zinc-400" : "border-white/10 text-zinc-400";
+              const isEditing = editingIdx === item.index;
+
+              return (
+                <div
+                  key={item.index}
+                  className={`flex items-start gap-3 border-b border-white/5 px-4 py-3 ${
+                    isPast ? "opacity-50" : ""
+                  }`}
+                >
+                  {/* Timeline line */}
+                  <div className="flex flex-col items-center pt-1">
+                    <div className={`h-2 w-2 rounded-full ${item.approved ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                    <div className="mt-1 h-full w-px bg-white/5" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-[family-name:var(--font-mono)] text-xs text-zinc-500">
+                        #{String(item.index + 1).padStart(2, "0")}
+                      </span>
+                      {item.phase && (
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${phaseColor}`}
+                        >
+                          {item.phase.replace(/_/g, " ")}
+                        </span>
+                      )}
+                      {item.approved && (
+                        <span className="rounded-full border border-emerald-500/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-emerald-400">
+                          Aprobado
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-white">{item.subject}</div>
+                    {item.timing && (
+                      <div className="mt-0.5 text-xs text-zinc-500">{item.timing}</div>
+                    )}
+                    {item.milestonLabel && (
+                      <div className="mt-0.5 text-[10px] text-zinc-600">
+                        Hito: {item.milestonLabel} · offset: {item.sendOffsetDays ?? 0}d
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit offset */}
+                  <div className="shrink-0">
+                    {isEditing ? (
+                      <form
+                        action={async (fd: FormData) => {
+                          const newOffset = Number(fd.get("offset") ?? 0);
+                          await updateOffsetAction(launchId, item.index, newOffset);
+                          setEditingIdx(null);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <input
+                          name="offset"
+                          type="number"
+                          defaultValue={item.sendOffsetDays ?? 0}
+                          className="w-16 rounded border border-white/10 bg-black/60 px-2 py-1 text-center text-xs text-white outline-none focus:border-white/30"
+                        />
+                        <SubmitButton variant="ghost" pendingLabel="...">
+                          OK
+                        </SubmitButton>
+                        <button
+                          type="button"
+                          onClick={() => setEditingIdx(null)}
+                          className="text-xs text-zinc-500 hover:text-white"
+                        >
+                          X
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingIdx(item.index)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-zinc-500 transition hover:border-white/20 hover:text-zinc-300"
+                        title="Cambiar dia de envio"
+                      >
+                        {item.sendOffsetDays !== undefined ? `D+${item.sendOffsetDays}` : "Fecha"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
