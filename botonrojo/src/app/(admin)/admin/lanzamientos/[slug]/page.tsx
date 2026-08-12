@@ -719,6 +719,16 @@ export default async function LaunchHubPage(props: {
               approveAction={approveEmailAction}
               approveAllAction={approveAllEmailsAction}
             />
+            {hasEmails && Boolean((launch.assetsCache as Record<string, unknown>)?.acCampaignIds) && (
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href={`/admin/emails?launch=${launch.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition hover:border-white/20 hover:text-white"
+                >
+                  Ver estadisticas de email →
+                </Link>
+              </div>
+            )}
           </WizardStep>
 
           {/* Step 5 — Anuncios */}

@@ -39,6 +39,28 @@ export type ACCampaign = {
   type: string;
   status: number;
   sdate?: string;
+  // Stats fields (returned by GET /campaigns/:id with totals)
+  sends?: number;
+  uniqueopens?: number;
+  opens?: number;
+  uniquelinkclicks?: number;
+  linkclicks?: number;
+  subscriberclicks?: number;
+  forwards?: number;
+  uniqueforwards?: number;
+  hardbounces?: number;
+  softbounces?: number;
+  unsubscribes?: number;
+  unsubreasons?: number;
+  updates?: number;
+  socialshares?: number;
+  replies?: number;
+  uniquereplies?: number;
+  // Computed percentages
+  openRate?: number;
+  clickRate?: number;
+  bounceRate?: number;
+  unsubRate?: number;
 };
 export type ACAutomation = {
   id: string;
@@ -256,6 +278,33 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     return res.automations ?? [];
   }
 
+  // ---- Campaign stats ----
+
+  /** Get a single campaign with full stats. */
+  async function getCampaignWithStats(campaignId: string): Promise<ACCampaign> {
+    const res = await ac<{ campaign: ACCampaign }>(`/campaigns/${campaignId}`);
+    const c = res.campaign;
+    const sends = c.sends ?? 0;
+    c.openRate = sends > 0 ? ((c.uniqueopens ?? 0) / sends) * 100 : 0;
+    c.clickRate = sends > 0 ? ((c.uniquelinkclicks ?? 0) / sends) * 100 : 0;
+    c.bounceRate = sends > 0 ? (((c.hardbounces ?? 0) + (c.softbounces ?? 0)) / sends) * 100 : 0;
+    c.unsubRate = sends > 0 ? ((c.unsubscribes ?? 0) / sends) * 100 : 0;
+    return c;
+  }
+
+  /** Get stats for multiple campaigns by ID. */
+  async function getCampaignsWithStats(campaignIds: string[]): Promise<ACCampaign[]> {
+    const results: ACCampaign[] = [];
+    for (const id of campaignIds) {
+      try {
+        results.push(await getCampaignWithStats(id));
+      } catch {
+        // Campaign may have been deleted in AC
+      }
+    }
+    return results;
+  }
+
   // ---- High-level helpers ----
 
   async function provisionLaunchInAc(input: { launchSlug: string; launchName: string; publicUrl: string }) {
@@ -332,6 +381,8 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     deleteCampaign,
     addContactToAutomation,
     listAutomations,
+    getCampaignWithStats,
+    getCampaignsWithStats,
     provisionLaunchInAc,
     syncLeadToAc,
   };
