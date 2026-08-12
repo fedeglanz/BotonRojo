@@ -53,7 +53,16 @@ export type PageKind =
   | "venta"
   | "contenido"
   | "legal"
-  | "afiliados";
+  | "afiliados"
+  /**
+   * Solo en newsletter. En los demás tipos el "gracias" es la ruta compartida
+   * `/gracias` — siempre existe, distingue lead de compra y no hay que generarla.
+   * Pero en una lista o un lead magnet esa página ES la entrega: ahí está la
+   * descarga y lo que pasa a partir de ahora. Eso sí se diseña.
+   */
+  | "gracias"
+  /** Darse de baja de la lista. Solo en newsletter. */
+  | "baja";
 
 export type PageDef = {
   pageKey: string;

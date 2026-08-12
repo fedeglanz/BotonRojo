@@ -51,6 +51,12 @@ export type PageBlock =
     };
 
 export type RegistroPageBody = {
+  /**
+   * A dónde lleva el botón en la página de gracias de una newsletter: el
+   * descargable prometido, normalmente. Solo lo usa esa página; en la de registro el
+   * botón envía el formulario y no va a ninguna parte.
+   */
+  ctaHref?: string;
   headline?: string;
   subheadline?: string;
   bullets?: string[];

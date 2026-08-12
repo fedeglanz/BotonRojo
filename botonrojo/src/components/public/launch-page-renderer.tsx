@@ -10,6 +10,7 @@ import { AfiliadosPage } from "@/components/public/afiliados-page";
 import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
 import { canEditLaunch, EDIT_DISABLED, type EditContext } from "@/components/public/edit-mode";
 import { CustomHtmlPage } from "@/components/public/custom-html-page";
+import { ServicePage } from "@/components/public/service-page";
 import { isCustomPageBody } from "@/lib/custom-page";
 import type { Launch } from "@/db/schema/launches";
 import type {
@@ -92,6 +93,17 @@ export async function renderLaunchPage(
         nextUnlockDate={nextUnlock && nextUnlock.getTime() > Date.now() ? nextUnlock : null}
         lockedUntil={lockedUntil}
         edit={edit}
+      />
+    );
+  }
+
+  // Las dos de servicio de una newsletter: entrega y baja.
+  if (pageDef.kind === "gracias" || pageDef.kind === "baja") {
+    return (
+      <ServicePage
+        launch={launch}
+        body={(asset?.body as RegistroPageBody) ?? null}
+        kind={pageDef.kind}
       />
     );
   }

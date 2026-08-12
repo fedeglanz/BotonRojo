@@ -262,6 +262,13 @@ export default async function LaunchHubPage(props: {
 
   const hasMarco = Boolean(launch.promise);
   const connector = await hasActiveConnector(organizationId);
+  /**
+   * Una newsletter no vende ni tiene fecha: funciona en evergreen. Así que el
+   * calendario, el producto de Stripe y las fechas de cierre no son pasos que estén
+   * "pendientes" — es que no existen para este tipo, y dejarlos ahí en gris sería
+   * prometer un trabajo que nadie tiene que hacer.
+   */
+  const esEvergreen = launch.type === "newsletter";
   const queue =
     launch.designMode === "claude"
       ? await listLaunchTasks(launch.id, organizationId)
@@ -505,7 +512,8 @@ export default async function LaunchHubPage(props: {
             />
           </WizardStep>
 
-          {/* Step 2.5 — Calendario */}
+          {/* Step 2.5 — Calendario. No en evergreen: sin fecha ancla no hay fases. */}
+          {!esEvergreen && (
           <WizardStep
             index={2.5}
             title="Calendario"
@@ -557,6 +565,7 @@ export default async function LaunchHubPage(props: {
               }
             />
           </WizardStep>
+          )}
         </>
       )}
 
@@ -788,7 +797,8 @@ export default async function LaunchHubPage(props: {
       {(active === "todo" || active === "conexiones") && (
         <>
           {active === "todo" && <GroupHeading>Conexiones</GroupHeading>}
-          {/* Step 6 — Producto Stripe */}
+          {/* Step 6 — Producto Stripe. Una newsletter no cobra nada. */}
+          {!esEvergreen && (
           <WizardStep
             index={6}
             title="Producto en Stripe"
@@ -821,6 +831,7 @@ export default async function LaunchHubPage(props: {
               deleteAction={deleteStripeProductAction}
             />
           </WizardStep>
+          )}
 
           {/* Step 7 — ActiveCampaign */}
           <WizardStep

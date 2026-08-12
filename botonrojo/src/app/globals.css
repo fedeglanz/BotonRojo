@@ -1272,3 +1272,148 @@ a.fx-orbit__label:focus-visible {
     background: color-mix(in srgb, var(--color-accent) 40%, transparent);
   }
 }
+
+/* ==========================================================================
+   GALAXIA — el panel de lanzamientos
+   
+   Cada lanzamiento es un planeta con sus lunas dando vueltas, y cada luna es
+   una de sus páginas. No es adorno: el color de la luna dice si esa página
+   está hecha, y de un vistazo se ve qué lanzamiento está terminado y cuál
+   está a medias, que es la pregunta que uno se hace al entrar.
+
+   Los colores llegan como custom properties desde el componente, porque salen
+   de la paleta de cada lanzamiento: aquí no se puede saber cuáles son.
+   ========================================================================== */
+
+.galaxy-field {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Estrellas: tres capas de puntos a distinto tamaño y opacidad, en vez de una
+   imagen. Pesa cero y se adapta a cualquier tamaño de pantalla. */
+.galaxy-field::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1.5px 1.5px at 75% 15%, rgba(255, 255, 255, 0.45), transparent),
+    radial-gradient(2px 2px at 45% 70%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 85% 55%, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 10% 80%, rgba(255, 255, 255, 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 60% 40%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 32% 12%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 92% 88%, rgba(255, 255, 255, 0.3), transparent);
+  background-size: 100% 100%;
+  animation: galaxy-drift 240s linear infinite;
+  pointer-events: none;
+}
+
+/* Un resplandor lejano, para que el fondo no sea negro plano. */
+.galaxy-field::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      60% 50% at 15% 0%,
+      color-mix(in srgb, var(--color-red) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(50% 40% at 90% 20%, rgba(99, 102, 241, 0.1), transparent 70%);
+  pointer-events: none;
+}
+
+@keyframes galaxy-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-2%, -3%, 0); }
+}
+
+/* --- El planeta ---------------------------------------------------------- */
+
+.planet-system {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* El sistema entero escala con esta medida: cambiarla mueve planeta y órbitas
+     a la vez, sin recalcular nada. */
+  width: var(--planet-size, 7rem);
+  height: var(--planet-size, 7rem);
+}
+
+.planet-body {
+  position: relative;
+  width: 52%;
+  height: 52%;
+  border-radius: 50%;
+  /* La luz viene de arriba a la izquierda en todos los planetas: sin un origen
+     común, cada uno parecería de una escena distinta. */
+  background:
+    radial-gradient(
+      circle at 32% 28%,
+      color-mix(in srgb, var(--planet-color) 75%, white),
+      var(--planet-color) 45%,
+      color-mix(in srgb, var(--planet-color) 55%, black) 100%
+    );
+  box-shadow:
+    inset -0.25rem -0.35rem 0.9rem color-mix(in srgb, var(--planet-color) 40%, black),
+    0 0 2.5rem color-mix(in srgb, var(--planet-color) 45%, transparent);
+}
+
+/* Bandas de nubes, muy sutiles: dan volumen sin dibujar un mundo concreto. */
+.planet-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-linear-gradient(
+    -12deg,
+    transparent 0 6%,
+    rgba(255, 255, 255, 0.06) 6% 9%,
+    transparent 9% 15%
+  );
+  mix-blend-mode: overlay;
+}
+
+.planet-orbit {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  animation: planet-spin var(--orbit-duration, 26s) linear infinite;
+}
+
+/* Cada órbita es un poco más pequeña que la anterior y gira a otro ritmo, para
+   que no parezcan un mismo aro repetido. */
+.planet-orbit[data-ring="2"] { inset: 12%; animation-duration: var(--orbit-duration, 18s); animation-direction: reverse; }
+.planet-orbit[data-ring="3"] { inset: 24%; animation-duration: var(--orbit-duration, 34s); }
+
+.planet-moon {
+  position: absolute;
+  top: -0.28rem;
+  left: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: -0.275rem;
+  border-radius: 50%;
+  background: var(--moon-color, #a1a1aa);
+  box-shadow: 0 0 0.55rem var(--moon-color, #a1a1aa);
+}
+
+/* La luna gira al revés que su órbita para no quedar siempre con la misma cara
+   hacia fuera, que se lee como un dibujo pegado. */
+.planet-moon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), transparent 60%);
+}
+
+@keyframes planet-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

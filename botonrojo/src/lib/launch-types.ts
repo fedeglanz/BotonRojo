@@ -1,4 +1,4 @@
-export type LaunchType = "venta_directa" | "semilla" | "plf";
+export type LaunchType = "venta_directa" | "semilla" | "plf" | "newsletter";
 
 export const LAUNCH_TYPES: Record<LaunchType, {
   label: string;
@@ -23,6 +23,15 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     pages: "Registro + venta, cada una con su gracias — siempre las dos. Legales opcionales.",
     color: "from-fuchsia-500 to-pink-500",
     icon: "🌱",
+  },
+  newsletter: {
+    label: "Newsletter",
+    tagline: "Lista o lead magnet",
+    description: "Captar suscriptores en abierto, sin carrito ni fechas.",
+    pages:
+      "Registro + gracias + baja de la lista, y legales opcionales. No hay venta, ni countdown, ni calendario: funciona en evergreen. Las campañas de email sí.",
+    color: "from-sky-500 to-cyan-400",
+    icon: "🪐",
   },
   plf: {
     label: "PLF",

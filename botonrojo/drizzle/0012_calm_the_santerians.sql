@@ -1,0 +1,1 @@
+ALTER TYPE "public"."launch_type" ADD VALUE 'newsletter';

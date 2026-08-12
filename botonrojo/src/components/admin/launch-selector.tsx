@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
+import { Planet, type MoonState } from "@/components/admin/planet";
+import type { BrandPalette } from "@/db/schema/launches";
 
 type LaunchSummary = {
   id: string;
@@ -10,6 +12,25 @@ type LaunchSummary = {
   name: string;
   type: LaunchType;
   status: string;
+  /** La paleta aprobada da el color del planeta; sin ella, el color del tipo. */
+  palette: BrandPalette | null;
+  /** Una luna por página, con su estado. */
+  moons: MoonState[];
+  pageCount: number;
+};
+
+/**
+ * El color de un tipo de lanzamiento como color de planeta.
+ *
+ * LAUNCH_TYPES guarda su color como clases de Tailwind ("from-red-500 to-orange-500")
+ * porque es lo que necesitan las tarjetas; un planeta necesita un color de verdad
+ * para el degradado radial, así que la traducción vive aquí y no en el modelo.
+ */
+const TYPE_PLANET_COLOR: Record<LaunchType, string> = {
+  venta_directa: "#ef4444",
+  semilla: "#d946ef",
+  plf: "#8b5cf6",
+  newsletter: "#0ea5e9",
 };
 
 export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
@@ -19,7 +40,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
         <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
           1. Elige el tipo de lanzamiento
         </h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {(Object.keys(LAUNCH_TYPES) as LaunchType[]).map((key, i) => {
             const t = LAUNCH_TYPES[key];
             return (
@@ -39,9 +60,14 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                   aria-hidden
                 />
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-2xl">
-                    {t.icon}
-                  </div>
+                  {/* El planeta del tipo, quieto y pequeño: aquí no hay páginas
+                      todavía, así que no hay lunas que enseñar. */}
+                  <Planet
+                    palette={null}
+                    fallbackColor={TYPE_PLANET_COLOR[key]}
+                    moons={[]}
+                    size="3.25rem"
+                  />
                   <div>
                     <div className="font-[family-name:var(--font-display)] text-lg font-bold">
                       {t.label}
@@ -69,45 +95,53 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
 
       <section>
         <h2 className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.25em] text-zinc-400">
-          2. Lanzamientos existentes
+          2. Tus lanzamientos
         </h2>
-        <div className="glass mt-4 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-widest text-zinc-400">
-              <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {launches.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                    Aún no hay lanzamientos. Crea el primero arriba.
-                  </td>
-                </tr>
-              )}
-              {launches.map((l) => (
-                <tr key={l.id} className="border-t border-white/5 transition hover:bg-white/[0.03]">
-                  <td className="px-4 py-3 font-medium text-white">{l.name}</td>
-                  <td className="px-4 py-3 text-zinc-400">{LAUNCH_TYPES[l.type]?.label ?? l.type}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs uppercase tracking-widest text-zinc-300">
-                      {l.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/admin/lanzamientos/${l.slug}`} className="text-[var(--color-red-bright)] hover:underline">
-                      Abrir →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        {launches.length === 0 ? (
+          <p className="glass mt-4 p-8 text-center text-sm text-zinc-500">
+            Todavía no hay ningún planeta por aquí. Crea el primero arriba.
+          </p>
+        ) : (
+          <div className="mt-6 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {launches.map((l, i) => {
+              const hechas = l.moons.filter((m) => m !== "pendiente").length;
+              return (
+                <motion.div
+                  key={l.id}
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <Link
+                    href={`/admin/lanzamientos/${l.slug}`}
+                    className="group flex flex-col items-center gap-4 rounded-2xl p-4 transition hover:bg-white/[0.03]"
+                  >
+                    <Planet
+                      palette={l.palette}
+                      fallbackColor={TYPE_PLANET_COLOR[l.type]}
+                      moons={l.moons}
+                      size="8.5rem"
+                      label={`${l.name}: ${hechas} de ${l.pageCount} páginas hechas`}
+                    />
+
+                    <div className="text-center">
+                      <div className="font-[family-name:var(--font-display)] font-bold text-white transition group-hover:text-[var(--color-red-bright)]">
+                        {l.name}
+                      </div>
+                      <div className="mt-0.5 text-[11px] uppercase tracking-widest text-zinc-500">
+                        {LAUNCH_TYPES[l.type]?.label ?? l.type} · {l.status}
+                      </div>
+                      <div className="mt-2 font-[family-name:var(--font-mono)] text-[11px] text-zinc-600">
+                        {hechas}/{l.pageCount} páginas
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );

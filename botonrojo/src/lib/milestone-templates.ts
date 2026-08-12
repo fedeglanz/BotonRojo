@@ -50,14 +50,25 @@ const PLF: PhaseTemplate[] = [
   { phase: "cierre_carrito",      label: "Cierre de carrito",    offsetStart: -6, offsetEnd: -7, sortOrder: 10 },
 ];
 
-const TEMPLATES: Record<LaunchType, PhaseTemplate[]> = {
+const TEMPLATES: Partial<Record<LaunchType, PhaseTemplate[]>> = {
   venta_directa: VENTA_DIRECTA,
   semilla: SEMILLA,
   plf: PLF,
 };
 
+/**
+ * Las fases de un tipo de lanzamiento, o ninguna.
+ *
+ * Newsletter no tiene: funciona en evergreen, no hay fecha ancla ni cierre, así que
+ * un calendario ahí serían fases inventadas alrededor de un día que no existe.
+ */
 export function getTemplate(type: LaunchType): PhaseTemplate[] {
-  return TEMPLATES[type];
+  return TEMPLATES[type] ?? [];
+}
+
+/** Si este tipo de lanzamiento tiene calendario. */
+export function hasCalendar(type: LaunchType): boolean {
+  return (TEMPLATES[type]?.length ?? 0) > 0;
 }
 
 /** Given an anchor date and a launch type, produce concrete milestone rows. */
@@ -65,7 +76,7 @@ export function generateMilestones(
   anchorDate: Date,
   type: LaunchType,
 ): Array<{ phase: string; label: string; startsAt: Date; endsAt: Date; sortOrder: number }> {
-  const template = TEMPLATES[type];
+  const template = TEMPLATES[type] ?? [];
   return template.map((t) => ({
     phase: t.phase,
     label: t.label,

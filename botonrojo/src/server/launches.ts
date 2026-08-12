@@ -122,6 +122,10 @@ import {
 } from "@/integrations/telegram";
 
 import {
+  GRACIAS_SYSTEM,
+  BAJA_SYSTEM,
+  graciasPrompt,
+  bajaPrompt,
   REGISTRO_SYSTEM,
   registroPrompt,
   CONTENIDO_SYSTEM,
@@ -1529,6 +1533,63 @@ async function generateRegistroPage(
   );
 }
 
+/**
+ * Gracias y baja: las dos páginas de servicio de una newsletter.
+ *
+ * Comparten generador porque comparten forma —un titular, un subtítulo, unas viñetas
+ * y un botón— y se diferencian en el prompt y en si llevan foto. La de baja no la
+ * lleva: es una página de servicio, y una foto de archivo ahí solo estorba a quien
+ * quiere irse.
+ */
+async function generateServicePage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
+  const esBaja = pageDef.kind === "baja";
+
+  const { text } = await complete({
+    system: esBaja ? BAJA_SYSTEM : GRACIAS_SYSTEM,
+    prompt: esBaja
+      ? bajaPrompt(launch.name, launch.promise!, ctx.pageInstruction)
+      : graciasPrompt(
+          launch.name,
+          launch.avatar as AvatarBrief,
+          launch.promise!,
+          ctx.pageInstruction,
+        ),
+    maxTokens: 1500,
+    temperature: 0.6,
+  });
+
+  const body = extractJson(text) as RegistroPageBody;
+
+  if (!esBaja && (isImageGenConfigured() || isUnsplashConfigured())) {
+    const imageUrl = await autoResolveImage(
+      body.imagePrompt,
+      await imageContextFor(launch, "hero"),
+    );
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+
+  // La de gracias es una banda de formulario como la de registro —el botón de
+  // descarga es su protagonista—; la de baja, una banda normal.
+  await normalizePageComposition(launch, body, esBaja ? "hero" : "form");
+
+  const inserted = await insertPageAsset(
+    launch,
+    pageDef,
+    ctx,
+    body as Record<string, unknown>,
+  );
+  await runDesignReview(
+    launch,
+    pageDef,
+    inserted.id,
+    body as Record<string, unknown>,
+  );
+}
+
 async function generateContenidoPage(
   launch: Launch,
   pageDef: PageDef,
@@ -1625,6 +1686,8 @@ async function generateSinglePage(
     return generateLegalPage(launch, pageDef, ctx, orgName);
   if (pageDef.kind === "afiliados")
     return generateAfiliadosPage(launch, pageDef, ctx);
+  if (pageDef.kind === "gracias" || pageDef.kind === "baja")
+    return generateServicePage(launch, pageDef, ctx);
 }
 
 /** Runs a handful of async jobs at a time instead of all at once (Claude/

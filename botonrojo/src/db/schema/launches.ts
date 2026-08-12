@@ -16,6 +16,8 @@ export const launchType = pgEnum("launch_type", [
   "venta_directa",
   "semilla",
   "plf",
+  // Sin carrito y sin fechas: captar suscriptores en evergreen.
+  "newsletter",
 ]);
 export const launchStatus = pgEnum("launch_status", [
   "draft",

@@ -13,6 +13,8 @@ const KIND_LABELS: Record<PageDef["kind"], string> = {
   venta: "Venta",
   contenido: "Entrega",
   afiliados: "Afiliados",
+  gracias: "Entrega",
+  baja: "Baja",
   legal: "Legal",
 };
 
@@ -31,6 +33,7 @@ const IN_PAGE_EDITABLE = new Set<PageDef["kind"]>([
   "venta",
   "contenido",
   "afiliados",
+  "gracias",
 ]);
 
 /**
