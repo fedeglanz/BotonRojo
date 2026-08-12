@@ -218,16 +218,30 @@ function hexOrFail(raw: unknown, field: string): string {
   return value.toLowerCase();
 }
 
-/** La página de baja del lanzamiento, si la tiene (solo los de tipo newsletter). */
-function bajaPath(launch: {
+/**
+ * A dónde lleva el enlace de baja de un correo.
+ *
+ * Solo los lanzamientos de tipo newsletter tienen página de baja propia. Los demás no
+ * la necesitan: sus correos son una secuencia de lanzamiento y quien gestiona la baja
+ * es ActiveCampaign, que sustituye `%UNSUBSCRIBELINK%` por el enlace de la cuenta al
+ * enviar.
+ *
+ * Devolver siempre algo inequívoco —y nunca la portada del lanzamiento, que era el
+ * comodín de antes— es lo que hace que la comprobación al publicar signifique algo: la
+ * portada coincidía con el enlace de registro, así que un correo sin enlace de baja
+ * pasaba el control como si lo tuviera.
+ */
+function unsubscribeTarget(launch: {
   type: string;
   pageConfig: PageConfig | null;
   slug: string;
-}): string {
+}): { value: string; esPagina: boolean } {
   const page = resolvePages(launch.type as LaunchType, launch.pageConfig).find(
     (p) => p.kind === "baja",
   );
-  return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+  return page
+    ? { value: absoluteUrl(pagePath(launch.slug, page)), esPagina: true }
+    : { value: "%UNSUBSCRIBELINK%", esPagina: false };
 }
 
 /**
@@ -277,7 +291,7 @@ async function emailTokensFor(launch: {
     url_registro: urlOf("registro"),
     url_venta: urlOf("venta"),
     url_gracias: urlOf("gracias", "/gracias"),
-    url_baja: absoluteUrl(bajaPath(launch)),
+    url_baja: unsubscribeTarget(launch).value,
   };
 }
 
@@ -1269,9 +1283,16 @@ const publicarEmail: ToolDef = {
         `Estos tokens no existen: ${[...new Set(quedan)].join(", ")}. En un correo no hay nada que los rellene después, así que se quedarían escritos tal cual. Mira contrato_email para la lista.`,
       );
     }
-    if (!resolved.includes(absoluteUrl(bajaPath(launch)))) {
+    // Se busca el valor ya resuelto, que es inconfundible: o la url de la página de
+    // baja del lanzamiento, o la etiqueta que ActiveCampaign sustituye al enviar.
+    const baja = unsubscribeTarget(launch);
+    if (!resolved.includes(baja.value)) {
       throw new ToolError(
-        "Falta el enlace de baja: pon {{url_baja}} en el pie, visible. Sin salida clara la gente marca el correo como spam, y eso quema el dominio de envío para todo lo demás.",
+        `Falta el enlace de baja: pon {{url_baja}} en el pie, visible. ${
+          baja.esPagina
+            ? "Lleva a la página de baja del lanzamiento."
+            : "Este lanzamiento no tiene página de baja, así que se convierte en la etiqueta de ActiveCampaign, que pone el enlace al enviar."
+        } Sin salida clara la gente marca el correo como spam, y eso quema el dominio de envío para todo lo demás.`,
       );
     }
 

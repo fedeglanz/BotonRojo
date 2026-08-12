@@ -52,9 +52,13 @@ un email es una foto fija y no hay nada que lo rellene después.
 - \\\`{{url_registro}}\\\`, \\\`{{url_venta}}\\\`, \\\`{{url_gracias}}\\\`
 - \\\`{{url_baja}}\\\` — la página de baja
 
-**\\\`{{url_baja}}\\\` es obligatorio en todos los correos**, en el pie y visible. No es un
-detalle legal que se pueda dejar para luego: sin salida clara, la gente marca el correo
-como spam y eso quema el dominio de envío para todos los demás.
+**\\\`{{url_baja}}\\\` es obligatorio en todos los correos**, en el pie y visible; publicar
+sin él falla. No es un detalle legal que se pueda dejar para luego: sin salida clara la
+gente marca el correo como spam, y eso quema el dominio de envío para todo lo demás.
+
+Se convierte en una cosa o en otra según el lanzamiento, y en los dos casos funciona:
+en una newsletter, en la url de su página de baja; en los demás, en la etiqueta que
+ActiveCampaign sustituye al enviar por el enlace de la cuenta.
 
 ## El asunto y el preencabezado
 
