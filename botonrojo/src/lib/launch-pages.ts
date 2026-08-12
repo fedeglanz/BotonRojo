@@ -125,6 +125,25 @@ export function resolvePages(
     pages.push({ pageKey: "venta", kind: "venta", label: "Venta" });
   }
 
+  // Newsletter: captar y entregar, nada más. Sin venta, sin contenido con goteo y
+  // sin countdown, porque no hay fecha hacia la que contar. La página de gracias es
+  // la entrega —ahí está la descarga—, y la de baja tiene que existir por ley y por
+  // decencia: quien se apunta tiene que poder irse en un clic.
+  if (!legacy && type === "newsletter") {
+    pages.push({
+      pageKey: "registro",
+      kind: "registro",
+      label: "Registro",
+      isEntry: true,
+    });
+    pages.push({
+      pageKey: "gracias",
+      kind: "gracias",
+      label: "Gracias y entrega",
+    });
+    pages.push({ pageKey: "baja", kind: "baja", label: "Baja de la lista" });
+  }
+
   if (!legacy && type === "venta_directa") {
     pages.push({
       pageKey: "venta",
