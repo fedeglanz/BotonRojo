@@ -24,6 +24,14 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     color: "from-fuchsia-500 to-pink-500",
     icon: "🌱",
   },
+  plf: {
+    label: "PLF",
+    tagline: "Product Launch Formula",
+    description: "Secuencia clásica: pre-pre, pre, contenido, carrito.",
+    pages: "Registro (una página por canal) + páginas de contenido + venta, cada una con su gracias. Afiliados y legales opcionales.",
+    color: "from-violet-500 to-indigo-500",
+    icon: "🚀",
+  },
   newsletter: {
     label: "Newsletter",
     tagline: "Lista o lead magnet",
@@ -32,13 +40,5 @@ export const LAUNCH_TYPES: Record<LaunchType, {
       "Registro + gracias + baja de la lista, y legales opcionales. No hay venta, ni countdown, ni calendario: funciona en evergreen. Las campañas de email sí.",
     color: "from-sky-500 to-cyan-400",
     icon: "🪐",
-  },
-  plf: {
-    label: "PLF",
-    tagline: "Product Launch Formula",
-    description: "Secuencia clásica: pre-pre, pre, contenido, carrito.",
-    pages: "Registro (una página por canal) + páginas de contenido + venta, cada una con su gracias. Afiliados y legales opcionales.",
-    color: "from-violet-500 to-indigo-500",
-    icon: "🚀",
   },
 };
