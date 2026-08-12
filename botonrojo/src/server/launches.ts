@@ -616,6 +616,17 @@ export async function createLaunchAction(formData: FormData) {
       await seedLaunchQueue(launch).catch((err: unknown) => {
         console.error("no se pudo escribir la cola de trabajo", err);
       });
+
+      // El marco de copy sí lo generamos nosotros, aunque diseñe Claude: la
+      // promesa, el avatar, los dolores y los beneficios salen del brief y no son
+      // una decisión de diseño. Sin ellos, Claude tiene que parar a mitad a
+      // preguntar de qué va el lanzamiento — que es exactamente lo que pasó la
+      // primera vez que se usó esto.
+      try {
+        await generateMarcoCopyAction(created.id);
+      } catch (err) {
+        console.error("marco de copy inicial (modo claude) falló", err);
+      }
     }
   } else if (created) {
     // Propose the visual identity straight away: it's the mandatory first step, so
@@ -2419,7 +2430,11 @@ export async function updateEmailAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function approveEmailAction(launchId: string, emailIndex: number, approved: boolean) {
+export async function approveEmailAction(
+  launchId: string,
+  emailIndex: number,
+  approved: boolean,
+) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
   const email = body.emails[emailIndex];
@@ -2456,7 +2471,11 @@ export async function approveAllEmailsAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateEmailOffsetAction(launchId: string, emailIndex: number, newOffset: number) {
+export async function updateEmailOffsetAction(
+  launchId: string,
+  emailIndex: number,
+  newOffset: number,
+) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
   const email = body.emails[emailIndex];
@@ -2483,7 +2502,10 @@ export async function fetchAcAutomationsAction(launchId: string) {
   return ac.listAutomations();
 }
 
-export async function linkAcAutomationAction(launchId: string, automationId: string) {
+export async function linkAcAutomationAction(
+  launchId: string,
+  automationId: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2502,7 +2524,10 @@ export async function linkAcAutomationAction(launchId: string, automationId: str
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function unlinkAcAutomationAction(launchId: string, automationId: string) {
+export async function unlinkAcAutomationAction(
+  launchId: string,
+  automationId: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2710,7 +2735,14 @@ export async function pushEmailsToActiveCampaignAction(
   if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
 
   const sequence = asset.body as {
-    emails: Array<{ subject: string; preheader?: string; body: string; ctaText?: string; ctaUrl?: string; approved?: boolean }>;
+    emails: Array<{
+      subject: string;
+      preheader?: string;
+      body: string;
+      ctaText?: string;
+      ctaUrl?: string;
+      approved?: boolean;
+    }>;
   };
 
   const brand: EmailBrandKit = {
@@ -2733,7 +2765,13 @@ export async function pushEmailsToActiveCampaignAction(
     const tpl = await ac.createEmailTemplate({
       name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
       subject: email.subject,
-      html: wrapEmailHtml(email.body, email.preheader ?? "", email.ctaText, email.ctaUrl, brand),
+      html: wrapEmailHtml(
+        email.body,
+        email.preheader ?? "",
+        email.ctaText,
+        email.ctaUrl,
+        brand,
+      ),
     });
     templateIds.push(tpl.id);
   }
@@ -3154,7 +3192,12 @@ export async function updateSectionRawAction(
 
 type EmailBrandKit = {
   logoUrl?: string | null;
-  palette?: { primary: string; accent: string; background: string; foreground: string } | null;
+  palette?: {
+    primary: string;
+    accent: string;
+    background: string;
+    foreground: string;
+  } | null;
   fonts?: { display: string; body: string } | null;
   launchName?: string;
 };

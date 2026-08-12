@@ -378,6 +378,12 @@ export default async function LaunchHubPage(props: {
             launchSlug: launch.slug,
             launchName: launch.name,
           })}
+          launchSlug={launch.slug}
+          missing={{
+            copy: !hasMarco,
+            // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
+            dates: !launch.cartClosesAt && !launch.registrationClosesAt,
+          }}
         />
       )}
 

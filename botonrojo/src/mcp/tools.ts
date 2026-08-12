@@ -626,16 +626,40 @@ const trabajoPendiente: ToolDef = {
       };
     }
 
-    // El slug de cada lanzamiento, que es lo que piden el resto de herramientas.
+    // El slug de cada lanzamiento, que es lo que piden el resto de herramientas, y
+    // lo que le falta para poder diseñar sus páginas. Va aquí y no solo en
+    // contexto_lanzamiento para que se pregunte ANTES de empezar: la primera vez que
+    // se usó esto, Claude descubrió a mitad del trabajo que no había promesa ni
+    // fechas, y tuvo que parar a preguntar con una identidad ya propuesta.
     const slugs = new Map<string, string>();
+    const gaps = new Map<string, string[]>();
     for (const task of tasks) {
       if (slugs.has(task.launchId)) continue;
       const [row] = await db
-        .select({ slug: launches.slug })
+        .select()
         .from(launches)
         .where(eq(launches.id, task.launchId))
         .limit(1);
-      if (row) slugs.set(task.launchId, row.slug);
+      if (!row) continue;
+      slugs.set(task.launchId, row.slug);
+
+      const falta: string[] = [];
+      if (!row.promise || !row.avatar) {
+        falta.push(
+          "no hay promesa ni avatar guardados: pregúntale de qué va y a quién va dirigido antes de escribir el copy de las páginas",
+        );
+      }
+      if (!row.cartClosesAt && !row.registrationClosesAt) {
+        falta.push(
+          "no hay fechas de cierre: pregúntaselas si la página lleva cuenta atrás, o no la pongas",
+        );
+      }
+      if (!row.defaultPriceCents) {
+        falta.push(
+          "no hay precio guardado: pregúntaselo si la página vende algo",
+        );
+      }
+      if (falta.length) gaps.set(task.launchId, falta);
     }
 
     return {
@@ -646,6 +670,12 @@ const trabajoPendiente: ToolDef = {
         titulo: task.label,
         instruccion: task.instruction,
       })),
+      falta_por_preguntar: Object.fromEntries(
+        [...gaps.entries()].map(([launchId, falta]) => [
+          slugs.get(launchId) ?? launchId,
+          falta,
+        ]),
+      ),
       como_se_hace: [
         "identidad_visual: propón paleta, tipografías y estilo, y guárdala con guardar_identidad. Hasta que no esté, las páginas no se pueden diseñar con la marca del lanzamiento.",
         "pagina: contexto_lanzamiento y contrato_pagina, diseña el HTML y publícalo con publicar_pagina.",

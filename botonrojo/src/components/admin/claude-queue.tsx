@@ -10,6 +10,14 @@ type QueueTask = {
   result: string | null;
 };
 
+/** Lo que las páginas necesitan y solo puede decidir el cliente. */
+type Missing = {
+  /** Promesa y avatar: sin ellos las páginas salen genéricas. */
+  copy: boolean;
+  /** Fechas de cierre: la cuenta atrás no puede inventarlas. */
+  dates: boolean;
+};
+
 /**
  * La cola de trabajo de un lanzamiento que se diseña en Claude.
  *
@@ -28,17 +36,42 @@ export function ClaudeQueue({
   hasConnector,
   queueHref,
   queuePrompt,
+  missing,
+  launchSlug,
 }: {
   tasks: QueueTask[];
   hasConnector: boolean;
   queueHref: string;
   queuePrompt: string;
+  missing: Missing;
+  launchSlug: string;
 }) {
   if (!tasks.length) return null;
 
   const pending = tasks.filter((task) => task.status === "pending");
   const done = tasks.length - pending.length;
   const finished = pending.length === 0;
+
+  const identity = tasks.find((task) => task.kind === "design_system");
+  const identityDone = identity?.status !== "pending";
+  const nextPage = pending.find((task) => task.kind === "page");
+
+  /**
+   * Una sola frase: qué le toca hacer a la persona AHORA.
+   *
+   * La cola decía lo que falta, que no es lo mismo. Ante "quedan 3 de 3" la
+   * pregunta sigue siendo "y yo qué hago", y la respuesta cambia según el momento:
+   * abrir Claude, decirle que sí, rellenar unas fechas o nada.
+   */
+  const nextStep = !identityDone
+    ? done === 0
+      ? "Abre Claude con el botón. Te propondrá los colores y las tipografías; cuando te gusten, dile “sí, guárdala” y aparecerán aquí."
+      : "En Claude: cuando te guste la identidad, dile “sí, guárdala”."
+    : missing.copy
+      ? "Antes de las páginas, rellena la promesa y el avatar en “Marco de copy”: sin eso las páginas salen genéricas."
+      : nextPage
+        ? `En Claude: dile que siga con “${nextPage.label}”. Te la enseñará antes de publicarla.`
+        : "Nada. Todo hecho.";
 
   return (
     <div className="space-y-4 rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-5">
@@ -62,6 +95,49 @@ export function ClaudeQueue({
           />
         )}
       </div>
+
+      {!finished && (
+        <div className="rounded-lg border border-[var(--color-red)]/30 bg-[var(--color-red)]/10 px-4 py-3">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--color-red-bright)]">
+            Ahora te toca
+          </div>
+          <p className="mt-1 text-sm font-medium text-white">{nextStep}</p>
+        </div>
+      )}
+
+      {(missing.copy || missing.dates) && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-3">
+          <div className="text-[10px] uppercase tracking-widest text-amber-300">
+            Le va a hacer falta esto
+          </div>
+          <ul className="mt-1.5 space-y-1 text-sm text-zinc-300">
+            {missing.copy && (
+              <li>
+                · La promesa y el avatar.{" "}
+                <a
+                  href={`/admin/lanzamientos/${launchSlug}?seccion=marca`}
+                  className="underline underline-offset-2 hover:text-white"
+                >
+                  Genéralos en “Marco de copy”
+                </a>{" "}
+                — son dos clics y salen del brief.
+              </li>
+            )}
+            {missing.dates && (
+              <li>
+                · Las fechas de cierre.{" "}
+                <a
+                  href={`/admin/lanzamientos/${launchSlug}?seccion=paginas`}
+                  className="underline underline-offset-2 hover:text-white"
+                >
+                  Ponlas en “Cómo se generan las páginas”
+                </a>{" "}
+                — la cuenta atrás no puede inventárselas.
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
       <ol className="space-y-1.5">
         {tasks.map((task) => {
