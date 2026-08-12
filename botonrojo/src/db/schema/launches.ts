@@ -117,6 +117,19 @@ export const launches = pgTable("launches", {
    *  colours and fonts, and each generation improvised the rest. */
   brandDesign: jsonb("brand_design").$type<BrandDesign | null>(),
   designSystemProjectId: text("design_system_project_id"),
+  /**
+   * Quién diseña este lanzamiento.
+   *
+   * "boton_rojo" es el generador de la plataforma: identidad visual propuesta por
+   * nosotros y páginas compuestas con el sistema de diseño cerrado. "claude" es el
+   * otro camino: la identidad y las páginas las hace Claude Design y llegan por el
+   * conector. Se guarda porque cambia lo que el panel ofrece — con "claude", los
+   * botones de generar sobrarían y regenerar borraría el diseño.
+   */
+  designMode: text("design_mode")
+    .$type<"boton_rojo" | "claude">()
+    .notNull()
+    .default("boton_rojo"),
 
   // Free-text steer for the landing generator: change of angle, structure,
   // background treatment, whatever doesn't fit the fixed brief/avatar fields.

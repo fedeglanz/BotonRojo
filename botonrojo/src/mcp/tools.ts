@@ -37,6 +37,16 @@ import {
   type CustomPageBody,
 } from "@/lib/custom-page";
 import { startPageGeneration, readGenerationProgress } from "@/server/launches";
+import {
+  listPendingTasks,
+  listLaunchTasks,
+  completeTask,
+} from "@/server/launch-tasks";
+import {
+  normalizeBrandDesign,
+  BRAND_DESIGN_OPTIONS,
+} from "@/lib/design/brand-design";
+import type { BrandFonts, BrandPalette } from "@/db/schema/launches";
 import { PAGE_CONTRACT } from "./contract";
 import { canPublishCustomPages, type McpAuth } from "./auth";
 
@@ -171,6 +181,17 @@ async function addExtraPage(
       "La página se ha guardado pero no se resuelve; avisa al equipo.",
     );
   return pageDef;
+}
+
+/** Un color de marca o un error que se entiende. */
+function hexOrFail(raw: unknown, field: string): string {
+  const value = String(raw ?? "").trim();
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+    throw new ToolError(
+      `El color "${field}" tiene que ser hexadecimal (#1b1b18). Ha llegado: ${value || "(vacío)"}.`,
+    );
+  }
+  return value.toLowerCase();
 }
 
 function absoluteUrl(path: string): string {
@@ -560,6 +581,205 @@ const borrarPagina: ToolDef = {
   },
 };
 
+const trabajoPendiente: ToolDef = {
+  name: "trabajo_pendiente",
+  title: "Qué hay pendiente",
+  description:
+    "La lista de trabajo que Botón Rojo ha dejado apuntada: identidades visuales y páginas por diseñar, en el orden en que tienen sentido. Empieza por aquí cuando te pidan hacer un lanzamiento entero, y ve haciéndolas de una en una.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: {
+        type: "string",
+        description:
+          "Para ver solo la cola de un lanzamiento. Sin esto, todo lo pendiente de la cuenta.",
+      },
+    },
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const asked = String(args.lanzamiento ?? "").trim();
+    const launch = asked ? await requireLaunch(auth, asked) : null;
+
+    const tasks = launch
+      ? (await listLaunchTasks(launch.id, auth.organization.id)).filter(
+          (task) => task.status === "pending",
+        )
+      : await listPendingTasks(auth.organization.id);
+
+    if (!tasks.length) {
+      return {
+        pendiente: [],
+        aviso: launch
+          ? `No queda nada apuntado en ${launch.slug}.`
+          : "No hay trabajo pendiente en esta cuenta.",
+      };
+    }
+
+    // El slug de cada lanzamiento, que es lo que piden el resto de herramientas.
+    const slugs = new Map<string, string>();
+    for (const task of tasks) {
+      if (slugs.has(task.launchId)) continue;
+      const [row] = await db
+        .select({ slug: launches.slug })
+        .from(launches)
+        .where(eq(launches.id, task.launchId))
+        .limit(1);
+      if (row) slugs.set(task.launchId, row.slug);
+    }
+
+    return {
+      pendiente: tasks.map((task) => ({
+        lanzamiento: slugs.get(task.launchId) ?? task.launchId,
+        que: task.kind === "design_system" ? "identidad_visual" : "pagina",
+        pagina: task.pageKey,
+        titulo: task.label,
+        instruccion: task.instruction,
+      })),
+      como_se_hace: [
+        "identidad_visual: propón paleta, tipografías y estilo, y guárdala con guardar_identidad. Hasta que no esté, las páginas no se pueden diseñar con la marca del lanzamiento.",
+        "pagina: contexto_lanzamiento y contrato_pagina, diseña el HTML y publícalo con publicar_pagina.",
+      ],
+      aviso:
+        "Cada tarea se cierra sola al guardar la identidad o al publicar la página; no hay que avisar de nada. Ve de una en una y cuéntame qué vas haciendo.",
+    };
+  },
+};
+
+const guardarIdentidad: ToolDef = {
+  name: "guardar_identidad",
+  title: "Guardar la identidad visual",
+  description:
+    "Guarda la paleta, las tipografías y el estilo del lanzamiento, y la deja aprobada. Es el primer paso de un lanzamiento que se diseña en Claude: el resto de páginas, y el generador de Botón Rojo, usan esto.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      paleta: {
+        type: "object",
+        description: "Cuatro colores en hexadecimal.",
+        properties: {
+          primary: {
+            type: "string",
+            description: "Color de marca, el de los botones",
+          },
+          accent: {
+            type: "string",
+            description: "Acento para detalles y destacados",
+          },
+          background: { type: "string", description: "Fondo de las páginas" },
+          foreground: {
+            type: "string",
+            description: "Color del texto sobre ese fondo",
+          },
+        },
+        required: ["primary", "accent", "background", "foreground"],
+        additionalProperties: false,
+      },
+      tipografias: {
+        type: "object",
+        description: "Nombres tal como los publica Google Fonts.",
+        properties: {
+          display: { type: "string", description: "Para titulares" },
+          body: { type: "string", description: "Para texto" },
+        },
+        required: ["display", "body"],
+        additionalProperties: false,
+      },
+      estilo: {
+        type: "object",
+        description:
+          "Decisiones estructurales. Lo que no encaje con el vocabulario se ajusta al valor más cercano en vez de romper.",
+        properties: {
+          cardStyle: {
+            type: "string",
+            enum: [...BRAND_DESIGN_OPTIONS.cardStyle],
+          },
+          ctaStyle: {
+            type: "string",
+            enum: [...BRAND_DESIGN_OPTIONS.ctaStyle],
+          },
+          density: { type: "string", enum: [...BRAND_DESIGN_OPTIONS.density] },
+          titleFx: { type: "string", enum: [...BRAND_DESIGN_OPTIONS.titleFx] },
+          divider: { type: "string", enum: [...BRAND_DESIGN_OPTIONS.divider] },
+          intensity: {
+            type: "string",
+            enum: [...BRAND_DESIGN_OPTIONS.intensity],
+          },
+          effects: {
+            type: "array",
+            items: { type: "string", enum: [...BRAND_DESIGN_OPTIONS.effects] },
+          },
+        },
+        additionalProperties: false,
+      },
+      notas: {
+        type: "string",
+        description:
+          "En qué se ha pensado al elegirla: tono, referencias, qué se evita.",
+      },
+    },
+    required: ["lanzamiento", "paleta", "tipografias"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+
+    const paleta = args.paleta as Record<string, unknown> | undefined;
+    const palette = {
+      primary: hexOrFail(paleta?.primary, "primary"),
+      accent: hexOrFail(paleta?.accent, "accent"),
+      background: hexOrFail(paleta?.background, "background"),
+      foreground: hexOrFail(paleta?.foreground, "foreground"),
+    } satisfies BrandPalette;
+
+    const tipos = args.tipografias as Record<string, unknown> | undefined;
+    const display = String(tipos?.display ?? "").trim();
+    const body = String(tipos?.body ?? "").trim();
+    if (!display || !body) {
+      throw new ToolError(
+        "Hacen falta las dos tipografías: una para titulares y otra para texto.",
+      );
+    }
+    const fonts = { display, body } satisfies BrandFonts;
+
+    // El estilo pasa por el mismo normalizador que el panel: lo que no esté en el
+    // vocabulario se ajusta al valor más cercano en vez de llegar a la página.
+    const design = normalizeBrandDesign(args.estilo ?? null, palette);
+
+    await db
+      .update(launches)
+      .set({
+        brandPalette: palette,
+        brandFonts: fonts,
+        brandDesign: design,
+        brandMoodNotes:
+          String(args.notas ?? "").trim() || launch.brandMoodNotes,
+        // Aprobada directamente: la ha decidido quien está diseñando, y dejarla en
+        // borrador obligaría a volver al panel a darle a un botón de aprobar en medio
+        // de un trabajo que va del tirón.
+        brandKitStatus: "approved",
+        updatedAt: new Date(),
+      })
+      .where(eq(launches.id, launch.id));
+
+    await completeTask({
+      launchId: launch.id,
+      kind: "design_system",
+      result: `${palette.primary} · ${display} / ${body}`,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      guardada: true,
+      aprobada: true,
+      estilo_ajustado: design,
+      siguiente:
+        "Ya puedes diseñar las páginas: mira trabajo_pendiente para ver cuáles quedan.",
+    };
+  },
+};
+
 const verPagina: ToolDef = {
   name: "ver_pagina",
   title: "Ver el HTML publicado",
@@ -847,6 +1067,8 @@ export const TOOLS: ToolDef[] = [
   listarLanzamientos,
   contextoLanzamiento,
   contratoPagina,
+  trabajoPendiente,
+  guardarIdentidad,
   crearPagina,
   publicarPagina,
   verPagina,

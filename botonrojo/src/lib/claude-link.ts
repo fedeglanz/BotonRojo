@@ -72,6 +72,31 @@ Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.`,
   );
 }
 
+/**
+ * Hacer la cola de trabajo entera: identidad visual y todas las páginas.
+ *
+ * A Claude Design, y con la lista sin enumerar aquí a propósito: la pide él con
+ * `trabajo_pendiente`, que es la única versión que está al día. Repetirla en la URL
+ * sería una copia que envejece en cuanto se cierra la primera tarea.
+ */
+export function claudeQueueUrl(input: {
+  launchSlug: string;
+  launchName: string;
+}): string {
+  return claudeUrl(
+    CLAUDE_DESIGN,
+    `Con el conector de Botón Rojo, haz el trabajo pendiente del lanzamiento ${input.launchSlug}.
+
+1. trabajo_pendiente con lanzamiento="${input.launchSlug}", para ver la lista y en qué orden.
+2. contexto_lanzamiento y contrato_pagina, una vez, para saber de qué va y qué tiene que llevar el HTML.
+3. Ve haciendo las tareas de una en una, en ese orden. La identidad visual primero: propónmela y, cuando la apruebe, guárdala con guardar_identidad. Después cada página: la diseñas, me la enseñas y la publicas con publicar_pagina.
+
+No hace falta avisar de nada al terminar cada una: se cierran solas. Las imágenes van por url en "archivos", nunca en base64.
+
+Empieza enseñándome la lista y tu propuesta de identidad visual.`,
+  );
+}
+
 /** Crear una página que el lanzamiento todavía no tiene. */
 export function claudeNewPageUrl(input: {
   launchSlug: string;

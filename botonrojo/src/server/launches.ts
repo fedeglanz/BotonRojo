@@ -20,7 +20,10 @@ import {
   refineSectionPrompt,
 } from "@/ai/prompts/landing-refine";
 import { EMAILS_SYSTEM, emailsPrompt } from "@/ai/prompts/emails";
-import { EMAIL_REFINE_SYSTEM, emailRefinePrompt } from "@/ai/prompts/email-refine";
+import {
+  EMAIL_REFINE_SYSTEM,
+  emailRefinePrompt,
+} from "@/ai/prompts/email-refine";
 import { ADS_SYSTEM, adsPrompt } from "@/ai/prompts/ads";
 import {
   TELEGRAM_SYSTEM,
@@ -107,6 +110,7 @@ import {
   type PageDef,
   type LegalPageKey,
 } from "@/lib/launch-pages";
+import { seedLaunchQueue } from "@/server/launch-tasks";
 import { bodyFromFields, fieldsForKind } from "@/lib/page-fields";
 import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 
@@ -522,6 +526,8 @@ const createSchema = z.object({
   installmentCount: z.coerce.number().int().min(2).max(24).optional(),
   installmentPriceCents: euroAmount.optional(),
   referenceUrl: z.string().url().optional().or(z.literal("")),
+  // La casilla del formulario: quién diseña este lanzamiento.
+  designMode: z.enum(["boton_rojo", "claude"]).default("boton_rojo"),
 });
 
 export async function createLaunchAction(formData: FormData) {
@@ -535,6 +541,8 @@ export async function createLaunchAction(formData: FormData) {
     installmentCount: formData.get("installmentCount") || undefined,
     installmentPriceCents: formData.get("installmentPrice") || undefined,
     referenceUrl: formData.get("referenceUrl") || undefined,
+    designMode:
+      formData.get("designMode") === "claude" ? "claude" : "boton_rojo",
   });
 
   // Half a payment plan is worse than none: the copy would promise instalments
@@ -590,15 +598,29 @@ export async function createLaunchAction(formData: FormData) {
       defaultPriceCents: parsed.priceCents ?? null,
       installmentCount: hasPlan ? parsed.installmentCount! : null,
       installmentPriceCents: hasPlan ? parsed.installmentPriceCents! : null,
+      designMode: parsed.designMode,
       referenceUrl: parsed.referenceUrl || null,
       pageConfig,
     })
     .returning({ id: launches.id });
 
-  // Propose the visual identity straight away: it's the mandatory first step, so
-  // landing on an empty one just means an extra click before anything can happen.
-  // Best-effort — a failed proposal must not lose the launch that was just created.
-  if (created) {
+  if (created && parsed.designMode === "claude") {
+    // Diseña Claude: en vez de proponer nosotros una identidad que iba a sustituir,
+    // se deja escrito el trabajo. Un mensaje en Claude recorre la cola entera.
+    const [launch] = await db
+      .select()
+      .from(launches)
+      .where(eq(launches.id, created.id))
+      .limit(1);
+    if (launch) {
+      await seedLaunchQueue(launch).catch((err: unknown) => {
+        console.error("no se pudo escribir la cola de trabajo", err);
+      });
+    }
+  } else if (created) {
+    // Propose the visual identity straight away: it's the mandatory first step, so
+    // landing on an empty one just means an extra click before anything can happen.
+    // Best-effort — a failed proposal must not lose the launch that was just created.
     try {
       await generateBrandKitAction(created.id);
     } catch (err) {
@@ -2308,7 +2330,11 @@ async function loadEmailAsset(launchId: string, organizationId: string) {
   return { launch, asset, body };
 }
 
-export async function refineEmailAction(launchId: string, emailIndex: number, formData: FormData) {
+export async function refineEmailAction(
+  launchId: string,
+  emailIndex: number,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const instruction = String(formData.get("instruction") ?? "").trim();
   if (!instruction) throw new Error("instruction_required");
@@ -2357,7 +2383,11 @@ export async function refineEmailAction(launchId: string, emailIndex: number, fo
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateEmailAction(launchId: string, emailIndex: number, formData: FormData) {
+export async function updateEmailAction(
+  launchId: string,
+  emailIndex: number,
+  formData: FormData,
+) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
   const email = body.emails[emailIndex];

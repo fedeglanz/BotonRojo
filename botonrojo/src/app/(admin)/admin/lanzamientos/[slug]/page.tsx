@@ -99,7 +99,9 @@ import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
-import { claudeNewPageUrl } from "@/lib/claude-link";
+import { claudeNewPageUrl, claudeQueueUrl } from "@/lib/claude-link";
+import { ClaudeQueue } from "@/components/admin/claude-queue";
+import { listLaunchTasks } from "@/server/launch-tasks";
 
 export const dynamic = "force-dynamic";
 
@@ -248,6 +250,10 @@ export default async function LaunchHubPage(props: {
 
   const hasMarco = Boolean(launch.promise);
   const connector = await hasActiveConnector(organizationId);
+  const queue =
+    launch.designMode === "claude"
+      ? await listLaunchTasks(launch.id, organizationId)
+      : [];
   // Everything downstream reads the brief, so its absence is worth naming once.
   const hasBrief = Boolean(launch.brief && launch.brief.trim().length >= 20);
   const brandKitApproved = launch.brandKitStatus === "approved";
@@ -335,6 +341,24 @@ export default async function LaunchHubPage(props: {
         </Link>
       </header>
 
+      {launch.designMode === "claude" && (
+        <ClaudeQueue
+          tasks={queue.map((task) => ({
+            id: task.id,
+            kind: task.kind,
+            pageKey: task.pageKey,
+            label: task.label,
+            status: task.status,
+            result: task.result,
+          }))}
+          hasConnector={connector}
+          queueHref={claudeQueueUrl({
+            launchSlug: launch.slug,
+            launchName: launch.name,
+          })}
+        />
+      )}
+
       <LaunchTabs tabs={tabs} active={active} basePath={basePath} />
 
       {(active === "todo" || active === "marca") && (
@@ -371,21 +395,29 @@ export default async function LaunchHubPage(props: {
                   : "empty"
             }
           >
-            <BrandKitPanel
-              launchId={launch.id}
-              canGenerate={hasBrief}
-              status={launch.brandKitStatus}
-              palette={launch.brandPalette}
-              fonts={launch.brandFonts}
-              design={launch.brandDesign}
-              moodNotes={launch.brandMoodNotes}
-              moodImageUrl={launch.brandMoodImageUrl}
-              logoUrl={launch.brandLogoUrl}
-              generateAction={generateBrandKitAction}
-              updateAction={updateBrandKitAction}
-              approveAction={approveBrandKitAction}
-              logoSaveAction={updateBrandLogoAction.bind(null, launch.id)}
-            />
+            {launch.designMode === "claude" && !brandKitApproved ? (
+              <p className="rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-4 text-sm text-zinc-300">
+                La identidad visual de este lanzamiento la propone Claude: es la
+                primera tarea de la cola de arriba. Cuando la guarde, aparecerá
+                aquí aprobada y podrás retocarla a mano si hace falta.
+              </p>
+            ) : (
+              <BrandKitPanel
+                launchId={launch.id}
+                canGenerate={hasBrief}
+                status={launch.brandKitStatus}
+                palette={launch.brandPalette}
+                fonts={launch.brandFonts}
+                design={launch.brandDesign}
+                moodNotes={launch.brandMoodNotes}
+                moodImageUrl={launch.brandMoodImageUrl}
+                logoUrl={launch.brandLogoUrl}
+                generateAction={generateBrandKitAction}
+                updateAction={updateBrandKitAction}
+                approveAction={approveBrandKitAction}
+                logoSaveAction={updateBrandLogoAction.bind(null, launch.id)}
+              />
+            )}
           </WizardStep>
 
           {/* Step 2 — Marco copy */}

@@ -72,6 +72,53 @@ export default async function NuevoLanzamientoPage(props: {
           </span>
         </label>
 
+        {/* Quién diseña. Con "claude", en vez de proponer nosotros una identidad
+            visual que iba a sustituir, se deja escrita la cola de trabajo y un solo
+            mensaje en Claude la recorre entera. */}
+        <fieldset className="rounded-lg border border-white/10 bg-black/20 p-4">
+          <legend className="px-1 text-xs uppercase tracking-widest text-zinc-400">
+            Quién diseña este lanzamiento
+          </legend>
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="radio"
+                name="designMode"
+                value="boton_rojo"
+                defaultChecked
+                className="mt-1 accent-[var(--color-red)]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-white">
+                  Botón Rojo
+                </span>
+                <span className="block text-xs text-zinc-500">
+                  Propone la identidad visual al crear el lanzamiento y compone
+                  las páginas con su sistema de diseño. Todo desde el panel.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="radio"
+                name="designMode"
+                value="claude"
+                className="mt-1 accent-[var(--color-red)]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-white">
+                  Claude Design
+                </span>
+                <span className="block text-xs text-zinc-500">
+                  Deja apuntado el trabajo —identidad visual y cada página— y te
+                  da un botón que abre Claude para hacerlo del tirón. Necesita
+                  el conector conectado y plan pro.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
         {/* En euros, con decimales. Antes pedía céntimos con salto de 100, así que
             "97,50 €" no se podía escribir y había que teclear 9700. */}
         <label className="block">
