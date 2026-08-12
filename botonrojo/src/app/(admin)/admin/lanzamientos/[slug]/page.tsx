@@ -719,7 +719,7 @@ export default async function LaunchHubPage(props: {
               approveAction={approveEmailAction}
               approveAllAction={approveAllEmailsAction}
             />
-            {hasEmails && Boolean((launch.assetsCache as Record<string, unknown>)?.acCampaignIds) && (
+            {hasEmails && (
               <div className="mt-4 flex justify-end">
                 <Link
                   href={`/admin/emails?launch=${launch.id}`}

@@ -115,18 +115,20 @@ export async function getEmailStatsForLaunch(launchId: string): Promise<LaunchEm
   if (!launch) return null;
 
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
-  const campaignIds = (cache.acCampaignIds as string[]) ?? [];
-  if (!campaignIds.length) {
-    return {
-      launchId: launch.id,
-      launchName: launch.name,
-      launchSlug: launch.slug,
-      campaigns: [],
-      totals: computeTotals([]),
-    };
+  const storedIds = (cache.acCampaignIds as string[]) ?? [];
+
+  // Try stored IDs first, then search by slug prefix in AC
+  let rawCampaigns = storedIds.length
+    ? await ac.getCampaignsWithStats(storedIds)
+    : [];
+
+  if (!rawCampaigns.length) {
+    const found = await ac.findCampaignsByPrefix(launch.slug);
+    if (found.length) {
+      rawCampaigns = await ac.getCampaignsWithStats(found.map((c) => c.id));
+    }
   }
 
-  const rawCampaigns = await ac.getCampaignsWithStats(campaignIds);
   const campaigns = rawCampaigns.map(mapCampaign);
 
   return {
@@ -159,10 +161,21 @@ export async function getAllEmailStats(): Promise<LaunchEmailStats[]> {
 
   for (const launch of orgLaunches) {
     const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
-    const campaignIds = (cache.acCampaignIds as string[]) ?? [];
-    if (!campaignIds.length) continue;
+    const storedIds = (cache.acCampaignIds as string[]) ?? [];
 
-    const rawCampaigns = await ac.getCampaignsWithStats(campaignIds);
+    let rawCampaigns = storedIds.length
+      ? await ac.getCampaignsWithStats(storedIds)
+      : [];
+
+    if (!rawCampaigns.length) {
+      const found = await ac.findCampaignsByPrefix(launch.slug);
+      if (found.length) {
+        rawCampaigns = await ac.getCampaignsWithStats(found.map((c) => c.id));
+      }
+    }
+
+    if (!rawCampaigns.length) continue;
+
     const campaigns = rawCampaigns.map(mapCampaign);
 
     results.push({
@@ -177,22 +190,12 @@ export async function getAllEmailStats(): Promise<LaunchEmailStats[]> {
   return results;
 }
 
-/** List launches that have AC campaigns for the filter dropdown. */
-export async function listLaunchesWithCampaigns() {
+/** List all launches for the filter dropdown. */
+export async function listLaunchesForEmailFilter() {
   const { organizationId } = await requireOrgAdmin();
-  const orgLaunches = await db
-    .select({
-      id: launches.id,
-      slug: launches.slug,
-      name: launches.name,
-      assetsCache: launches.assetsCache,
-    })
+  return db
+    .select({ id: launches.id, slug: launches.slug, name: launches.name })
     .from(launches)
     .where(eq(launches.organizationId, organizationId))
     .orderBy(desc(launches.createdAt));
-
-  return orgLaunches.filter((l) => {
-    const cache = (l.assetsCache ?? {}) as Record<string, unknown>;
-    return ((cache.acCampaignIds as string[]) ?? []).length > 0;
-  }).map((l) => ({ id: l.id, slug: l.slug, name: l.name }));
 }

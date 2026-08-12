@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   getAllEmailStats,
   getEmailStatsForLaunch,
-  listLaunchesWithCampaigns,
+  listLaunchesForEmailFilter,
   type LaunchEmailStats,
 } from "@/server/email-stats";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
@@ -48,7 +48,7 @@ export default async function EmailsPage(props: { searchParams: SearchParams }) 
     );
   }
 
-  const launchesWithCampaigns = await listLaunchesWithCampaigns();
+  const launchesWithCampaigns = await listLaunchesForEmailFilter();
   const launchId = sp.launch && sp.launch !== "all" ? sp.launch : undefined;
 
   let statsData: LaunchEmailStats[];
