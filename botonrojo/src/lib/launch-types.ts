@@ -1,4 +1,19 @@
-export type LaunchType = "venta_directa" | "semilla" | "plf" | "newsletter";
+/**
+ * Los tipos de lanzamiento, en una sola lista.
+ *
+ * `LAUNCH_TYPE_KEYS` existe para que nadie tenga que repetirla: el validador del
+ * formulario de creación la tenía escrita a mano y, al añadir "newsletter", crear uno
+ * fallaba con un error de validación en una página en blanco. Todo lo que necesite la
+ * lista la saca de aquí.
+ */
+export const LAUNCH_TYPE_KEYS = [
+  "venta_directa",
+  "semilla",
+  "plf",
+  "newsletter",
+] as const;
+
+export type LaunchType = (typeof LAUNCH_TYPE_KEYS)[number];
 
 export const LAUNCH_TYPES: Record<LaunchType, {
   label: string;

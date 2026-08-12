@@ -95,6 +95,7 @@ import {
   isDesignReviewConfigured,
 } from "@/integrations/screenshot";
 
+import { LAUNCH_TYPE_KEYS } from "@/lib/launch-types";
 import type {
   LaunchType,
   AvatarBrief,
@@ -524,7 +525,9 @@ const euroAmount = z
 
 const createSchema = z.object({
   name: z.string().min(2),
-  type: z.enum(["venta_directa", "semilla", "plf"]),
+  // De LAUNCH_TYPE_KEYS, no a mano: esta lista escrita dos veces es lo que hizo
+  // que crear una newsletter fallara con un error de validación.
+  type: z.enum(LAUNCH_TYPE_KEYS),
   brief: z.string().min(20),
   priceCents: euroAmount.optional(),
   installmentCount: z.coerce.number().int().min(2).max(24).optional(),
