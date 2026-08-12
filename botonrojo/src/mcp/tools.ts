@@ -31,6 +31,7 @@ import {
 import { createId } from "@/lib/ids";
 import {
   isCustomPageBody,
+  replaceTokens,
   rewriteAssetPaths,
   unresolvedReferences,
   type CustomPageAssets,
@@ -48,6 +49,8 @@ import {
 } from "@/lib/design/brand-design";
 import type { BrandFonts, BrandPalette } from "@/db/schema/launches";
 import { PAGE_CONTRACT } from "./contract";
+import { EMAIL_CONTRACT } from "./email-contract";
+import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { canPublishCustomPages, type McpAuth } from "./auth";
 
 /**
@@ -213,6 +216,69 @@ function hexOrFail(raw: unknown, field: string): string {
     );
   }
   return value.toLowerCase();
+}
+
+/** La página de baja del lanzamiento, si la tiene (solo los de tipo newsletter). */
+function bajaPath(launch: {
+  type: string;
+  pageConfig: PageConfig | null;
+  slug: string;
+}): string {
+  const page = resolvePages(launch.type as LaunchType, launch.pageConfig).find(
+    (p) => p.kind === "baja",
+  );
+  return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+}
+
+/**
+ * Los valores que se sustituyen al publicar una campaña.
+ *
+ * En absoluto y no en relativo: un correo se abre fuera de nuestro dominio, así que
+ * "/registro" no lleva a ninguna parte.
+ */
+async function emailTokensFor(launch: {
+  id: string;
+  slug: string;
+  name: string;
+  type: string;
+  pageConfig: PageConfig | null;
+  promise: string | null;
+  currency: string | null;
+  defaultPriceCents: number | null;
+  installmentCount: number | null;
+  installmentPriceCents: number | null;
+  cartClosesAt: Date | null;
+  registrationClosesAt: Date | null;
+}): Promise<Record<string, string>> {
+  const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
+  const urlOf = (kind: string, fallback = `/${launch.slug}`) => {
+    const page = pages.find((p) => p.kind === kind);
+    return absoluteUrl(page ? pagePath(launch.slug, page) : fallback);
+  };
+  const currency = launch.currency ?? "EUR";
+
+  return {
+    nombre: launch.name,
+    promesa: launch.promise ?? "",
+    slug: launch.slug,
+    precio: launch.defaultPriceCents
+      ? formatMoney(launch.defaultPriceCents, currency)
+      : "",
+    precio_sin_formato: launch.defaultPriceCents
+      ? String(launch.defaultPriceCents / 100)
+      : "",
+    moneda: currency.toUpperCase(),
+    plazos:
+      launch.installmentCount && launch.installmentPriceCents
+        ? `${launch.installmentCount} pagos de ${formatMoney(launch.installmentPriceCents, currency)}`
+        : "",
+    cierre_carrito: formatDate(launch.cartClosesAt),
+    cierre_registro: formatDate(launch.registrationClosesAt),
+    url_registro: urlOf("registro"),
+    url_venta: urlOf("venta"),
+    url_gracias: urlOf("gracias", "/gracias"),
+    url_baja: absoluteUrl(bajaPath(launch)),
+  };
 }
 
 function absoluteUrl(path: string): string {
@@ -1092,6 +1158,212 @@ const estadoGeneracion: ToolDef = {
   },
 };
 
+/* ---------------------------------------------------------------- campañas -- */
+
+const contratoEmail: ToolDef = {
+  name: "contrato_email",
+  title: "Contrato de una campaña de email",
+  description:
+    "Las reglas que tiene que cumplir el HTML de un correo para llegar bien a la bandeja de entrada. Léelo ANTES de diseñar una campaña: un email no es una página pequeña, es otro medio.",
+  inputSchema: NO_ARGS,
+  handler: async () => EMAIL_CONTRACT,
+};
+
+const listarEmails: ToolDef = {
+  name: "listar_emails",
+  title: "Las campañas de un lanzamiento",
+  description:
+    "Las campañas de email que ya tiene el lanzamiento, con su nombre y su asunto. Míralo antes de publicar una nueva: publicar con un nombre que ya existe la sustituye.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" } },
+    required: ["lanzamiento"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const rows = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")))
+      .orderBy(desc(assets.createdAt));
+
+    const disenadas = rows.filter((row) => isCustomEmailBody(row.body));
+    const generadas = rows.filter((row) => !isCustomEmailBody(row.body));
+
+    return {
+      campanas: disenadas.map((row) => {
+        const body = row.body as unknown as CustomEmailBody;
+        return {
+          nombre: body.name,
+          asunto: body.subject,
+          preencabezado: body.preheader ?? null,
+          publicada: body.publishedAt,
+          en_activecampaign: Boolean(body.acTemplateId),
+        };
+      }),
+      // La secuencia que genera Botón Rojo vive aparte y no se pisa con estas.
+      secuencia_generada: generadas.length > 0,
+    };
+  },
+};
+
+const publicarEmail: ToolDef = {
+  name: "publicar_email",
+  title: "Publicar una campaña diseñada",
+  description:
+    "Guarda una campaña de email diseñada en Claude Design. Se pueden tener todas las que hagan falta: cada una es independiente y se identifica por su nombre. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      nombre: {
+        type: "string",
+        description:
+          'Cómo se llama internamente: "Bienvenida 1", "Carta del martes 3". Publicar con un nombre que ya existe la sustituye.',
+      },
+      asunto: { type: "string", description: "El asunto del correo" },
+      preencabezado: {
+        type: "string",
+        description:
+          "La línea que se ve en la bandeja detrás del asunto. Si se omite, ahí saldrá el primer texto del correo.",
+      },
+      html: {
+        type: "string",
+        description:
+          "El email completo: CSS en línea, maquetado con tablas, 600px de ancho. Ver contrato_email.",
+      },
+    },
+    required: ["lanzamiento", "nombre", "asunto", "html"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio. Las campañas se pueden generar con el sistema de Botón Rojo desde el panel.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+    const asunto = String(args.asunto ?? "").trim();
+    const html = String(args.html ?? "");
+    if (!nombre) throw new ToolError("Falta el nombre de la campaña.");
+    if (!asunto) throw new ToolError("Falta el asunto del correo.");
+    if (html.length < 200) {
+      throw new ToolError(
+        "Ese HTML está vacío o es demasiado corto para ser un email.",
+      );
+    }
+
+    // Un email es una foto fija: lo envía ActiveCampaign desde su copia y ahí no
+    // corre nuestro runtime, así que los valores se resuelven AHORA. Lo que se
+    // guarda ya es lo que va a recibir la gente.
+    const resolved = replaceTokens(html, await emailTokensFor(launch));
+
+    const quedan = [...resolved.matchAll(/\{\{\s*([a-z_]+)\s*\}\}/gi)].map(
+      (m) => m[0],
+    );
+    if (quedan.length) {
+      throw new ToolError(
+        `Estos tokens no existen: ${[...new Set(quedan)].join(", ")}. En un correo no hay nada que los rellene después, así que se quedarían escritos tal cual. Mira contrato_email para la lista.`,
+      );
+    }
+    if (!resolved.includes(absoluteUrl(bajaPath(launch)))) {
+      throw new ToolError(
+        "Falta el enlace de baja: pon {{url_baja}} en el pie, visible. Sin salida clara la gente marca el correo como spam, y eso quema el dominio de envío para todo lo demás.",
+      );
+    }
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    const body: CustomEmailBody = {
+      format: "html",
+      html: resolved,
+      subject: asunto,
+      preheader: String(args.preencabezado ?? "").trim() || undefined,
+      name: nombre,
+      publishedAt: new Date().toISOString(),
+      source: "claude-design",
+    };
+
+    // Sustituye la que tenga el mismo nombre, en vez de acumular versiones: al
+    // corregir una campaña se quiere corregirla, no tener dos.
+    const existentes = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")));
+    const previa = existentes.find(
+      (row) => isCustomEmailBody(row.body) && row.body.name === nombre,
+    );
+
+    if (previa) {
+      await db
+        .update(assets)
+        .set({
+          title: `${nombre} · ${asunto}`.slice(0, 200),
+          body: body as unknown as Record<string, unknown>,
+          updatedAt: new Date(),
+        })
+        .where(eq(assets.id, previa.id));
+    } else {
+      await db.insert(assets).values({
+        organizationId: auth.organization.id,
+        launchId: launch.id,
+        kind: "email",
+        pageKey: `campana-${createId(8)}`,
+        title: `${nombre} · ${asunto}`.slice(0, 200),
+        body: body as unknown as Record<string, unknown>,
+        authorId: token?.createdById ?? null,
+        generatedByAi: "claude-design",
+      });
+    }
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      publicada: true,
+      nombre,
+      sustituida: Boolean(previa),
+      aviso:
+        "Guardada con los valores ya resueltos. Desde el panel se puede previsualizar y subir a ActiveCampaign como plantilla.",
+    };
+  },
+};
+
+const borrarEmail: ToolDef = {
+  name: "borrar_email",
+  title: "Borrar una campaña diseñada",
+  description: "Quita una campaña de email diseñada en Claude, por su nombre.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" }, nombre: { type: "string" } },
+    required: ["lanzamiento", "nombre"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+
+    const rows = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")));
+    const found = rows.find(
+      (row) => isCustomEmailBody(row.body) && row.body.name === nombre,
+    );
+    if (!found)
+      throw new ToolError(`No hay ninguna campaña llamada "${nombre}".`);
+
+    await db.delete(assets).where(eq(assets.id, found.id));
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return { borrada: true, nombre };
+  },
+};
+
 const metricasLanzamiento: ToolDef = {
   name: "metricas_lanzamiento",
   title: "Métricas de un lanzamiento",
@@ -1182,6 +1454,10 @@ export const TOOLS: ToolDef[] = [
   borrarPagina,
   generarPagina,
   estadoGeneracion,
+  contratoEmail,
+  listarEmails,
+  publicarEmail,
+  borrarEmail,
   metricasLanzamiento,
 ];
 

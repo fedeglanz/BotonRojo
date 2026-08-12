@@ -97,6 +97,27 @@ No hace falta avisar de nada al terminar: cada tarea se cierra sola al guardar l
 Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.`;
 }
 
+/**
+ * Diseñar campañas de email del lanzamiento, tantas como haga falta.
+ *
+ * Dice explícitamente que empiece preguntando cuántas y de qué: pedirle "diseña las
+ * campañas" a secas acabaría en una secuencia inventada, y las campañas son lo más
+ * caro de rehacer porque cada una lleva su copy.
+ */
+export function claudeCampaignsPrompt(input: {
+  launchSlug: string;
+  launchName: string;
+}): string {
+  return `Con el conector de Botón Rojo, diseña campañas de email para el lanzamiento ${input.launchSlug}.
+
+1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": la identidad visual (paleta, tipografías, logo), la promesa, el avatar y las fechas. Los correos tienen que parecer de la misma casa que las páginas.
+2. contrato_email: un email no es una página pequeña —CSS en línea, tablas, 600px, sin JavaScript— y ahí está todo lo que hay que cumplir.
+3. listar_emails, para ver las que ya existen y no repetir nombre sin querer.
+4. Cada campaña: la diseñas, me la enseñas, y la publicas con publicar_email dándole un nombre ("Bienvenida 1", "Carta del martes 3"), su asunto y su preencabezado.
+
+Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una secuencia entera sin preguntar.`;
+}
+
 /** Crear una página que el lanzamiento todavía no tiene. */
 export function claudeNewPageUrl(input: {
   launchSlug: string;

@@ -96,6 +96,7 @@ import {
 } from "@/integrations/screenshot";
 
 import { LAUNCH_TYPE_KEYS } from "@/lib/launch-types";
+import { isCustomEmailBody } from "@/lib/custom-email";
 import type {
   LaunchType,
   AvatarBrief,
@@ -2861,6 +2862,57 @@ export async function pushEmailsToActiveCampaignAction(
  * Create AC campaigns for each email in the sequence, scheduled based on milestones.
  * Requires: list provisioned + templates pushed + milestones generated.
  */
+/**
+ * Sube una campaña diseñada a ActiveCampaign como plantilla.
+ *
+ * Sin pasar por `wrapEmailHtml`: ese envoltorio existe para vestir un cuerpo de texto
+ * que escribió el generador, y aquí el diseño ES el correo entero. Envolverlo le
+ * pondría nuestra cabecera y nuestro pie por encima del suyo.
+ */
+export async function pushDesignedEmailToAcAction(
+  launchId: string,
+  assetId: string,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) throw new Error("activecampaign_not_configured");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(
+      and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)),
+    )
+    .limit(1);
+  if (!asset || asset.kind !== "email" || !isCustomEmailBody(asset.body)) {
+    throw new Error("asset_not_found");
+  }
+
+  const body = asset.body;
+  const tpl = await ac.createEmailTemplate({
+    name: `${launch.slug} · ${body.name}`.slice(0, 100),
+    subject: body.subject,
+    html: body.html,
+  });
+
+  // El id se guarda en la campaña, no en el lanzamiento: son muchas y cada una tiene
+  // su plantilla. En assetsCache se pisarían entre ellas.
+  await db
+    .update(assets)
+    .set({
+      body: { ...body, acTemplateId: tpl.id } as unknown as Record<
+        string,
+        unknown
+      >,
+      updatedAt: new Date(),
+    })
+    .where(eq(assets.id, asset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function scheduleAcCampaignsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
