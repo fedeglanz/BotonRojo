@@ -73,6 +73,38 @@ Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.`,
 }
 
 /**
+ * El mensaje que hace el trabajo entero: identidad visual y todas las páginas.
+ *
+ * Se expone como texto además de como enlace porque el botón depende de que Claude
+ * abra con el mensaje ya puesto, y eso no está en nuestra mano. Poder copiarlo y
+ * pegarlo es el camino que siempre funciona.
+ *
+ * La lista de tareas no se enumera aquí a propósito: la pide Claude con
+ * `trabajo_pendiente`, que es la única versión al día. Repetirla sería una copia que
+ * envejece en cuanto se cierra la primera tarea.
+ */
+export function claudeQueuePrompt(input: {
+  launchSlug: string;
+  launchName: string;
+}): string {
+  return `Trabaja con el conector de Botón Rojo en el lanzamiento "${input.launchSlug}".
+
+Para empezar: llama a trabajo_pendiente con lanzamiento="${input.launchSlug}" para ver la lista de tareas, y a contexto_lanzamiento para saber de qué va (brief, promesa, avatar, precios y fechas).
+
+TAREA 1 — Identidad visual. Propónme:
+· 4 colores en hexadecimal: principal (el de los botones), acento, fondo y texto.
+· 2 tipografías de Google Fonts: una para titulares y otra para texto.
+· el estilo: cómo son las cajas, el botón principal, la densidad y cuánta decoración.
+Enséñamelo con una muestra visual antes de guardar nada. Cuando te diga que sí, guárdala con guardar_identidad.
+
+TAREAS SIGUIENTES — una por página. Lee contrato_pagina, diseña el documento HTML completo con esa identidad, enséñamelo, y cuando lo apruebe publícalo con publicar_pagina. Las imágenes van por url en "archivos", nunca en base64.
+
+No hace falta avisar de nada al terminar: cada tarea se cierra sola al guardar la identidad o al publicar la página.
+
+Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.`;
+}
+
+/**
  * Hacer la cola de trabajo entera: identidad visual y todas las páginas.
  *
  * A Claude Design, y con la lista sin enumerar aquí a propósito: la pide él con
@@ -83,18 +115,7 @@ export function claudeQueueUrl(input: {
   launchSlug: string;
   launchName: string;
 }): string {
-  return claudeUrl(
-    CLAUDE_DESIGN,
-    `Con el conector de Botón Rojo, haz el trabajo pendiente del lanzamiento ${input.launchSlug}.
-
-1. trabajo_pendiente con lanzamiento="${input.launchSlug}", para ver la lista y en qué orden.
-2. contexto_lanzamiento y contrato_pagina, una vez, para saber de qué va y qué tiene que llevar el HTML.
-3. Ve haciendo las tareas de una en una, en ese orden. La identidad visual primero: propónmela y, cuando la apruebe, guárdala con guardar_identidad. Después cada página: la diseñas, me la enseñas y la publicas con publicar_pagina.
-
-No hace falta avisar de nada al terminar cada una: se cierran solas. Las imágenes van por url en "archivos", nunca en base64.
-
-Empieza enseñándome la lista y tu propuesta de identidad visual.`,
-  );
+  return claudeUrl(CLAUDE_DESIGN, claudeQueuePrompt(input));
 }
 
 /** Crear una página que el lanzamiento todavía no tiene. */

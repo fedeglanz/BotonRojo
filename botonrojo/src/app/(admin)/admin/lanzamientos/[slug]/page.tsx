@@ -107,7 +107,11 @@ import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
-import { claudeNewPageUrl, claudeQueueUrl } from "@/lib/claude-link";
+import {
+  claudeNewPageUrl,
+  claudeQueueUrl,
+  claudeQueuePrompt,
+} from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
 import { listLaunchTasks } from "@/server/launch-tasks";
 
@@ -278,7 +282,8 @@ export default async function LaunchHubPage(props: {
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
     : [];
   const acLinkedAutomationIds =
-    ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [];
+    ((launch.assetsCache as Record<string, unknown>)
+      ?.acLinkedAutomationIds as string[]) ?? [];
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
@@ -366,6 +371,10 @@ export default async function LaunchHubPage(props: {
           }))}
           hasConnector={connector}
           queueHref={claudeQueueUrl({
+            launchSlug: launch.slug,
+            launchName: launch.name,
+          })}
+          queuePrompt={claudeQueuePrompt({
             launchSlug: launch.slug,
             launchName: launch.name,
           })}
@@ -848,8 +857,17 @@ export default async function LaunchHubPage(props: {
                 <CampaignCalendar
                   launchId={launch.id}
                   emails={
-                    (emailAsset?.body as { emails: Array<{ subject: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> })
-                      ?.emails ?? []
+                    (
+                      emailAsset?.body as {
+                        emails: Array<{
+                          subject: string;
+                          phase?: string;
+                          timing?: string;
+                          sendOffsetDays?: number;
+                          approved?: boolean;
+                        }>;
+                      }
+                    )?.emails ?? []
                   }
                   milestones={launchMilestones.map((m) => ({
                     phase: m.phase,
@@ -858,7 +876,8 @@ export default async function LaunchHubPage(props: {
                     endsAt: m.endsAt.toISOString(),
                   }))}
                   hasCampaigns={Boolean(
-                    (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
+                    (launch.assetsCache as Record<string, unknown>)
+                      ?.acCampaignIds,
                   )}
                   updateOffsetAction={updateEmailOffsetAction}
                 />
