@@ -68,6 +68,10 @@ lanzamientos de otro cliente ni acertando su id.
 | `metricas_lanzamiento` | Visitas, leads, ventas, ingresos y reparto por afiliado |
 | `trabajo_pendiente` | La cola que el panel ha dejado apuntada, en orden |
 | `guardar_identidad` | Guarda paleta, tipografías y estilo, y los deja aprobados |
+| `contrato_email` | Las reglas de un correo, que no son las de una página |
+| `listar_emails` | Las campañas que ya tiene el lanzamiento |
+| `publicar_email` | Publica una campaña diseñada. Solo pro |
+| `borrar_email` | Quita una campaña, por su nombre |
 
 ## Crear un lanzamiento entero desde el panel
 
@@ -101,6 +105,38 @@ El estilo que llega en `guardar_identidad` pasa por el mismo normalizador que el
 panel (`normalizeBrandDesign`), así que un valor que no esté en el vocabulario se
 ajusta al más cercano en vez de llegar a la página. Los colores, en cambio, se
 rechazan si no son hexadecimales: ahí no hay valor cercano que adivinar.
+
+## Campañas de email
+
+En un lanzamiento de Claude, los correos también se diseñan allí. Cada campaña es su
+propio asset, no un elemento de una secuencia: por eso se pueden tener todas las que
+hagan falta y rediseñar una no toca a las demás. Se identifican por su nombre, y
+publicar con un nombre repetido **sustituye** — que es lo que se quiere al corregir una.
+
+El contrato es otro (`src/mcp/email-contract.ts`) porque un email no es una página
+pequeña: es otro medio. CSS en línea porque Gmail borra los `<style>`; tablas porque
+Outlook usa el motor de Word y no conoce flex; 600px; sin JavaScript ni formularios;
+tipografías del sistema porque las de Google no cargan; `alt` en las imágenes porque
+mucha gente abre con las imágenes bloqueadas. Y **prohibidos los `data-br`**: en un
+correo no hay runtime que los cablee, así que un botón de compra ahí es un enlace a la
+página de venta.
+
+La diferencia que decide todo el diseño: **un email es una foto fija**. Lo envía
+ActiveCampaign desde su copia, donde no corre nada nuestro, así que los `{{tokens}}` se
+resuelven **al publicar** y lo que se guarda ya es lo que va a recibir la gente. De ahí
+dos controles al publicar:
+
+- **Un token que no exista hace fallar la publicación.** En una página quedaría raro; en
+  un correo se quedaría escrito para siempre.
+- **Sin `{{url_baja}}` no se publica.** Se convierte en la url de la página de baja si
+  el lanzamiento la tiene (newsletter) y, si no, en `%UNSUBSCRIBELINK%`, que
+  ActiveCampaign sustituye al enviar. Un lanzamiento sin página de baja no puede
+  cumplir un requisito que le pide una página que no tiene: por eso son dos valores y
+  no uno.
+
+El panel las lista con su asunto, deja previsualizar el HTML crudo en otra pestaña —no
+incrustado, que lo pintaría con los estilos del panel encima— y subir cada una a
+ActiveCampaign como plantilla, sin pasar por el envoltorio del generador.
 
 ## El contrato
 
