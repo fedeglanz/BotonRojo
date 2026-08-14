@@ -1363,19 +1363,86 @@ a.fx-orbit__label:focus-visible {
     0 0 2.5rem color-mix(in srgb, var(--planet-color) 45%, transparent);
 }
 
-/* Bandas de nubes, muy sutiles: dan volumen sin dibujar un mundo concreto. */
+/* --- Cuatro planetas distintos ------------------------------------------
+   Cada tipo de lanzamiento tiene su mundo, no el mismo repintado: el mismo
+   degradado en cuatro colores se lee como cuatro copias, y aquí la variedad
+   es la que hace que se distingan de un vistazo.
+
+   La textura va en ::after sobre la esfera, con `mix-blend-mode: overlay` para
+   que respete la luz del degradado de abajo en vez de taparla. */
+
 .planet-body::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: repeating-linear-gradient(
-    -12deg,
-    transparent 0 6%,
-    rgba(255, 255, 255, 0.06) 6% 9%,
-    transparent 9% 15%
-  );
   mix-blend-mode: overlay;
+}
+
+/* Volcánico (venta directa): superficie picada y un resplandor caliente.
+   El lanzamiento más agresivo, el planeta más agresivo. */
+.planet-body[data-kind="volcanico"]::after {
+  background:
+    radial-gradient(circle at 30% 62%, rgba(0, 0, 0, 0.45) 0 8%, transparent 9%),
+    radial-gradient(circle at 62% 32%, rgba(0, 0, 0, 0.4) 0 6%, transparent 7%),
+    radial-gradient(circle at 72% 68%, rgba(0, 0, 0, 0.35) 0 5%, transparent 6%),
+    radial-gradient(circle at 45% 22%, rgba(255, 255, 255, 0.25) 0 4%, transparent 5%),
+    radial-gradient(circle at 20% 40%, rgba(255, 255, 255, 0.15) 0 3%, transparent 4%);
+}
+
+/* Gaseoso (semilla): bandas horizontales, como Júpiter. Crece por capas, que
+   es justo lo que hace una semilla. */
+.planet-body[data-kind="gaseoso"]::after {
+  background: repeating-linear-gradient(
+    -8deg,
+    transparent 0 7%,
+    rgba(255, 255, 255, 0.14) 7% 11%,
+    transparent 11% 16%,
+    rgba(0, 0, 0, 0.16) 16% 19%,
+    transparent 19% 26%
+  );
+}
+
+/* Anillado (PLF): la esfera lisa y limpia; lo que lo identifica es el anillo
+   grande de fuera, que se dibuja aparte. */
+.planet-body[data-kind="anillado"]::after {
+  background: radial-gradient(
+    ellipse 120% 40% at 50% 78%,
+    rgba(0, 0, 0, 0.25),
+    transparent 60%
+  );
+}
+
+/* Helado (newsletter): casquetes polares y superficie tersa. Sin fechas ni
+   urgencia: el planeta tranquilo. */
+.planet-body[data-kind="helado"]::after {
+  background:
+    radial-gradient(ellipse 70% 26% at 50% 4%, rgba(255, 255, 255, 0.55), transparent 70%),
+    radial-gradient(ellipse 60% 22% at 50% 97%, rgba(255, 255, 255, 0.4), transparent 70%),
+    linear-gradient(200deg, transparent 55%, rgba(255, 255, 255, 0.12) 70%, transparent 85%);
+}
+
+/* El anillo grande, solo para el planeta anillado: si lo llevaran todos,
+   volverían a parecerse entre ellos. */
+.planet-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 22%;
+  width: 108%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--ring-color, #fff) 60%, transparent);
+  box-shadow:
+    0 0 1.4rem color-mix(in srgb, var(--ring-color, #fff) 25%, transparent),
+    inset 0 0 0.8rem color-mix(in srgb, var(--ring-color, #fff) 20%, transparent);
+  pointer-events: none;
+}
+
+.planet-ring[data-ring="outer"] {
+  height: 30%;
+  width: 126%;
+  opacity: 0.45;
 }
 
 .planet-orbit {
@@ -1391,6 +1458,11 @@ a.fx-orbit__label:focus-visible {
 .planet-orbit[data-ring="2"] { inset: 12%; animation-duration: var(--orbit-duration, 18s); animation-direction: reverse; }
 .planet-orbit[data-ring="3"] { inset: 24%; animation-duration: var(--orbit-duration, 34s); }
 
+/* Cada luna con su color, y el estado en el brillo.
+   Antes el color decía si la página estaba hecha (verde) o no (gris), y eso
+   impedía darle color propio a cada una. Ahora el color identifica a la luna y
+   el brillo dice el estado: encendida es que está hecha, apagada que falta. Se
+   sigue leyendo de un vistazo y además no hay dos lunas iguales. */
 .planet-moon {
   position: absolute;
   top: -0.28rem;
@@ -1400,7 +1472,20 @@ a.fx-orbit__label:focus-visible {
   margin-left: -0.275rem;
   border-radius: 50%;
   background: var(--moon-color, #a1a1aa);
-  box-shadow: 0 0 0.55rem var(--moon-color, #a1a1aa);
+  box-shadow: 0 0 0.6rem var(--moon-color, #a1a1aa);
+}
+
+/* Pendiente: la misma luna sin encender. Más pequeña, hueca y sin halo — se ve
+   que está ahí y que todavía no cuenta. */
+.planet-moon[data-state="pendiente"] {
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: -0.2rem;
+  top: -0.2rem;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--moon-color, #a1a1aa) 55%, transparent);
+  box-shadow: none;
+  opacity: 0.7;
 }
 
 /* La luna gira al revés que su órbita para no quedar siempre con la misma cara

@@ -3,30 +3,48 @@ import type { BrandPalette } from "@/db/schema/launches";
 /**
  * Un lanzamiento, dibujado como un planeta con sus lunas.
  *
- * Las lunas no son adorno: cada una es una página del lanzamiento y su color dice
- * en qué estado está. Así el planeta responde de un vistazo a la pregunta con la que
- * uno entra al panel —qué está terminado y qué está a medias— en vez de obligar a
- * abrir cada lanzamiento para averiguarlo.
+ * Dos cosas que se leen de un vistazo y por eso no son adorno:
  *
- * Todo en CSS con custom properties en vez de SVG por planeta: los colores salen de
- * la paleta de cada lanzamiento, que no se conoce hasta que se pinta, y un degradado
- * radial da la esfera mejor que cualquier dibujo. El bloque global de
+ * · **Qué tipo de lanzamiento es**, por la superficie del planeta. Cada tipo tiene su
+ *   mundo —volcánico, gaseoso, anillado, helado— en vez del mismo degradado en cuatro
+ *   colores, que se leía como cuatro copias del mismo planeta.
+ * · **Qué está hecho**, por las lunas: cada una es una página. El color identifica a
+ *   la luna y el brillo dice su estado, encendida o apagada. Antes el color decía el
+ *   estado, y eso impedía que cada luna tuviera el suyo.
+ *
+ * Todo en CSS con custom properties en vez de un SVG por planeta: los colores salen de
+ * la paleta de cada lanzamiento y no se conocen hasta que se pinta. El bloque global de
  * `prefers-reduced-motion` ya detiene las órbitas.
  */
 
 export type MoonState = "hecha" | "claude" | "pendiente";
 
-const MOON_COLORS: Record<MoonState, string> = {
-  // Verde para lo generado, esmeralda claro para lo diseñado en Claude, gris para
-  // lo que falta: el mismo código de color que usa el listado de páginas.
-  hecha: "#34d399",
-  claude: "#6ee7b7",
-  pendiente: "#52525b",
-};
+/** El mundo de cada tipo de lanzamiento. */
+export type PlanetKind = "volcanico" | "gaseoso" | "anillado" | "helado";
+
+/**
+ * Los colores de las lunas.
+ *
+ * Una rueda de tonos bien separados entre sí: se recorren en orden, así que dos lunas
+ * seguidas nunca son del mismo color aunque el planeta tenga ocho páginas. No salen de
+ * la paleta de la marca a propósito — una paleta de marca son dos o tres colores
+ * próximos, y con ellos las lunas volverían a parecer la misma repetida.
+ */
+const MOON_COLORS = [
+  "#34d399",
+  "#f59e0b",
+  "#38bdf8",
+  "#f472b6",
+  "#a78bfa",
+  "#facc15",
+  "#fb7185",
+  "#2dd4bf",
+];
 
 export function Planet({
   palette,
   fallbackColor,
+  kind,
   moons,
   size = "7rem",
   label,
@@ -34,6 +52,7 @@ export function Planet({
   palette: BrandPalette | null;
   /** Cuando el lanzamiento aún no tiene paleta aprobada. */
   fallbackColor: string;
+  kind: PlanetKind;
   /** Una por página, en el orden del lanzamiento. */
   moons: MoonState[];
   size?: string;
@@ -42,11 +61,11 @@ export function Planet({
   const planetColor = palette?.primary || fallbackColor;
   const accent = palette?.accent || fallbackColor;
 
-  // Tres anillos como máximo: con más, las lunas se pisan y el planeta se lee como
-  // una maraña. Las páginas de sobra se reparten entre los anillos que hay.
-  const rings: MoonState[][] = [[], [], []];
-  moons.forEach((moon, i) => {
-    rings[i % 3]!.push(moon);
+  // Tres anillos como máximo: con más, las lunas se pisan y el planeta se lee como una
+  // maraña. Las de sobra se reparten entre los que hay.
+  const rings: Array<Array<{ state: MoonState; color: string }>> = [[], [], []];
+  moons.forEach((state, i) => {
+    rings[i % 3]!.push({ state, color: MOON_COLORS[i % MOON_COLORS.length]! });
   });
 
   return (
@@ -71,13 +90,11 @@ export function Planet({
               <span
                 key={moonIndex}
                 className="planet-moon"
+                data-state={moon.state}
                 style={{
-                  ["--moon-color" as string]:
-                    moon === "pendiente"
-                      ? MOON_COLORS.pendiente
-                      : MOON_COLORS[moon],
-                  // Repartidas por el anillo: sin esto todas saldrían del mismo
-                  // punto y se moverían pegadas.
+                  ["--moon-color" as string]: moon.color,
+                  // Repartidas por el anillo: sin esto todas saldrían del mismo punto
+                  // y se moverían pegadas.
                   transform: `rotate(${(360 / ring.length) * moonIndex}deg)`,
                   transformOrigin: "50% calc(var(--planet-size) / 2)",
                 }}
@@ -87,23 +104,25 @@ export function Planet({
         ),
       )}
 
-      <div
-        className="planet-body"
-        style={{ ["--planet-color" as string]: planetColor }}
-        aria-hidden
-      />
+      <div className="planet-body" data-kind={kind} aria-hidden />
 
-      {/* Un anillo de acento fijo, sin girar: da la silueta de planeta con anillo
-          y usa el segundo color de la marca, que si no no aparecería por ningún
-          lado. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[16%] w-[92%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] rounded-[50%] border"
-        style={{
-          borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
-          boxShadow: `0 0 1.5rem color-mix(in srgb, ${accent} 25%, transparent)`,
-        }}
-      />
+      {/* El anillo es lo que identifica al planeta anillado, así que solo lo lleva él:
+          puesto en todos, los cuatro volverían a parecerse. */}
+      {kind === "anillado" && (
+        <>
+          <div
+            className="planet-ring"
+            style={{ ["--ring-color" as string]: accent }}
+            aria-hidden
+          />
+          <div
+            className="planet-ring"
+            data-ring="outer"
+            style={{ ["--ring-color" as string]: accent }}
+            aria-hidden
+          />
+        </>
+      )}
     </div>
   );
 }

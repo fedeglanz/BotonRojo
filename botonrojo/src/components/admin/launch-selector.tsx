@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
-import { Planet, type MoonState } from "@/components/admin/planet";
+import {
+  Planet,
+  type MoonState,
+  type PlanetKind,
+} from "@/components/admin/planet";
 import type { BrandPalette } from "@/db/schema/launches";
 
 type LaunchSummary = {
@@ -31,6 +35,21 @@ const TYPE_PLANET_COLOR: Record<LaunchType, string> = {
   semilla: "#d946ef",
   plf: "#8b5cf6",
   newsletter: "#0ea5e9",
+};
+
+/**
+ * El mundo de cada tipo.
+ *
+ * No es decoración repartida al azar: cada uno dice algo del lanzamiento. El volcánico
+ * para el evento con cierre, el gaseoso —que crece por capas— para la semilla, el
+ * anillado para el PLF con su secuencia alrededor, y el helado para la newsletter, que
+ * no tiene urgencia ninguna.
+ */
+const TYPE_PLANET_KIND: Record<LaunchType, PlanetKind> = {
+  venta_directa: "volcanico",
+  semilla: "gaseoso",
+  plf: "anillado",
+  newsletter: "helado",
 };
 
 export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
@@ -65,8 +84,9 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                   <Planet
                     palette={null}
                     fallbackColor={TYPE_PLANET_COLOR[key]}
+                    kind={TYPE_PLANET_KIND[key]}
                     moons={[]}
-                    size="3.25rem"
+                    size="3.5rem"
                   />
                   <div>
                     <div className="font-[family-name:var(--font-display)] text-lg font-bold">
@@ -120,6 +140,7 @@ export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {
                     <Planet
                       palette={l.palette}
                       fallbackColor={TYPE_PLANET_COLOR[l.type]}
+                      kind={TYPE_PLANET_KIND[l.type]}
                       moons={l.moons}
                       size="8.5rem"
                       label={`${l.name}: ${hechas} de ${l.pageCount} páginas hechas`}
