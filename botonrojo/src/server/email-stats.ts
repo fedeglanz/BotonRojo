@@ -124,8 +124,10 @@ export async function getEmailStatsForLaunch(launchId: string): Promise<LaunchEm
 
   if (!rawCampaigns.length) {
     const found = await ac.findCampaignsByPrefix(launch.slug);
-    if (found.length) {
-      rawCampaigns = await ac.getCampaignsWithStats(found.map((c) => c.id));
+    // AC search is fuzzy — filter to only campaigns whose name starts with the slug
+    const exact = found.filter((c) => c.name.startsWith(launch.slug));
+    if (exact.length) {
+      rawCampaigns = await ac.getCampaignsWithStats(exact.map((c) => c.id));
     }
   }
 
@@ -169,8 +171,9 @@ export async function getAllEmailStats(): Promise<LaunchEmailStats[]> {
 
     if (!rawCampaigns.length) {
       const found = await ac.findCampaignsByPrefix(launch.slug);
-      if (found.length) {
-        rawCampaigns = await ac.getCampaignsWithStats(found.map((c) => c.id));
+      const exact = found.filter((c) => c.name.startsWith(launch.slug));
+      if (exact.length) {
+        rawCampaigns = await ac.getCampaignsWithStats(exact.map((c) => c.id));
       }
     }
 
