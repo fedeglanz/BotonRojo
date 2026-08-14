@@ -810,9 +810,96 @@ export default async function LaunchHubPage(props: {
             )}
           </WizardStep>
 
-          {/* Step 5 — Anuncios */}
+          {/* Step 5 — ActiveCampaign */}
           <WizardStep
             index={5}
+            title="ActiveCampaign"
+            subtitle="Crea lista + tags, sube plantillas y programa campanas automaticamente."
+            status={!acConfigured ? "needs-prev" : hasAc ? "ready" : "empty"}
+          >
+            <ActiveCampaignPanel
+              launchId={launch.id}
+              launchSlug={launch.slug}
+              configured={acConfigured}
+              listId={launch.activeCampaignListId ?? null}
+              tagIds={
+                (launch.activeCampaignTagIds ?? {}) as Record<string, number>
+              }
+              hasEmails={hasEmails}
+              emailAssetId={emailAsset?.id ?? null}
+              hasTemplates={Boolean(
+                (launch.assetsCache as Record<string, unknown>)?.acTemplateIds,
+              )}
+              hasCampaigns={Boolean(
+                (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
+              )}
+              hasMilestones={hasMilestones}
+              provisionAction={provisionActiveCampaignAction}
+              pushEmailsAction={pushEmailsToActiveCampaignAction}
+              scheduleCampaignsAction={scheduleAcCampaignsAction}
+            />
+
+            {/* Campaign Calendar */}
+            {hasEmails && hasMilestones && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Calendario de envios
+                </h3>
+                <CampaignCalendar
+                  launchId={launch.id}
+                  emails={
+                    (
+                      emailAsset?.body as {
+                        emails: Array<{
+                          subject: string;
+                          phase?: string;
+                          timing?: string;
+                          sendOffsetDays?: number;
+                          approved?: boolean;
+                        }>;
+                      }
+                    )?.emails ?? []
+                  }
+                  milestones={launchMilestones.map((m) => ({
+                    phase: m.phase,
+                    label: m.label,
+                    startsAt: m.startsAt.toISOString(),
+                    endsAt: m.endsAt.toISOString(),
+                  }))}
+                  hasCampaigns={Boolean(
+                    (launch.assetsCache as Record<string, unknown>)
+                      ?.acCampaignIds,
+                  )}
+                  updateOffsetAction={updateEmailOffsetAction}
+                />
+              </div>
+            )}
+
+            {/* AC Automations */}
+            {acConfigured && acAutomations.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Automatizaciones AC
+                </h3>
+                <AcAutomationsPanel
+                  launchId={launch.id}
+                  automations={acAutomations.map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    status: a.status,
+                    entered: a.entered,
+                  }))}
+                  linkedAutomationIds={acLinkedAutomationIds}
+                  linkAction={linkAcAutomationAction}
+                  unlinkAction={unlinkAcAutomationAction}
+                />
+              </div>
+            )}
+          </WizardStep>
+
+          {/* Step 6 — Anuncios */}
+          <WizardStep
+            index={6}
             title="Anuncios Meta + Google"
             subtitle="Copy con los límites de cada plataforma + estáticos compuestos sobre tus fotos."
             status={!hasMarco ? "needs-prev" : adsAsset ? "ready" : "empty"}
@@ -901,96 +988,9 @@ export default async function LaunchHubPage(props: {
             </WizardStep>
           )}
 
-          {/* Step 7 — ActiveCampaign */}
+          {/* Step 7 — Dominio propio */}
           <WizardStep
             index={7}
-            title="ActiveCampaign"
-            subtitle="Crea lista + tags, sube plantillas y programa campanas automaticamente."
-            status={!acConfigured ? "needs-prev" : hasAc ? "ready" : "empty"}
-          >
-            <ActiveCampaignPanel
-              launchId={launch.id}
-              launchSlug={launch.slug}
-              configured={acConfigured}
-              listId={launch.activeCampaignListId ?? null}
-              tagIds={
-                (launch.activeCampaignTagIds ?? {}) as Record<string, number>
-              }
-              hasEmails={hasEmails}
-              emailAssetId={emailAsset?.id ?? null}
-              hasTemplates={Boolean(
-                (launch.assetsCache as Record<string, unknown>)?.acTemplateIds,
-              )}
-              hasCampaigns={Boolean(
-                (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
-              )}
-              hasMilestones={hasMilestones}
-              provisionAction={provisionActiveCampaignAction}
-              pushEmailsAction={pushEmailsToActiveCampaignAction}
-              scheduleCampaignsAction={scheduleAcCampaignsAction}
-            />
-
-            {/* Campaign Calendar */}
-            {hasEmails && hasMilestones && (
-              <div className="mt-6 space-y-2">
-                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                  Calendario de envios
-                </h3>
-                <CampaignCalendar
-                  launchId={launch.id}
-                  emails={
-                    (
-                      emailAsset?.body as {
-                        emails: Array<{
-                          subject: string;
-                          phase?: string;
-                          timing?: string;
-                          sendOffsetDays?: number;
-                          approved?: boolean;
-                        }>;
-                      }
-                    )?.emails ?? []
-                  }
-                  milestones={launchMilestones.map((m) => ({
-                    phase: m.phase,
-                    label: m.label,
-                    startsAt: m.startsAt.toISOString(),
-                    endsAt: m.endsAt.toISOString(),
-                  }))}
-                  hasCampaigns={Boolean(
-                    (launch.assetsCache as Record<string, unknown>)
-                      ?.acCampaignIds,
-                  )}
-                  updateOffsetAction={updateEmailOffsetAction}
-                />
-              </div>
-            )}
-
-            {/* AC Automations */}
-            {acConfigured && acAutomations.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                  Automatizaciones AC
-                </h3>
-                <AcAutomationsPanel
-                  launchId={launch.id}
-                  automations={acAutomations.map((a) => ({
-                    id: a.id,
-                    name: a.name,
-                    status: a.status,
-                    entered: a.entered,
-                  }))}
-                  linkedAutomationIds={acLinkedAutomationIds}
-                  linkAction={linkAcAutomationAction}
-                  unlinkAction={unlinkAcAutomationAction}
-                />
-              </div>
-            )}
-          </WizardStep>
-
-          {/* Step 8 — Dominio propio */}
-          <WizardStep
-            index={8}
             title="Dominio propio"
             subtitle="Conecta el dominio o subdominio del cliente para servir esta landing directamente."
             status={hasActiveDomain ? "ready" : "empty"}
@@ -1007,9 +1007,9 @@ export default async function LaunchHubPage(props: {
             />
           </WizardStep>
 
-          {/* Step 9 — Telegram */}
+          {/* Step 8 — Telegram */}
           <WizardStep
-            index={9}
+            index={8}
             title="Telegram"
             subtitle="Conecta un grupo o canal de Telegram para enviar comunicaciones del lanzamiento."
             status={

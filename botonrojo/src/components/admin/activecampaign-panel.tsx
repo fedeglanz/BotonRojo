@@ -12,7 +12,7 @@ type Props = {
   hasTemplates: boolean;
   hasCampaigns: boolean;
   hasMilestones: boolean;
-  provisionAction: (launchId: string) => Promise<void>;
+  provisionAction: (launchId: string, formData: FormData) => Promise<void>;
   pushEmailsAction: (launchId: string, assetId: string) => Promise<void>;
   scheduleCampaignsAction: (launchId: string) => Promise<void>;
 };
@@ -35,14 +35,20 @@ export function ActiveCampaignPanel({
   if (!configured) {
     return (
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
-        ActiveCampaign no esta configurado. Agrega <code>ACTIVECAMPAIGN_API_URL</code> y{" "}
-        <code>ACTIVECAMPAIGN_API_KEY</code> en <code>.env</code> y reinicia la app.
+        ActiveCampaign no esta configurado. Conectalo desde Ajustes &gt; Integraciones.
       </div>
     );
   }
 
   const provisioned = Boolean(listId);
   const canSchedule = provisioned && hasTemplates && hasMilestones;
+
+  // Detect if tags have a custom prefix (tag name != launchSlug-suffix)
+  const currentTagBase = Object.entries(tagIds).length > 0
+    ? Object.entries(tagIds)[0]?.[0] === "registro"
+      ? undefined // we can't detect prefix from the stored data, it's just {registro: id}
+      : undefined
+    : undefined;
 
   return (
     <div className="space-y-4">
@@ -60,7 +66,7 @@ export function ActiveCampaignPanel({
             {Object.keys(tagIds).length === 0 && <div className="text-zinc-500">— sin provisionar —</div>}
             {Object.entries(tagIds).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between text-zinc-300">
-                <span>{launchSlug}-{k}</span>
+                <span>{k}</span>
                 <span className="text-zinc-500">#{v}</span>
               </div>
             ))}
@@ -69,13 +75,29 @@ export function ActiveCampaignPanel({
       </div>
 
       {/* Step 1: Provision list + tags */}
-      <div className="flex flex-wrap items-center gap-3">
-        <form action={provisionAction.bind(null, launchId)}>
+      <form action={provisionAction.bind(null, launchId)} className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-widest text-zinc-500">
+              Prefijo de tags (opcional)
+            </span>
+            <input
+              name="tagPrefix"
+              type="text"
+              placeholder={`ej: prueba, test, v2`}
+              className="mt-1 w-48 rounded-lg border border-white/10 bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-xs text-white outline-none focus:border-white/30"
+            />
+          </label>
           <SubmitButton variant={provisioned ? "outline" : "primary"} pendingLabel="Conectando…">
             {provisioned ? "Re-sincronizar lista y tags" : "1. Crear lista y tags en AC"}
           </SubmitButton>
-        </form>
-      </div>
+        </div>
+        <p className="text-[10px] text-zinc-600">
+          Tags: <span className="text-zinc-500">[prefijo-]{launchSlug}-registro</span>,{" "}
+          <span className="text-zinc-500">[prefijo-]{launchSlug}-comprador</span>, etc.
+          Si dejas vacio usa solo el slug.
+        </p>
+      </form>
 
       {/* Step 2: Push email templates */}
       <div className="flex flex-wrap items-center gap-3">
@@ -117,8 +139,7 @@ export function ActiveCampaignPanel({
       {provisioned && (
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
           Cuando un lead entre con <code>?launch={launchSlug}</code> y deje email, se sincronizara
-          automaticamente en AC con la lista y el tag correspondiente (<code>{launchSlug}-registro</code>{" "}
-          para leads, <code>{launchSlug}-comprador</code> tras checkout Stripe).
+          automaticamente en AC con la lista y el tag correspondiente.
         </div>
       )}
     </div>

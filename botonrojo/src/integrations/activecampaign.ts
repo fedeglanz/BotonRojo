@@ -334,12 +334,22 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
 
   // ---- High-level helpers ----
 
-  async function provisionLaunchInAc(input: { launchSlug: string; launchName: string; publicUrl: string }) {
+  async function provisionLaunchInAc(input: {
+    launchSlug: string;
+    launchName: string;
+    publicUrl: string;
+    tagPrefix?: string;
+  }) {
     const list = await findOrCreateList({
       name: `Lanz: ${input.launchName}`,
       senderUrl: input.publicUrl,
       senderReminder: `Te suscribiste en ${input.publicUrl}`,
     });
+
+    // Tag base: optional prefix + slug, e.g. "prueba-mi-primera-inversion"
+    const tagBase = input.tagPrefix
+      ? `${input.tagPrefix}-${input.launchSlug}`
+      : input.launchSlug;
 
     const tagSpecs = [
       { key: "registro", suffix: "-registro", description: "Registro / lead" },
@@ -350,11 +360,11 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
 
     const tagIds: Record<string, number> = {};
     for (const t of tagSpecs) {
-      const tag = await findOrCreateTag(`${input.launchSlug}${t.suffix}`, t.description);
+      const tag = await findOrCreateTag(`${tagBase}${t.suffix}`, t.description);
       tagIds[t.key] = Number(tag.id);
     }
 
-    return { listId: Number(list.id), tagIds };
+    return { listId: Number(list.id), tagIds, tagBase };
   }
 
   async function syncLeadToAc(input: {

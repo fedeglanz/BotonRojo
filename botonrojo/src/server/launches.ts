@@ -2760,18 +2760,20 @@ export async function deleteStripeProductAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function provisionActiveCampaignAction(launchId: string) {
+export async function provisionActiveCampaignAction(launchId: string, formData: FormData) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
   if (!ac) throw new Error("activecampaign_not_configured");
 
   const launch = await getOrgLaunch(launchId, organizationId);
+  const tagPrefix = String(formData.get("tagPrefix") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "") || undefined;
 
   const publicUrl = `${env.APP_URL}/${launch.slug}`;
   const { listId, tagIds } = await ac.provisionLaunchInAc({
     launchSlug: launch.slug,
     launchName: launch.name,
     publicUrl,
+    tagPrefix,
   });
 
   await db
