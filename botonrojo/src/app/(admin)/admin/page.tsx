@@ -73,9 +73,9 @@ export default async function AdminHomePage() {
           Tu galaxia de lanzamientos
         </h1>
         <p className="mt-2 max-w-2xl text-zinc-400">
-          Cada lanzamiento es un planeta y cada luna, una de sus páginas: en
-          verde las que están hechas, apagadas las que faltan. Elige un tipo
-          para crear uno nuevo, o entra en el que ya tengas.
+          Cada tipo de lanzamiento es un planeta distinto y cada luna, una de
+          sus páginas: encendidas las que están hechas, apagadas las que faltan.
+          Elige un tipo para crear uno nuevo, o entra en el que ya tengas.
         </p>
       </div>
 
