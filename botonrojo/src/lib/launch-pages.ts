@@ -53,7 +53,16 @@ export type PageKind =
   | "venta"
   | "contenido"
   | "legal"
-  | "afiliados";
+  | "afiliados"
+  /**
+   * Solo en newsletter. En los demás tipos el "gracias" es la ruta compartida
+   * `/gracias` — siempre existe, distingue lead de compra y no hay que generarla.
+   * Pero en una lista o un lead magnet esa página ES la entrega: ahí está la
+   * descarga y lo que pasa a partir de ahora. Eso sí se diseña.
+   */
+  | "gracias"
+  /** Darse de baja de la lista. Solo en newsletter. */
+  | "baja";
 
 export type PageDef = {
   pageKey: string;
@@ -114,6 +123,25 @@ export function resolvePages(
       isEntry: true,
     });
     pages.push({ pageKey: "venta", kind: "venta", label: "Venta" });
+  }
+
+  // Newsletter: captar y entregar, nada más. Sin venta, sin contenido con goteo y
+  // sin countdown, porque no hay fecha hacia la que contar. La página de gracias es
+  // la entrega —ahí está la descarga—, y la de baja tiene que existir por ley y por
+  // decencia: quien se apunta tiene que poder irse en un clic.
+  if (!legacy && type === "newsletter") {
+    pages.push({
+      pageKey: "registro",
+      kind: "registro",
+      label: "Registro",
+      isEntry: true,
+    });
+    pages.push({
+      pageKey: "gracias",
+      kind: "gracias",
+      label: "Gracias y entrega",
+    });
+    pages.push({ pageKey: "baja", kind: "baja", label: "Baja de la lista" });
   }
 
   if (!legacy && type === "venta_directa") {

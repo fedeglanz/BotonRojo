@@ -1,14 +1,20 @@
 import Link from "next/link";
 
 import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
-import { ClaudeButton } from "@/components/admin/claude-button";
-import { claudeDesignPageUrl, claudeEditPageUrl } from "@/lib/claude-link";
+import { ClaudeGoButton } from "@/components/admin/claude-go-button";
+import {
+  CLAUDE_DESIGN_URL,
+  claudeDesignPagePrompt,
+  claudeEditPagePrompt,
+} from "@/lib/claude-link";
 
 const KIND_LABELS: Record<PageDef["kind"], string> = {
   registro: "Captación",
   venta: "Venta",
   contenido: "Entrega",
   afiliados: "Afiliados",
+  gracias: "Entrega",
+  baja: "Baja",
   legal: "Legal",
 };
 
@@ -27,6 +33,7 @@ const IN_PAGE_EDITABLE = new Set<PageDef["kind"]>([
   "venta",
   "contenido",
   "afiliados",
+  "gracias",
 ]);
 
 /**
@@ -114,19 +121,20 @@ export function PageIndex({
               </a>
 
               {page.kind !== "legal" && (
-                <ClaudeButton
+                <ClaudeGoButton
                   hasConnector={hasConnector}
                   label={fromClaude ? "Cambiar en Claude" : "Con Claude"}
-                  href={
+                  href={CLAUDE_DESIGN_URL}
+                  prompt={
                     fromClaude
-                      ? claudeEditPageUrl({
+                      ? claudeEditPagePrompt({
                           launchSlug,
                           launchName,
                           pageKey: page.pageKey,
                           pageLabel: page.label,
                           publicUrl: `${appUrl}${pagePath(launchSlug, page)}`,
                         })
-                      : claudeDesignPageUrl({
+                      : claudeDesignPagePrompt({
                           launchSlug,
                           launchName,
                           pageKey: page.pageKey,

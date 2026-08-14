@@ -173,6 +173,33 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     });
   }
 
+  /**
+   * Da de baja un email de una lista.
+   *
+   * En ActiveCampaign la baja es el mismo endpoint que la suscripción con
+   * `status: 2`; no hay un "borrar de la lista", y borrar el contacto sería peor:
+   * perdería el histórico y, si vuelve a registrarse, no habría forma de saber que
+   * un día pidió no recibir nada.
+   *
+   * Silencioso si el contacto no existe: quien pulsa un enlace de baja tiene que
+   * quedarse de baja, y si nunca estuvo en la lista el resultado ya es el que quería.
+   */
+  async function unsubscribeFromList(email: string, listId: string | number): Promise<boolean> {
+    const found = await ac<{ contacts: Array<{ id: string }> }>(
+      `/contacts?email=${encodeURIComponent(email)}`,
+    ).catch(() => null);
+    const contactId = found?.contacts?.[0]?.id;
+    if (!contactId) return false;
+
+    await ac("/contactLists", {
+      method: "POST",
+      body: JSON.stringify({
+        contactList: { list: String(listId), contact: contactId, status: 2 },
+      }),
+    });
+    return true;
+  }
+
   async function createEmailTemplate(input: {
     name: string;
     subject: string;
@@ -375,6 +402,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     createList,
     findOrCreateList,
     subscribeToList,
+    unsubscribeFromList,
     createEmailTemplate,
     createCampaign,
     findCampaignsByPrefix,

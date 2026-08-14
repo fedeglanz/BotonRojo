@@ -31,6 +31,7 @@ import {
 import { createId } from "@/lib/ids";
 import {
   isCustomPageBody,
+  replaceTokens,
   rewriteAssetPaths,
   unresolvedReferences,
   type CustomPageAssets,
@@ -48,6 +49,8 @@ import {
 } from "@/lib/design/brand-design";
 import type { BrandFonts, BrandPalette } from "@/db/schema/launches";
 import { PAGE_CONTRACT } from "./contract";
+import { EMAIL_CONTRACT } from "./email-contract";
+import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { canPublishCustomPages, type McpAuth } from "./auth";
 
 /**
@@ -183,6 +186,27 @@ async function addExtraPage(
   return pageDef;
 }
 
+/** "97 €", "39,90 €" — como se lee, no en céntimos. */
+function formatMoney(cents: number, currency: string): string {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
+}
+
+/** "6 de octubre a las 12:00", o vacío si no hay fecha. */
+function formatDate(date: Date | null): string {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  }).format(date);
+}
+
 /** Un color de marca o un error que se entiende. */
 function hexOrFail(raw: unknown, field: string): string {
   const value = String(raw ?? "").trim();
@@ -192,6 +216,83 @@ function hexOrFail(raw: unknown, field: string): string {
     );
   }
   return value.toLowerCase();
+}
+
+/**
+ * A dónde lleva el enlace de baja de un correo.
+ *
+ * Solo los lanzamientos de tipo newsletter tienen página de baja propia. Los demás no
+ * la necesitan: sus correos son una secuencia de lanzamiento y quien gestiona la baja
+ * es ActiveCampaign, que sustituye `%UNSUBSCRIBELINK%` por el enlace de la cuenta al
+ * enviar.
+ *
+ * Devolver siempre algo inequívoco —y nunca la portada del lanzamiento, que era el
+ * comodín de antes— es lo que hace que la comprobación al publicar signifique algo: la
+ * portada coincidía con el enlace de registro, así que un correo sin enlace de baja
+ * pasaba el control como si lo tuviera.
+ */
+function unsubscribeTarget(launch: {
+  type: string;
+  pageConfig: PageConfig | null;
+  slug: string;
+}): { value: string; esPagina: boolean } {
+  const page = resolvePages(launch.type as LaunchType, launch.pageConfig).find(
+    (p) => p.kind === "baja",
+  );
+  return page
+    ? { value: absoluteUrl(pagePath(launch.slug, page)), esPagina: true }
+    : { value: "%UNSUBSCRIBELINK%", esPagina: false };
+}
+
+/**
+ * Los valores que se sustituyen al publicar una campaña.
+ *
+ * En absoluto y no en relativo: un correo se abre fuera de nuestro dominio, así que
+ * "/registro" no lleva a ninguna parte.
+ */
+async function emailTokensFor(launch: {
+  id: string;
+  slug: string;
+  name: string;
+  type: string;
+  pageConfig: PageConfig | null;
+  promise: string | null;
+  currency: string | null;
+  defaultPriceCents: number | null;
+  installmentCount: number | null;
+  installmentPriceCents: number | null;
+  cartClosesAt: Date | null;
+  registrationClosesAt: Date | null;
+}): Promise<Record<string, string>> {
+  const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
+  const urlOf = (kind: string, fallback = `/${launch.slug}`) => {
+    const page = pages.find((p) => p.kind === kind);
+    return absoluteUrl(page ? pagePath(launch.slug, page) : fallback);
+  };
+  const currency = launch.currency ?? "EUR";
+
+  return {
+    nombre: launch.name,
+    promesa: launch.promise ?? "",
+    slug: launch.slug,
+    precio: launch.defaultPriceCents
+      ? formatMoney(launch.defaultPriceCents, currency)
+      : "",
+    precio_sin_formato: launch.defaultPriceCents
+      ? String(launch.defaultPriceCents / 100)
+      : "",
+    moneda: currency.toUpperCase(),
+    plazos:
+      launch.installmentCount && launch.installmentPriceCents
+        ? `${launch.installmentCount} pagos de ${formatMoney(launch.installmentPriceCents, currency)}`
+        : "",
+    cierre_carrito: formatDate(launch.cartClosesAt),
+    cierre_registro: formatDate(launch.registrationClosesAt),
+    url_registro: urlOf("registro"),
+    url_venta: urlOf("venta"),
+    url_gracias: urlOf("gracias", "/gracias"),
+    url_baja: unsubscribeTarget(launch).value,
+  };
 }
 
 function absoluteUrl(path: string): string {
@@ -283,6 +384,37 @@ const contextoLanzamiento: ToolDef = {
         // The design system already chosen for this launch — a page designed
         // outside should look like the rest of it, not like a different product.
         diseno: launch.brandDesign,
+      },
+      /**
+       * Los mismos datos ya escritos como se leen, para pegarlos en el diseño.
+       *
+       * Antes solo se daban en céntimos y en ISO, así que para poner un precio en
+       * la página había que calcularlo o tirar de un {{token}} — y un token se ve
+       * literal en la vista previa de Claude Design, donde no se puede juzgar el
+       * diseño. Con el valor hecho, el diseño se ve terminado desde el primer
+       * momento.
+       */
+      valores_listos: {
+        nombre: launch.name,
+        promesa: launch.promise ?? "",
+        precio: launch.defaultPriceCents
+          ? formatMoney(launch.defaultPriceCents, launch.currency ?? "EUR")
+          : "",
+        plazos:
+          launch.installmentCount && launch.installmentPriceCents
+            ? `${launch.installmentCount} pagos de ${formatMoney(launch.installmentPriceCents, launch.currency ?? "EUR")}`
+            : "",
+        cierre_carrito: formatDate(launch.cartClosesAt),
+        cierre_registro: formatDate(launch.registrationClosesAt),
+        url_registro: (() => {
+          const page = pages.find((p) => p.kind === "registro");
+          return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+        })(),
+        url_venta: (() => {
+          const page = pages.find((p) => p.kind === "venta");
+          return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
+        })(),
+        url_gracias: "/gracias",
       },
       precios: {
         pago_unico_centimos: launch.defaultPriceCents,
@@ -489,9 +621,20 @@ const publicarPagina: ToolDef = {
       `/admin/lanzamientos/${launch.slug}/paginas/${pageDef.pageKey}`,
     );
 
+    // Los {{tokens}} siguen funcionando, pero avisan: en la vista previa se ven
+    // literales, así que quien diseña no puede juzgar la página.
+    const tokensUsados = [
+      ...new Set(html.match(/\{\{\s*[a-z_]+\s*\}\}/gi) ?? []),
+    ];
+
     return {
       publicada: true,
       url: absoluteUrl(path),
+      ...(tokensUsados.length
+        ? {
+            aviso_tokens: `El HTML lleva ${tokensUsados.join(", ")}. Funcionan, pero en la vista previa se ven literales: mejor escribe el valor real (lo tienes en contexto_lanzamiento → valores_listos) y marca con data-br lo que puede cambiar.`,
+          }
+        : {}),
       archivos_alojados: Object.keys(files).length,
       aviso:
         "La página ya está en vivo. La medición, el formulario, el pago y los afiliados están cableados por la plataforma.",
@@ -626,16 +769,40 @@ const trabajoPendiente: ToolDef = {
       };
     }
 
-    // El slug de cada lanzamiento, que es lo que piden el resto de herramientas.
+    // El slug de cada lanzamiento, que es lo que piden el resto de herramientas, y
+    // lo que le falta para poder diseñar sus páginas. Va aquí y no solo en
+    // contexto_lanzamiento para que se pregunte ANTES de empezar: la primera vez que
+    // se usó esto, Claude descubrió a mitad del trabajo que no había promesa ni
+    // fechas, y tuvo que parar a preguntar con una identidad ya propuesta.
     const slugs = new Map<string, string>();
+    const gaps = new Map<string, string[]>();
     for (const task of tasks) {
       if (slugs.has(task.launchId)) continue;
       const [row] = await db
-        .select({ slug: launches.slug })
+        .select()
         .from(launches)
         .where(eq(launches.id, task.launchId))
         .limit(1);
-      if (row) slugs.set(task.launchId, row.slug);
+      if (!row) continue;
+      slugs.set(task.launchId, row.slug);
+
+      const falta: string[] = [];
+      if (!row.promise || !row.avatar) {
+        falta.push(
+          "no hay promesa ni avatar guardados: pregúntale de qué va y a quién va dirigido antes de escribir el copy de las páginas",
+        );
+      }
+      if (!row.cartClosesAt && !row.registrationClosesAt) {
+        falta.push(
+          "no hay fechas de cierre: pregúntaselas si la página lleva cuenta atrás, o no la pongas",
+        );
+      }
+      if (!row.defaultPriceCents) {
+        falta.push(
+          "no hay precio guardado: pregúntaselo si la página vende algo",
+        );
+      }
+      if (falta.length) gaps.set(task.launchId, falta);
     }
 
     return {
@@ -646,6 +813,12 @@ const trabajoPendiente: ToolDef = {
         titulo: task.label,
         instruccion: task.instruction,
       })),
+      falta_por_preguntar: Object.fromEntries(
+        [...gaps.entries()].map(([launchId, falta]) => [
+          slugs.get(launchId) ?? launchId,
+          falta,
+        ]),
+      ),
       como_se_hace: [
         "identidad_visual: propón paleta, tipografías y estilo, y guárdala con guardar_identidad. Hasta que no esté, las páginas no se pueden diseñar con la marca del lanzamiento.",
         "pagina: contexto_lanzamiento y contrato_pagina, diseña el HTML y publícalo con publicar_pagina.",
@@ -999,6 +1172,219 @@ const estadoGeneracion: ToolDef = {
   },
 };
 
+/* ---------------------------------------------------------------- campañas -- */
+
+const contratoEmail: ToolDef = {
+  name: "contrato_email",
+  title: "Contrato de una campaña de email",
+  description:
+    "Las reglas que tiene que cumplir el HTML de un correo para llegar bien a la bandeja de entrada. Léelo ANTES de diseñar una campaña: un email no es una página pequeña, es otro medio.",
+  inputSchema: NO_ARGS,
+  handler: async () => EMAIL_CONTRACT,
+};
+
+const listarEmails: ToolDef = {
+  name: "listar_emails",
+  title: "Las campañas de un lanzamiento",
+  description:
+    "Las campañas de email que ya tiene el lanzamiento, con su nombre y su asunto. Míralo antes de publicar una nueva: publicar con un nombre que ya existe la sustituye.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" } },
+    required: ["lanzamiento"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const rows = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")))
+      .orderBy(desc(assets.createdAt));
+
+    const disenadas = rows.filter((row) => isCustomEmailBody(row.body));
+    const generadas = rows.filter((row) => !isCustomEmailBody(row.body));
+
+    return {
+      campanas: disenadas.map((row) => {
+        const body = row.body as unknown as CustomEmailBody;
+        return {
+          nombre: body.name,
+          asunto: body.subject,
+          preencabezado: body.preheader ?? null,
+          publicada: body.publishedAt,
+          en_activecampaign: Boolean(body.acTemplateId),
+        };
+      }),
+      // La secuencia que genera Botón Rojo vive aparte y no se pisa con estas.
+      secuencia_generada: generadas.length > 0,
+    };
+  },
+};
+
+const publicarEmail: ToolDef = {
+  name: "publicar_email",
+  title: "Publicar una campaña diseñada",
+  description:
+    "Guarda una campaña de email diseñada en Claude Design. Se pueden tener todas las que hagan falta: cada una es independiente y se identifica por su nombre. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      nombre: {
+        type: "string",
+        description:
+          'Cómo se llama internamente: "Bienvenida 1", "Carta del martes 3". Publicar con un nombre que ya existe la sustituye.',
+      },
+      asunto: { type: "string", description: "El asunto del correo" },
+      preencabezado: {
+        type: "string",
+        description:
+          "La línea que se ve en la bandeja detrás del asunto. Si se omite, ahí saldrá el primer texto del correo.",
+      },
+      html: {
+        type: "string",
+        description:
+          "El email completo: CSS en línea, maquetado con tablas, 600px de ancho. Ver contrato_email.",
+      },
+    },
+    required: ["lanzamiento", "nombre", "asunto", "html"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio. Las campañas se pueden generar con el sistema de Botón Rojo desde el panel.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+    const asunto = String(args.asunto ?? "").trim();
+    const html = String(args.html ?? "");
+    if (!nombre) throw new ToolError("Falta el nombre de la campaña.");
+    if (!asunto) throw new ToolError("Falta el asunto del correo.");
+    if (html.length < 200) {
+      throw new ToolError(
+        "Ese HTML está vacío o es demasiado corto para ser un email.",
+      );
+    }
+
+    // Un email es una foto fija: lo envía ActiveCampaign desde su copia y ahí no
+    // corre nuestro runtime, así que los valores se resuelven AHORA. Lo que se
+    // guarda ya es lo que va a recibir la gente.
+    const resolved = replaceTokens(html, await emailTokensFor(launch));
+
+    const quedan = [...resolved.matchAll(/\{\{\s*([a-z_]+)\s*\}\}/gi)].map(
+      (m) => m[0],
+    );
+    if (quedan.length) {
+      throw new ToolError(
+        `Estos tokens no existen: ${[...new Set(quedan)].join(", ")}. En un correo no hay nada que los rellene después, así que se quedarían escritos tal cual. Mira contrato_email para la lista.`,
+      );
+    }
+    // Se busca el valor ya resuelto, que es inconfundible: o la url de la página de
+    // baja del lanzamiento, o la etiqueta que ActiveCampaign sustituye al enviar.
+    const baja = unsubscribeTarget(launch);
+    if (!resolved.includes(baja.value)) {
+      throw new ToolError(
+        `Falta el enlace de baja: pon {{url_baja}} en el pie, visible. ${
+          baja.esPagina
+            ? "Lleva a la página de baja del lanzamiento."
+            : "Este lanzamiento no tiene página de baja, así que se convierte en la etiqueta de ActiveCampaign, que pone el enlace al enviar."
+        } Sin salida clara la gente marca el correo como spam, y eso quema el dominio de envío para todo lo demás.`,
+      );
+    }
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    const body: CustomEmailBody = {
+      format: "html",
+      html: resolved,
+      subject: asunto,
+      preheader: String(args.preencabezado ?? "").trim() || undefined,
+      name: nombre,
+      publishedAt: new Date().toISOString(),
+      source: "claude-design",
+    };
+
+    // Sustituye la que tenga el mismo nombre, en vez de acumular versiones: al
+    // corregir una campaña se quiere corregirla, no tener dos.
+    const existentes = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")));
+    const previa = existentes.find(
+      (row) => isCustomEmailBody(row.body) && row.body.name === nombre,
+    );
+
+    if (previa) {
+      await db
+        .update(assets)
+        .set({
+          title: `${nombre} · ${asunto}`.slice(0, 200),
+          body: body as unknown as Record<string, unknown>,
+          updatedAt: new Date(),
+        })
+        .where(eq(assets.id, previa.id));
+    } else {
+      await db.insert(assets).values({
+        organizationId: auth.organization.id,
+        launchId: launch.id,
+        kind: "email",
+        pageKey: `campana-${createId(8)}`,
+        title: `${nombre} · ${asunto}`.slice(0, 200),
+        body: body as unknown as Record<string, unknown>,
+        authorId: token?.createdById ?? null,
+        generatedByAi: "claude-design",
+      });
+    }
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      publicada: true,
+      nombre,
+      sustituida: Boolean(previa),
+      aviso:
+        "Guardada con los valores ya resueltos. Desde el panel se puede previsualizar y subir a ActiveCampaign como plantilla.",
+    };
+  },
+};
+
+const borrarEmail: ToolDef = {
+  name: "borrar_email",
+  title: "Borrar una campaña diseñada",
+  description: "Quita una campaña de email diseñada en Claude, por su nombre.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" }, nombre: { type: "string" } },
+    required: ["lanzamiento", "nombre"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+
+    const rows = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")));
+    const found = rows.find(
+      (row) => isCustomEmailBody(row.body) && row.body.name === nombre,
+    );
+    if (!found)
+      throw new ToolError(`No hay ninguna campaña llamada "${nombre}".`);
+
+    await db.delete(assets).where(eq(assets.id, found.id));
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return { borrada: true, nombre };
+  },
+};
+
 const metricasLanzamiento: ToolDef = {
   name: "metricas_lanzamiento",
   title: "Métricas de un lanzamiento",
@@ -1089,6 +1475,10 @@ export const TOOLS: ToolDef[] = [
   borrarPagina,
   generarPagina,
   estadoGeneracion,
+  contratoEmail,
+  listarEmails,
+  publicarEmail,
+  borrarEmail,
   metricasLanzamiento,
 ];
 

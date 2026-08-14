@@ -456,10 +456,10 @@ export async function movePartAction(formData: FormData) {
     const stored = (body.sectionOrder ?? []) as string[];
     const order = stored.length
       ? [...stored]
-      : [
-          ...(LAYOUT_PRESETS[launch.type as keyof typeof LAYOUT_PRESETS] ??
-            LAYOUT_PRESETS.plf),
-        ];
+      : // Un tipo sin preset (newsletter) no tiene página de venta, así que aquí no
+        // llega nunca con secciones que ordenar; el array vacío es la respuesta
+        // honesta si algún día llega.
+        [...(LAYOUT_PRESETS[launch.type as LaunchType] ?? [])];
 
     const from = order.indexOf(target.key);
     const to = order.indexOf(swapWith.key);

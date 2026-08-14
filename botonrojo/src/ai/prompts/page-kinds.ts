@@ -98,6 +98,69 @@ Responde SOLO con JSON válido. No expliques nada.
 ${PAGE_COMPOSITION}${instructionBlock(instruction)}`;
 }
 
+export const GRACIAS_SYSTEM = `Escribes la página de gracias de una lista de correo o un lead magnet.
+
+No es un acuse de recibo: es la entrega. Quien llega aquí acaba de dejar su email, así
+que ya no hay que convencerle de nada — hay que darle lo prometido y decirle qué pasa
+ahora. Español de España, directo, sin celebraciones vacías ("¡Enhorabuena!" no aporta
+nada). Nada de emojis.`;
+
+export function graciasPrompt(
+  launchName: string,
+  avatar: AvatarBrief,
+  promise: string,
+  instruction?: string | null,
+) {
+  return `Genera la página de gracias del lanzamiento "${launchName}", una lista de correo o lead magnet.
+
+Avatar: ${JSON.stringify(avatar)}
+Promesa: ${promise}
+
+Es la página donde se ENTREGA lo prometido y se explica qué pasa a partir de ahora
+(cada cuánto llegan los correos, de qué van, cómo darse de baja). Si lo prometido es un
+descargable, el botón principal es para descargarlo.
+
+Devuelve JSON con esta forma exacta:
+{
+  "headline": "...",
+  "subheadline": "...",
+  "bullets": ["Qué va a recibir y cada cuánto", "...", "..."],
+  "cta": "Texto del botón de descarga o del siguiente paso",
+  "imagePrompt": "Descripción concreta de la foto de esta página"
+}
+
+Responde SOLO con JSON válido. No expliques nada.
+${PAGE_COMPOSITION}${instructionBlock(instruction)}`;
+}
+
+export const BAJA_SYSTEM = `Escribes la página de baja de una lista de correo.
+
+Quien llega aquí quiere irse: la página tiene que dejarle irse en un clic, sin culpa, sin
+laberinto y sin pedir explicaciones. Tono tranquilo y breve. Puede ofrecer una alternativa
+—recibir menos correos, o solo lo importante— pero después de la baja, nunca antes ni en
+su lugar. Español de España, sin emojis.`;
+
+export function bajaPrompt(
+  launchName: string,
+  promise: string,
+  instruction?: string | null,
+) {
+  return `Genera la página de baja de la lista del lanzamiento "${launchName}".
+
+De qué va la lista: ${promise}
+
+Devuelve JSON con esta forma exacta:
+{
+  "headline": "...",
+  "subheadline": "Una o dos frases, tranquilas",
+  "bullets": [],
+  "cta": "Texto del botón que confirma la baja"
+}
+
+Sin foto: es una página de servicio, no de venta. Responde SOLO con JSON válido.
+${instructionBlock(instruction)}`;
+}
+
 export const CONTENIDO_SYSTEM = `Eres copywriter de páginas de contenido educativo dentro de una secuencia
 de lanzamiento (Product Launch Formula). Cada página enseña algo real y útil por sí mismo — no es una
 venta directa, construye autoridad y deseo hacia la oferta que llega al final de la secuencia. Español

@@ -81,6 +81,7 @@ export function CustomHtmlPage({
     launchId: launch.id,
     productSlug: product?.slug ?? null,
     price: tokens.precio || null,
+    installments: tokens.plazos || null,
     cartClosesAt: launch.cartClosesAt?.toISOString() ?? null,
     registrationClosesAt: launch.registrationClosesAt?.toISOString() ?? null,
     leadNext: `/gracias?lead=1&launch=${launch.slug}`,

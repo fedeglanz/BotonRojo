@@ -95,6 +95,8 @@ import {
   isDesignReviewConfigured,
 } from "@/integrations/screenshot";
 
+import { LAUNCH_TYPE_KEYS } from "@/lib/launch-types";
+import { isCustomEmailBody } from "@/lib/custom-email";
 import type {
   LaunchType,
   AvatarBrief,
@@ -122,6 +124,10 @@ import {
 } from "@/integrations/telegram";
 
 import {
+  GRACIAS_SYSTEM,
+  BAJA_SYSTEM,
+  graciasPrompt,
+  bajaPrompt,
   REGISTRO_SYSTEM,
   registroPrompt,
   CONTENIDO_SYSTEM,
@@ -520,7 +526,9 @@ const euroAmount = z
 
 const createSchema = z.object({
   name: z.string().min(2),
-  type: z.enum(["venta_directa", "semilla", "plf"]),
+  // De LAUNCH_TYPE_KEYS, no a mano: esta lista escrita dos veces es lo que hizo
+  // que crear una newsletter fallara con un error de validación.
+  type: z.enum(LAUNCH_TYPE_KEYS),
   brief: z.string().min(20),
   priceCents: euroAmount.optional(),
   installmentCount: z.coerce.number().int().min(2).max(24).optional(),
@@ -616,6 +624,17 @@ export async function createLaunchAction(formData: FormData) {
       await seedLaunchQueue(launch).catch((err: unknown) => {
         console.error("no se pudo escribir la cola de trabajo", err);
       });
+
+      // El marco de copy sí lo generamos nosotros, aunque diseñe Claude: la
+      // promesa, el avatar, los dolores y los beneficios salen del brief y no son
+      // una decisión de diseño. Sin ellos, Claude tiene que parar a mitad a
+      // preguntar de qué va el lanzamiento — que es exactamente lo que pasó la
+      // primera vez que se usó esto.
+      try {
+        await generateMarcoCopyAction(created.id);
+      } catch (err) {
+        console.error("marco de copy inicial (modo claude) falló", err);
+      }
     }
   } else if (created) {
     // Propose the visual identity straight away: it's the mandatory first step, so
@@ -1518,6 +1537,63 @@ async function generateRegistroPage(
   );
 }
 
+/**
+ * Gracias y baja: las dos páginas de servicio de una newsletter.
+ *
+ * Comparten generador porque comparten forma —un titular, un subtítulo, unas viñetas
+ * y un botón— y se diferencian en el prompt y en si llevan foto. La de baja no la
+ * lleva: es una página de servicio, y una foto de archivo ahí solo estorba a quien
+ * quiere irse.
+ */
+async function generateServicePage(
+  launch: Launch,
+  pageDef: PageDef,
+  ctx: PageGenCtx,
+) {
+  const esBaja = pageDef.kind === "baja";
+
+  const { text } = await complete({
+    system: esBaja ? BAJA_SYSTEM : GRACIAS_SYSTEM,
+    prompt: esBaja
+      ? bajaPrompt(launch.name, launch.promise!, ctx.pageInstruction)
+      : graciasPrompt(
+          launch.name,
+          launch.avatar as AvatarBrief,
+          launch.promise!,
+          ctx.pageInstruction,
+        ),
+    maxTokens: 1500,
+    temperature: 0.6,
+  });
+
+  const body = extractJson(text) as RegistroPageBody;
+
+  if (!esBaja && (isImageGenConfigured() || isUnsplashConfigured())) {
+    const imageUrl = await autoResolveImage(
+      body.imagePrompt,
+      await imageContextFor(launch, "hero"),
+    );
+    if (imageUrl) body.imageUrl = imageUrl;
+  }
+
+  // La de gracias es una banda de formulario como la de registro —el botón de
+  // descarga es su protagonista—; la de baja, una banda normal.
+  await normalizePageComposition(launch, body, esBaja ? "hero" : "form");
+
+  const inserted = await insertPageAsset(
+    launch,
+    pageDef,
+    ctx,
+    body as Record<string, unknown>,
+  );
+  await runDesignReview(
+    launch,
+    pageDef,
+    inserted.id,
+    body as Record<string, unknown>,
+  );
+}
+
 async function generateContenidoPage(
   launch: Launch,
   pageDef: PageDef,
@@ -1614,6 +1690,8 @@ async function generateSinglePage(
     return generateLegalPage(launch, pageDef, ctx, orgName);
   if (pageDef.kind === "afiliados")
     return generateAfiliadosPage(launch, pageDef, ctx);
+  if (pageDef.kind === "gracias" || pageDef.kind === "baja")
+    return generateServicePage(launch, pageDef, ctx);
 }
 
 /** Runs a handful of async jobs at a time instead of all at once (Claude/
@@ -1891,6 +1969,10 @@ export async function generatePageForOrg(input: {
     launch.pageConfig,
   ).find((p) => p.pageKey === pageKey);
   if (!pageDef) throw new Error("page_not_found");
+
+  // Antes de escribir la página, refrescar las fechas desde el calendario: es hacia
+  // ellas hacia donde va a contar su cuenta atrás.
+  await syncLaunchDatesFromCalendar(launchId);
 
   // Remembered per page in assetsCache, so regenerating twice doesn't mean
   // retyping the brief — and so you can see what produced what you're looking at.
@@ -2419,7 +2501,11 @@ export async function updateEmailAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function approveEmailAction(launchId: string, emailIndex: number, approved: boolean) {
+export async function approveEmailAction(
+  launchId: string,
+  emailIndex: number,
+  approved: boolean,
+) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
   const email = body.emails[emailIndex];
@@ -2456,7 +2542,11 @@ export async function approveAllEmailsAction(launchId: string) {
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function updateEmailOffsetAction(launchId: string, emailIndex: number, newOffset: number) {
+export async function updateEmailOffsetAction(
+  launchId: string,
+  emailIndex: number,
+  newOffset: number,
+) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
   const email = body.emails[emailIndex];
@@ -2483,7 +2573,10 @@ export async function fetchAcAutomationsAction(launchId: string) {
   return ac.listAutomations();
 }
 
-export async function linkAcAutomationAction(launchId: string, automationId: string) {
+export async function linkAcAutomationAction(
+  launchId: string,
+  automationId: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2502,7 +2595,10 @@ export async function linkAcAutomationAction(launchId: string, automationId: str
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function unlinkAcAutomationAction(launchId: string, automationId: string) {
+export async function unlinkAcAutomationAction(
+  launchId: string,
+  automationId: string,
+) {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2710,7 +2806,14 @@ export async function pushEmailsToActiveCampaignAction(
   if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
 
   const sequence = asset.body as {
-    emails: Array<{ subject: string; preheader?: string; body: string; ctaText?: string; ctaUrl?: string; approved?: boolean }>;
+    emails: Array<{
+      subject: string;
+      preheader?: string;
+      body: string;
+      ctaText?: string;
+      ctaUrl?: string;
+      approved?: boolean;
+    }>;
   };
 
   const brand: EmailBrandKit = {
@@ -2733,7 +2836,13 @@ export async function pushEmailsToActiveCampaignAction(
     const tpl = await ac.createEmailTemplate({
       name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
       subject: email.subject,
-      html: wrapEmailHtml(email.body, email.preheader ?? "", email.ctaText, email.ctaUrl, brand),
+      html: wrapEmailHtml(
+        email.body,
+        email.preheader ?? "",
+        email.ctaText,
+        email.ctaUrl,
+        brand,
+      ),
     });
     templateIds.push(tpl.id);
   }
@@ -2753,6 +2862,57 @@ export async function pushEmailsToActiveCampaignAction(
  * Create AC campaigns for each email in the sequence, scheduled based on milestones.
  * Requires: list provisioned + templates pushed + milestones generated.
  */
+/**
+ * Sube una campaña diseñada a ActiveCampaign como plantilla.
+ *
+ * Sin pasar por `wrapEmailHtml`: ese envoltorio existe para vestir un cuerpo de texto
+ * que escribió el generador, y aquí el diseño ES el correo entero. Envolverlo le
+ * pondría nuestra cabecera y nuestro pie por encima del suyo.
+ */
+export async function pushDesignedEmailToAcAction(
+  launchId: string,
+  assetId: string,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) throw new Error("activecampaign_not_configured");
+
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(
+      and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)),
+    )
+    .limit(1);
+  if (!asset || asset.kind !== "email" || !isCustomEmailBody(asset.body)) {
+    throw new Error("asset_not_found");
+  }
+
+  const body = asset.body;
+  const tpl = await ac.createEmailTemplate({
+    name: `${launch.slug} · ${body.name}`.slice(0, 100),
+    subject: body.subject,
+    html: body.html,
+  });
+
+  // El id se guarda en la campaña, no en el lanzamiento: son muchas y cada una tiene
+  // su plantilla. En assetsCache se pisarían entre ellas.
+  await db
+    .update(assets)
+    .set({
+      body: { ...body, acTemplateId: tpl.id } as unknown as Record<
+        string,
+        unknown
+      >,
+      updatedAt: new Date(),
+    })
+    .where(eq(assets.id, asset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function scheduleAcCampaignsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
@@ -3154,7 +3314,12 @@ export async function updateSectionRawAction(
 
 type EmailBrandKit = {
   logoUrl?: string | null;
-  palette?: { primary: string; accent: string; background: string; foreground: string } | null;
+  palette?: {
+    primary: string;
+    accent: string;
+    background: string;
+    foreground: string;
+  } | null;
   fonts?: { display: string; body: string } | null;
   launchName?: string;
 };
@@ -3641,7 +3806,59 @@ export async function generateMilestonesAction(
     })),
   );
 
+  // Las páginas cuentan hacia estas fechas: se toman del calendario recién escrito.
+  await syncLaunchDatesFromCalendar(launchId);
+
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/**
+ * Las fechas de cierre salen del calendario, no de escribirlas dos veces.
+ *
+ * El calendario ya dice cuándo acaba la captación y cuándo cierra el carrito; que
+ * además hubiera que teclear esas dos fechas en el paso de páginas era pedir lo
+ * mismo dos veces y, en cuanto una se movía, dejar la otra mintiendo — la cuenta
+ * atrás de la página contando hacia un día que el calendario ya había cambiado.
+ *
+ * El calendario manda: esto se llama cada vez que se genera o se mueve un hito, así
+ * que cambiar una fase mueve la cuenta atrás de las páginas con ella. Las columnas
+ * se quedan porque son lo que leen las páginas, el runtime y el conector; son una
+ * proyección del calendario, no una segunda fuente.
+ *
+ * `endsAt` y no `startsAt`: el carrito se cierra cuando acaba la fase de cierre, y
+ * el registro cuando acaba la captación. La fase es el tramo, no el instante.
+ */
+export async function syncLaunchDatesFromCalendar(launchId: string): Promise<{
+  cartClosesAt: Date | null;
+  registrationClosesAt: Date | null;
+}> {
+  const rows = await db
+    .select({
+      phase: milestones.phase,
+      endsAt: milestones.endsAt,
+    })
+    .from(milestones)
+    .where(eq(milestones.launchId, launchId));
+
+  const endOf = (phase: string) =>
+    rows.find((row) => row.phase === phase)?.endsAt ?? null;
+
+  const cartClosesAt = endOf("cierre_carrito");
+  const registrationClosesAt = endOf("captacion");
+  if (!cartClosesAt && !registrationClosesAt) {
+    return { cartClosesAt: null, registrationClosesAt: null };
+  }
+
+  await db
+    .update(launches)
+    .set({
+      ...(cartClosesAt ? { cartClosesAt } : {}),
+      ...(registrationClosesAt ? { registrationClosesAt } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  return { cartClosesAt, registrationClosesAt };
 }
 
 export async function updateMilestoneAction(
@@ -3678,6 +3895,9 @@ export async function updateMilestoneAction(
       updatedAt: new Date(),
     })
     .where(eq(milestones.id, milestoneId));
+
+  // Mover una fase mueve la cuenta atrás de las páginas con ella.
+  await syncLaunchDatesFromCalendar(milestone.launchId);
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }

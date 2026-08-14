@@ -34,6 +34,7 @@
   var API = {
     lead: "/api/lead",
     checkout: "/api/stripe/checkout",
+    baja: "/api/baja",
   };
 
   function cookie(name) {
@@ -163,6 +164,63 @@
     });
   }
 
+  /* ------------------------------------------------------------------ baja -- */
+
+  /* Un formulario de baja: el mismo mecanismo que el de captación, al revés.
+     Sin confirmaciones ni pasos intermedios — quien pulsa "darme de baja" tiene que
+     quedarse de baja, y cada paso de más es una persona que acaba marcando el correo
+     como spam, que sale mucho más caro que una baja. */
+  function wireUnsubscribe() {
+    document.querySelectorAll('form[data-br="baja"]').forEach(function (form) {
+      if (form.__brWired) return;
+      form.__brWired = true;
+
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var data = new FormData(form);
+        /* El email puede venir del formulario o del enlace del correo, que es el
+           caso normal: nadie quiere teclear su email para irse. */
+        var email =
+          String(data.get("email") || "").trim() ||
+          new URLSearchParams(location.search).get("email") ||
+          "";
+        if (!email) return;
+
+        var status = form.querySelector('[data-br="estado"]');
+        var button = form.querySelector('button, input[type="submit"]');
+        if (button) button.disabled = true;
+        if (status) status.textContent = "Dándote de baja…";
+
+        fetch(API.baja, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ launchSlug: launchSlug, email: email }),
+        })
+          .then(function () {
+            var ok = document.querySelector('[data-br="baja-ok"]');
+            if (ok) {
+              ok.hidden = false;
+              form.hidden = true;
+            } else if (status) {
+              status.textContent = "Hecho. No recibirás más correos de esta lista.";
+            }
+          })
+          .catch(function () {
+            if (status) status.textContent = "No se ha podido completar. Inténtalo de nuevo.";
+            if (button) button.disabled = false;
+          });
+      });
+    });
+
+    /* Si el email viene en el enlace, se rellena solo. */
+    var fromLink = new URLSearchParams(location.search).get("email");
+    if (fromLink) {
+      document.querySelectorAll('form[data-br="baja"] input[name="email"]').forEach(function (input) {
+        if (!input.value) input.value = fromLink;
+      });
+    }
+  }
+
   /* -------------------------------------------------------------- checkout -- */
 
   function wireCheckout() {
@@ -255,16 +313,27 @@
 
   /* ---------------------------------------------------------------- precio -- */
 
+  /* El precio y los plazos, al servir la página.
+     El diseño escribe el valor de hoy para que la vista previa se vea terminada, y
+     esto lo sustituye por el que haya en Botón Rojo en ese momento: así cambiar el
+     precio en el panel no deja mintiendo a la página. */
   function fillPrices() {
-    if (!cfg.price) return;
-    document.querySelectorAll('[data-br="precio"]').forEach(function (el) {
-      el.textContent = cfg.price;
-    });
+    if (cfg.price) {
+      document.querySelectorAll('[data-br="precio"]').forEach(function (el) {
+        el.textContent = cfg.price;
+      });
+    }
+    if (cfg.installments) {
+      document.querySelectorAll('[data-br="plazos"]').forEach(function (el) {
+        el.textContent = cfg.installments;
+      });
+    }
   }
 
   function start() {
     propagateRef();
     wireLeadForms();
+    wireUnsubscribe();
     wireCheckout();
     wireCountdowns();
     fillPrices();

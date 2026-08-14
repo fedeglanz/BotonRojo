@@ -1,3 +1,4 @@
+import type { LaunchType } from "@/lib/launch-types";
 import type { PageBlock } from "./page-bodies";
 
 export type LandingHero = {
@@ -438,10 +439,12 @@ export type MiddleSectionKey =
   | Exclude<LandingSectionKey, "hero" | "finalCta">
   | "countdown";
 
-export const LAYOUT_PRESETS: Record<
-  "venta_directa" | "semilla" | "plf",
-  MiddleSectionKey[]
-> = {
+/**
+ * Parcial a propósito: newsletter no tiene página de venta, así que no tiene
+ * secciones que ordenar. Quien lo lee ya cae en `?? LAYOUT_PRESETS.plf`, que solo
+ * se usaría si un tipo con venta se quedara sin preset.
+ */
+export const LAYOUT_PRESETS: Partial<Record<LaunchType, MiddleSectionKey[]>> = {
   // Evento con cierre: ponentes/agenda si los hay, niveles de precio y
   // countdown antes de la garantía, de cara al cierre.
   venta_directa: [

@@ -27,6 +27,7 @@ import {
   updateLandingInstructionsAction,
   updateBriefAction,
   updatePricingPlanAction,
+  pushDesignedEmailToAcAction,
   generateEmailsAction,
   refineEmailAction,
   updateEmailAction,
@@ -107,8 +108,15 @@ import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
-import { claudeNewPageUrl, claudeQueueUrl } from "@/lib/claude-link";
+import {
+  CLAUDE_DESIGN_URL,
+  claudeNewPageUrl,
+  claudeQueuePrompt,
+  claudeCampaignsPrompt,
+} from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
+import { DesignedCampaigns } from "@/components/admin/designed-campaigns";
+import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { listLaunchTasks } from "@/server/launch-tasks";
 
 export const dynamic = "force-dynamic";
@@ -258,6 +266,35 @@ export default async function LaunchHubPage(props: {
 
   const hasMarco = Boolean(launch.promise);
   const connector = await hasActiveConnector(organizationId);
+  /**
+   * Una newsletter no vende ni tiene fecha: funciona en evergreen. Así que el
+   * calendario, el producto de Stripe y las fechas de cierre no son pasos que estén
+   * "pendientes" — es que no existen para este tipo, y dejarlos ahí en gris sería
+   * prometer un trabajo que nadie tiene que hacer.
+   */
+  const esEvergreen = launch.type === "newsletter";
+  // Las diseñadas en Claude son varios assets de tipo email; la secuencia generada
+  // es uno solo con todos dentro. Se distinguen por la forma del cuerpo.
+  const emailAssets = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")))
+    .orderBy(desc(assets.createdAt));
+
+  const designedCampaigns = emailAssets
+    .filter((row) => isCustomEmailBody(row.body))
+    .map((row) => {
+      const body = row.body as unknown as CustomEmailBody;
+      return {
+        id: row.id,
+        name: body.name,
+        subject: body.subject,
+        preheader: body.preheader ?? null,
+        publishedAt: body.publishedAt ?? null,
+        acTemplateId: body.acTemplateId ?? null,
+      };
+    });
+
   const queue =
     launch.designMode === "claude"
       ? await listLaunchTasks(launch.id, organizationId)
@@ -278,7 +315,8 @@ export default async function LaunchHubPage(props: {
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
     : [];
   const acLinkedAutomationIds =
-    ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [];
+    ((launch.assetsCache as Record<string, unknown>)
+      ?.acLinkedAutomationIds as string[]) ?? [];
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
@@ -365,10 +403,17 @@ export default async function LaunchHubPage(props: {
             result: task.result,
           }))}
           hasConnector={connector}
-          queueHref={claudeQueueUrl({
+          queueHref={CLAUDE_DESIGN_URL}
+          queuePrompt={claudeQueuePrompt({
             launchSlug: launch.slug,
             launchName: launch.name,
           })}
+          launchSlug={launch.slug}
+          missing={{
+            copy: !hasMarco,
+            // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
+            dates: !launch.cartClosesAt && !launch.registrationClosesAt,
+          }}
         />
       )}
 
@@ -493,58 +538,60 @@ export default async function LaunchHubPage(props: {
             />
           </WizardStep>
 
-          {/* Step 2.5 — Calendario */}
-          <WizardStep
-            index={2.5}
-            title="Calendario"
-            subtitle="Define fechas del lanzamiento, pais objetivo y analiza conflictos con IA."
-            status={hasMilestones ? "ready" : "empty"}
-          >
-            <CalendarPanel
-              launchId={launch.id}
-              launchSlug={launch.slug}
-              launchType={launch.type}
-              primaryCountry={launch.primaryCountry ?? null}
-              targetRegions={(launch.targetRegions as string[]) ?? []}
-              anchorDate={
-                launch.anchorDate
-                  ? launch.anchorDate.toISOString().split("T")[0]!
-                  : null
-              }
-              milestones={launchMilestones.map((m) => ({
-                id: m.id,
-                phase: m.phase,
-                label: m.label,
-                startsAt: m.startsAt.toISOString().split("T")[0]!,
-                endsAt: m.endsAt.toISOString().split("T")[0]!,
-                sortOrder: m.sortOrder,
-                aiWarnings: (m.aiWarnings ?? []) as Array<{
-                  date: string;
-                  severity: "info" | "warning" | "critical";
-                  message: string;
-                  country?: string;
-                }>,
-              }))}
-              updateCountryAction={updateLaunchCountryAction}
-              generateMilestonesAction={generateMilestonesAction}
-              updateMilestoneAction={updateMilestoneAction}
-              analyzeCalendarAction={analyzeCalendarAction}
-              savedAnalysis={
-                ((launch.assetsCache as Record<string, unknown>)
-                  ?.calendarAnalysis as {
-                  summary: string;
-                  score: number;
-                  warnings: Array<{
+          {/* Step 2.5 — Calendario. No en evergreen: sin fecha ancla no hay fases. */}
+          {!esEvergreen && (
+            <WizardStep
+              index={2.5}
+              title="Calendario"
+              subtitle="Define fechas del lanzamiento, pais objetivo y analiza conflictos con IA."
+              status={hasMilestones ? "ready" : "empty"}
+            >
+              <CalendarPanel
+                launchId={launch.id}
+                launchSlug={launch.slug}
+                launchType={launch.type}
+                primaryCountry={launch.primaryCountry ?? null}
+                targetRegions={(launch.targetRegions as string[]) ?? []}
+                anchorDate={
+                  launch.anchorDate
+                    ? launch.anchorDate.toISOString().split("T")[0]!
+                    : null
+                }
+                milestones={launchMilestones.map((m) => ({
+                  id: m.id,
+                  phase: m.phase,
+                  label: m.label,
+                  startsAt: m.startsAt.toISOString().split("T")[0]!,
+                  endsAt: m.endsAt.toISOString().split("T")[0]!,
+                  sortOrder: m.sortOrder,
+                  aiWarnings: (m.aiWarnings ?? []) as Array<{
                     date: string;
                     severity: "info" | "warning" | "critical";
                     message: string;
                     country?: string;
-                  }>;
-                  suggestions: string[];
-                }) ?? null
-              }
-            />
-          </WizardStep>
+                  }>,
+                }))}
+                updateCountryAction={updateLaunchCountryAction}
+                generateMilestonesAction={generateMilestonesAction}
+                updateMilestoneAction={updateMilestoneAction}
+                analyzeCalendarAction={analyzeCalendarAction}
+                savedAnalysis={
+                  ((launch.assetsCache as Record<string, unknown>)
+                    ?.calendarAnalysis as {
+                    summary: string;
+                    score: number;
+                    warnings: Array<{
+                      date: string;
+                      severity: "info" | "warning" | "critical";
+                      message: string;
+                      country?: string;
+                    }>;
+                    suggestions: string[];
+                  }) ?? null
+                }
+              />
+            </WizardStep>
+          )}
         </>
       )}
 
@@ -677,9 +724,41 @@ export default async function LaunchHubPage(props: {
       {(active === "todo" || active === "campana") && (
         <>
           {active === "todo" && <GroupHeading>Campaña</GroupHeading>}
+
+          {/* Campañas diseñadas en Claude. Van antes de la secuencia generada porque
+              en un lanzamiento de Claude son las de verdad; la secuencia se queda
+              debajo y sigue disponible para quien la quiera. */}
+          {launch.designMode === "claude" && (
+            <WizardStep
+              index={4}
+              title="Campañas en Claude Design"
+              subtitle="Emails diseñados con la identidad del lanzamiento. Tantos como quieras."
+              status={
+                !hasMarco
+                  ? "needs-prev"
+                  : designedCampaigns.length > 0
+                    ? "ready"
+                    : "empty"
+              }
+            >
+              <DesignedCampaigns
+                campaigns={designedCampaigns}
+                launchSlug={launch.slug}
+                hasConnector={connector}
+                acConfigured={acConfigured}
+                claudeUrl={CLAUDE_DESIGN_URL}
+                claudePrompt={claudeCampaignsPrompt({
+                  launchSlug: launch.slug,
+                  launchName: launch.name,
+                })}
+                pushAction={pushDesignedEmailToAcAction.bind(null, launch.id)}
+              />
+            </WizardStep>
+          )}
+
           {/* Step 4 — Emails */}
           <WizardStep
-            index={4}
+            index={launch.designMode === "claude" ? 4.5 : 4}
             title="Secuencia de emails"
             subtitle={`Plan específico para tipo ${meta?.label ?? launch.type}.`}
             status={!hasMarco ? "needs-prev" : hasEmails ? "ready" : "empty"}
@@ -786,39 +865,41 @@ export default async function LaunchHubPage(props: {
       {(active === "todo" || active === "conexiones") && (
         <>
           {active === "todo" && <GroupHeading>Conexiones</GroupHeading>}
-          {/* Step 6 — Producto Stripe */}
-          <WizardStep
-            index={6}
-            title="Producto en Stripe"
-            subtitle="Crea el producto y el price ID. La landing pública usará este checkout."
-            status={hasProduct ? "ready" : "empty"}
-          >
-            {/* El precio y los plazos, antes del producto: son la decisión, y el
+          {/* Step 6 — Producto Stripe. Una newsletter no cobra nada. */}
+          {!esEvergreen && (
+            <WizardStep
+              index={6}
+              title="Producto en Stripe"
+              subtitle="Crea el producto y el price ID. La landing pública usará este checkout."
+              status={hasProduct ? "ready" : "empty"}
+            >
+              {/* El precio y los plazos, antes del producto: son la decisión, y el
                 producto de Stripe es su consecuencia. Editables aquí porque un
                 campo que solo se escribe al crear el lanzamiento es un campo que
                 nadie puede corregir. */}
-            <div className="mb-4">
-              <PricingPlanForm
-                launchId={launch.id}
-                currentPriceCents={launch.defaultPriceCents}
-                currentInstallmentCount={launch.installmentCount}
-                currentInstallmentPriceCents={launch.installmentPriceCents}
-                currency={launch.currency ?? "EUR"}
-                saveAction={updatePricingPlanAction}
-              />
-            </div>
+              <div className="mb-4">
+                <PricingPlanForm
+                  launchId={launch.id}
+                  currentPriceCents={launch.defaultPriceCents}
+                  currentInstallmentCount={launch.installmentCount}
+                  currentInstallmentPriceCents={launch.installmentPriceCents}
+                  currency={launch.currency ?? "EUR"}
+                  saveAction={updatePricingPlanAction}
+                />
+              </div>
 
-            <StripeProductForm
-              launchId={launch.id}
-              defaultName={launch.name}
-              defaultDescription={launch.promise ?? ""}
-              defaultPriceCents={launch.defaultPriceCents}
-              defaultCurrency={launch.currency ?? "EUR"}
-              existingProducts={launchProducts}
-              action={createStripeProductAction}
-              deleteAction={deleteStripeProductAction}
-            />
-          </WizardStep>
+              <StripeProductForm
+                launchId={launch.id}
+                defaultName={launch.name}
+                defaultDescription={launch.promise ?? ""}
+                defaultPriceCents={launch.defaultPriceCents}
+                defaultCurrency={launch.currency ?? "EUR"}
+                existingProducts={launchProducts}
+                action={createStripeProductAction}
+                deleteAction={deleteStripeProductAction}
+              />
+            </WizardStep>
+          )}
 
           {/* Step 7 — ActiveCampaign */}
           <WizardStep
@@ -858,8 +939,17 @@ export default async function LaunchHubPage(props: {
                 <CampaignCalendar
                   launchId={launch.id}
                   emails={
-                    (emailAsset?.body as { emails: Array<{ subject: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> })
-                      ?.emails ?? []
+                    (
+                      emailAsset?.body as {
+                        emails: Array<{
+                          subject: string;
+                          phase?: string;
+                          timing?: string;
+                          sendOffsetDays?: number;
+                          approved?: boolean;
+                        }>;
+                      }
+                    )?.emails ?? []
                   }
                   milestones={launchMilestones.map((m) => ({
                     phase: m.phase,
@@ -868,7 +958,8 @@ export default async function LaunchHubPage(props: {
                     endsAt: m.endsAt.toISOString(),
                   }))}
                   hasCampaigns={Boolean(
-                    (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
+                    (launch.assetsCache as Record<string, unknown>)
+                      ?.acCampaignIds,
                   )}
                   updateOffsetAction={updateEmailOffsetAction}
                 />

@@ -1,4 +1,19 @@
-export type LaunchType = "venta_directa" | "semilla" | "plf";
+/**
+ * Los tipos de lanzamiento, en una sola lista.
+ *
+ * `LAUNCH_TYPE_KEYS` existe para que nadie tenga que repetirla: el validador del
+ * formulario de creación la tenía escrita a mano y, al añadir "newsletter", crear uno
+ * fallaba con un error de validación en una página en blanco. Todo lo que necesite la
+ * lista la saca de aquí.
+ */
+export const LAUNCH_TYPE_KEYS = [
+  "venta_directa",
+  "semilla",
+  "plf",
+  "newsletter",
+] as const;
+
+export type LaunchType = (typeof LAUNCH_TYPE_KEYS)[number];
 
 export const LAUNCH_TYPES: Record<LaunchType, {
   label: string;
@@ -31,5 +46,14 @@ export const LAUNCH_TYPES: Record<LaunchType, {
     pages: "Registro (una página por canal) + páginas de contenido + venta, cada una con su gracias. Afiliados y legales opcionales.",
     color: "from-violet-500 to-indigo-500",
     icon: "🚀",
+  },
+  newsletter: {
+    label: "Newsletter",
+    tagline: "Lista o lead magnet",
+    description: "Captar suscriptores en abierto, sin carrito ni fechas.",
+    pages:
+      "Registro + gracias + baja de la lista, y legales opcionales. No hay venta, ni countdown, ni calendario: funciona en evergreen. Las campañas de email sí.",
+    color: "from-sky-500 to-cyan-400",
+    icon: "🪐",
   },
 };

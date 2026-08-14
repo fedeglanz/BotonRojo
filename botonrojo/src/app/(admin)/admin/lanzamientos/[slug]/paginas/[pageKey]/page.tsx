@@ -5,8 +5,12 @@ import { isCustomPageBody } from "@/lib/custom-page";
 import { retireCustomPageAction } from "@/server/page-edit";
 import { env } from "@/lib/env";
 import { hasActiveConnector } from "@/mcp/auth";
-import { ClaudeButton } from "@/components/admin/claude-button";
-import { claudeDesignPageUrl, claudeEditPageUrl } from "@/lib/claude-link";
+import { ClaudeGoButton } from "@/components/admin/claude-go-button";
+import {
+  CLAUDE_DESIGN_URL,
+  claudeDesignPagePrompt,
+  claudeEditPagePrompt,
+} from "@/lib/claude-link";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -183,14 +187,14 @@ export default async function LaunchPageEditor(props: {
             {/* Diseñar o rediseñar en Claude, sin tener que explicarle nada: el
                 enlace abre un chat con la instrucción y las herramientas puestas. */}
             {pageDef.kind !== "legal" && (
-              <ClaudeButton
+              <ClaudeGoButton
                 hasConnector={connector}
-                tone={fromClaude ? "neutral" : "primary"}
                 label={fromClaude ? "Cambiar en Claude" : "Diseñar en Claude"}
-                href={
+                href={CLAUDE_DESIGN_URL}
+                prompt={
                   fromClaude
-                    ? claudeEditPageUrl(claudeLinkArgs)
-                    : claudeDesignPageUrl({
+                    ? claudeEditPagePrompt(claudeLinkArgs)
+                    : claudeDesignPagePrompt({
                         ...claudeLinkArgs,
                         pageKind: pageDef.kind,
                       })
