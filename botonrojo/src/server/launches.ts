@@ -2566,6 +2566,35 @@ export async function updateEmailOffsetAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
+export async function updateSequenceEmailPhaseAction(
+  launchId: string,
+  emailIndex: number,
+  phase: string,
+  sendOffsetDays?: number,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const { launch, body } = await loadEmailAsset(launchId, organizationId);
+  const email = body.emails[emailIndex];
+  if (!email) throw new Error("email_not_found");
+
+  const updatedEmails = [...body.emails];
+  updatedEmails[emailIndex] = {
+    ...email,
+    phase: phase || undefined,
+    sendOffsetDays: sendOffsetDays ?? email.sendOffsetDays,
+  };
+
+  await db.insert(assets).values({
+    organizationId,
+    launchId,
+    kind: "email",
+    title: `Secuencia · ${launch.name}`,
+    body: { emails: updatedEmails },
+  });
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function fetchAcAutomationsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);

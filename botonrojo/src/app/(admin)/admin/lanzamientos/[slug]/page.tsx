@@ -48,6 +48,7 @@ import {
   unlinkAcAutomationAction,
   updateDesignedEmailPhaseAction,
   approveDesignedEmailAction,
+  updateSequenceEmailPhaseAction,
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
@@ -781,6 +782,7 @@ export default async function LaunchHubPage(props: {
               updateAction={updateEmailAction}
               approveAction={approveEmailAction}
               approveAllAction={approveAllEmailsAction}
+              updateSequencePhaseAction={updateSequenceEmailPhaseAction}
               pushDesignedAction={pushDesignedEmailToAcAction}
               updatePhaseAction={updateDesignedEmailPhaseAction}
               approveDesignedAction={approveDesignedEmailAction}

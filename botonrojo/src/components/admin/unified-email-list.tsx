@@ -56,6 +56,7 @@ type Props = {
   updateAction: (launchId: string, emailIndex: number, formData: FormData) => Promise<void>;
   approveAction: (launchId: string, emailIndex: number, approved: boolean) => Promise<void>;
   approveAllAction: (launchId: string) => Promise<void>;
+  updateSequencePhaseAction: (launchId: string, emailIndex: number, phase: string, sendOffsetDays?: number) => Promise<void>;
   // Designed actions
   pushDesignedAction: (launchId: string, assetId: string) => Promise<void>;
   updatePhaseAction: (assetId: string, phase: string, sendOffsetDays?: number) => Promise<void>;
@@ -176,6 +177,7 @@ export function UnifiedEmailList({
   updateAction,
   approveAction,
   approveAllAction,
+  updateSequencePhaseAction,
   pushDesignedAction,
   updatePhaseAction,
   approveDesignedAction,
@@ -193,10 +195,10 @@ export function UnifiedEmailList({
   const totalCount = activeItems.length;
   const allApproved = totalCount > 0 && approvedCount === totalCount;
 
-  // Group by phase
-  const phaseOrder = phases.map((p) => p.phase);
+  // Group by phase — use all known phases so emails always land in the right group
+  const allPhaseKeys = Object.keys(PHASE_LABELS);
   const grouped = new Map<string, UnifiedItem[]>();
-  for (const phase of phaseOrder) {
+  for (const phase of allPhaseKeys) {
     grouped.set(phase, []);
   }
   grouped.set("__none__", []);
@@ -259,6 +261,15 @@ export function UnifiedEmailList({
           segun el tipo de lanzamiento
           {designMode === "claude" ? ", o diseña emails individuales en Claude." : "."}
         </p>
+      )}
+
+      {totalCount > 0 && !allApproved && (
+        <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-2 text-[11px] text-zinc-500">
+          <strong className="text-zinc-400">Flujo:</strong> Abri cada email → revisalo o editalo → <em>Aprobar</em>.
+          Cuando todos esten aprobados, podes enviarlos a ActiveCampaign.
+          Si necesitas cambiar la fase de un email, usa el selector de fase dentro de cada uno.
+          Para deshacer una aprobacion, clickea <em>Desaprobar</em>.
+        </div>
       )}
 
       {/* Grouped by phase */}
@@ -368,6 +379,7 @@ export function UnifiedEmailList({
                           refineAction={refineAction}
                           updateAction={updateAction}
                           approveAction={approveAction}
+                          updateSequencePhaseAction={updateSequencePhaseAction}
                         />
                       ) : (
                         <DesignedEmailExpanded
@@ -406,6 +418,7 @@ function SequenceEmailExpanded({
   refineAction,
   updateAction,
   approveAction,
+  updateSequencePhaseAction,
 }: {
   launchId: string;
   email: SequenceEmail;
@@ -417,23 +430,53 @@ function SequenceEmailExpanded({
   refineAction: Props["refineAction"];
   updateAction: Props["updateAction"];
   approveAction: Props["approveAction"];
+  updateSequencePhaseAction: Props["updateSequencePhaseAction"];
 }) {
+  const [isPending, startTransition] = useTransition();
   const isApproved = email.approved === true;
 
   return (
     <>
-      {/* Tabs + approve */}
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
-        <div className="flex gap-1">
-          <TabButton active={mode === "preview"} onClick={() => setMode("preview")}>
-            Preview
-          </TabButton>
-          <TabButton active={mode === "ai"} onClick={() => setMode("ai")}>
-            ✨ IA
-          </TabButton>
-          <TabButton active={mode === "html"} onClick={() => setMode("html")}>
-            Editar
-          </TabButton>
+      {/* Phase selector + approve */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1">
+            <TabButton active={mode === "preview"} onClick={() => setMode("preview")}>
+              Preview
+            </TabButton>
+            <TabButton active={mode === "ai"} onClick={() => setMode("ai")}>
+              ✨ IA
+            </TabButton>
+            <TabButton active={mode === "html"} onClick={() => setMode("html")}>
+              Editar
+            </TabButton>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">Fase:</span>
+            <select
+              value={email.phase ?? ""}
+              onChange={(e) => {
+                const phase = e.target.value;
+                startTransition(async () => {
+                  await updateSequencePhaseAction(
+                    launchId,
+                    index,
+                    phase,
+                    email.sendOffsetDays,
+                  );
+                });
+              }}
+              disabled={isPending}
+              className="rounded border border-white/10 bg-black/60 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30"
+            >
+              <option value="">Sin fase</option>
+              {Object.entries(PHASE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <form action={approveAction.bind(null, launchId, index, !isApproved)}>
           <SubmitButton
@@ -640,9 +683,9 @@ function DesignedEmailExpanded({
             className="mt-1 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white/30"
           >
             <option value="">Sin fase</option>
-            {phases.map((p) => (
-              <option key={p.phase} value={p.phase}>
-                {PHASE_LABELS[p.phase] ?? p.phase.replace(/_/g, " ")} — {p.label}
+            {Object.entries(PHASE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
               </option>
             ))}
           </select>
