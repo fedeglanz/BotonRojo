@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 
 const DEFAULT_MESSAGES = [
@@ -15,10 +16,16 @@ const DEFAULT_MESSAGES = [
  * Drop inside any <form> whose action is a slow AI generation call — it reads
  * the same pending state as the submit button (useFormStatus needs a <form>
  * ancestor) and takes over the whole screen instead of just spinning a button.
+ *
+ * Uses a portal to escape ancestors with backdrop-filter (which create a new
+ * containing block and break position:fixed).
  */
 export function AiGeneratingOverlay({ messages = DEFAULT_MESSAGES }: { messages?: string[] }) {
   const { pending } = useFormStatus();
   const [messageIndex, setMessageIndex] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!pending) {
@@ -31,9 +38,9 @@ export function AiGeneratingOverlay({ messages = DEFAULT_MESSAGES }: { messages?
     return () => clearInterval(id);
   }, [pending, messages.length]);
 
-  if (!pending) return null;
+  if (!pending || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="ai-reactor-backdrop" role="status" aria-live="polite">
       <div className="ai-reactor">
         <div className="ai-reactor__ring ai-reactor__ring--outer" aria-hidden />
@@ -42,6 +49,7 @@ export function AiGeneratingOverlay({ messages = DEFAULT_MESSAGES }: { messages?
         <div className="ai-reactor__core" aria-hidden />
       </div>
       <div className="ai-reactor-status">{messages[messageIndex]}</div>
-    </div>
+    </div>,
+    document.body,
   );
 }

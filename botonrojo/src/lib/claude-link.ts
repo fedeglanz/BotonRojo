@@ -114,6 +114,7 @@ export function claudeCampaignsPrompt(input: {
 2. contrato_email: un email no es una página pequeña —CSS en línea, tablas, 600px, sin JavaScript— y ahí está todo lo que hay que cumplir.
 3. listar_emails, para ver las que ya existen y no repetir nombre sin querer.
 4. Cada campaña: la diseñas, me la enseñas, y la publicas con publicar_email dándole un nombre ("Bienvenida 1", "Carta del martes 3"), su asunto y su preencabezado.
+5. IMPORTANTE: al publicar, incluí el parámetro "fase" con la fase del lanzamiento a la que pertenece (captacion, calentamiento, apertura_carrito, venta, cierre_carrito, etc) y opcionalmente "offset_dias". Esto es clave para que el email aparezca en el calendario y se programe correctamente.
 
 Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una secuencia entera sin preguntar.`;
 }

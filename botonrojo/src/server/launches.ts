@@ -2404,7 +2404,7 @@ async function loadEmailAsset(launchId: string, organizationId: string) {
   const [asset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email")))
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email"), eq(assets.pageKey, "main")))
     .orderBy(desc(assets.createdAt))
     .limit(1);
   if (!asset) throw new Error("no_email_asset");
@@ -2835,18 +2835,25 @@ export async function pushEmailsToActiveCampaignAction(
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     if (!email) continue;
-    const tpl = await ac.createEmailTemplate({
-      name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
-      subject: email.subject,
-      html: wrapEmailHtml(
-        email.body,
-        email.preheader ?? "",
-        email.ctaText,
-        email.ctaUrl,
-        brand,
-      ),
-    });
-    templateIds.push(tpl.id);
+    try {
+      const tpl = await ac.createEmailTemplate({
+        name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
+        subject: email.subject,
+        html: wrapEmailHtml(
+          email.body,
+          email.preheader ?? "",
+          email.ctaText,
+          email.ctaUrl,
+          brand,
+        ),
+      });
+      templateIds.push(tpl.id);
+    } catch (err) {
+      console.error(`[pushEmails] Error creating template ${i + 1}/${sequence.emails.length}:`, err);
+      throw new Error(
+        `Error al crear plantilla #${i + 1} ("${email.subject.slice(0, 40)}"): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // Store template IDs in assetsCache for campaign creation
@@ -2915,6 +2922,55 @@ export async function pushDesignedEmailToAcAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
+/** Assign phase + offset to a designed email campaign. */
+export async function updateDesignedEmailPhaseAction(
+  assetId: string,
+  phase: string,
+  sendOffsetDays?: number,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)))
+    .limit(1);
+  if (!asset || asset.kind !== "email" || !isCustomEmailBody(asset.body)) {
+    throw new Error("asset_not_found");
+  }
+  const body = { ...asset.body, phase: phase || undefined, sendOffsetDays };
+  await db
+    .update(assets)
+    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .where(eq(assets.id, asset.id));
+
+  const launch = await getOrgLaunch(asset.launchId!, organizationId);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/** Approve/unapprove a designed email campaign. */
+export async function approveDesignedEmailAction(
+  assetId: string,
+  approved: boolean,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const [asset] = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)))
+    .limit(1);
+  if (!asset || asset.kind !== "email" || !isCustomEmailBody(asset.body)) {
+    throw new Error("asset_not_found");
+  }
+  const body = { ...asset.body, approved };
+  await db
+    .update(assets)
+    .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .where(eq(assets.id, asset.id));
+
+  const launch = await getOrgLaunch(asset.launchId!, organizationId);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function scheduleAcCampaignsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
@@ -2925,16 +2981,36 @@ export async function scheduleAcCampaignsAction(launchId: string) {
 
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
   const templateIds = cache.acTemplateIds as string[] | undefined;
-  if (!templateIds?.length) throw new Error("ac_templates_not_pushed");
 
-  // Get email sequence
+  // Get email sequence (pageKey="main" to avoid designed campaign assets)
   const [emailAsset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email")))
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email"), eq(assets.pageKey, "main")))
     .orderBy(desc(assets.createdAt))
     .limit(1);
-  if (!emailAsset) throw new Error("email_asset_not_found");
+
+  // Get designed campaign assets with acTemplateId (already pushed to AC)
+  const designedAssets = await db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.launchId, launchId), eq(assets.kind, "email")))
+    .orderBy(desc(assets.createdAt));
+  const designedWithTemplate = designedAssets
+    .filter((a) => isCustomEmailBody(a.body) && a.body.acTemplateId && a.body.phase)
+    .map((a) => {
+      const body = a.body as import("@/lib/custom-email").CustomEmailBody;
+      return {
+        subject: body.subject,
+        preheader: body.preheader,
+        phase: body.phase!,
+        sendOffsetDays: body.sendOffsetDays ?? 0,
+        acTemplateId: body.acTemplateId!,
+      };
+    });
+
+  // Phases covered by designed campaigns (these replace sequence emails)
+  const designedPhaseSet = new Set(designedWithTemplate.map((d) => d.phase));
 
   type EmailItem = {
     subject: string;
@@ -2943,7 +3019,16 @@ export async function scheduleAcCampaignsAction(launchId: string) {
     timing?: string;
     sendOffsetDays?: number;
   };
-  const sequence = emailAsset.body as { emails: EmailItem[] };
+  const sequence = emailAsset
+    ? (emailAsset.body as { emails: EmailItem[] })
+    : { emails: [] as EmailItem[] };
+
+  // Must have at least some emails to schedule
+  const hasSequenceTemplates = Boolean(templateIds?.length);
+  const hasDesignedTemplates = designedWithTemplate.length > 0;
+  if (!hasSequenceTemplates && !hasDesignedTemplates) {
+    throw new Error("ac_templates_not_pushed");
+  }
 
   // Get milestones to compute send dates
   const launchMilestones = await db
@@ -2956,6 +3041,16 @@ export async function scheduleAcCampaignsAction(launchId: string) {
     launchMilestones.map((m) => [m.phase, m]),
   );
 
+  function computeScheduledDate(phase: string | undefined, offsetDays: number): string | undefined {
+    if (!phase) return undefined;
+    const milestone = milestoneByPhase.get(phase);
+    if (!milestone) return undefined;
+    const base = new Date(milestone.startsAt);
+    base.setDate(base.getDate() + offsetDays);
+    base.setHours(10, 0, 0, 0);
+    return base.toISOString();
+  }
+
   // Delete existing campaigns for this launch (drafts only)
   const existing = await ac.findCampaignsByPrefix(launch.slug);
   for (const c of existing) {
@@ -2965,35 +3060,43 @@ export async function scheduleAcCampaignsAction(launchId: string) {
   }
 
   const campaignIds: string[] = [];
+  let emailNum = 0;
 
+  // Schedule sequence emails (skip those replaced by designed campaigns)
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
-    const tplId = templateIds[i];
+    const tplId = templateIds?.[i];
     if (!email || !tplId) continue;
+    // Skip if a designed campaign covers this phase
+    if (email.phase && designedPhaseSet.has(email.phase)) continue;
 
-    // Compute scheduled date from milestone + offset
-    let scheduledDate: string | undefined;
-    if (email.phase) {
-      const milestone = milestoneByPhase.get(email.phase);
-      if (milestone) {
-        const base = new Date(milestone.startsAt);
-        const offset = email.sendOffsetDays ?? 0;
-        base.setDate(base.getDate() + offset);
-        // Schedule at 10:00 AM (reasonable default)
-        base.setHours(10, 0, 0, 0);
-        scheduledDate = base.toISOString();
-      }
-    }
+    emailNum++;
+    const scheduledDate = computeScheduledDate(email.phase, email.sendOffsetDays ?? 0);
 
     const campaign = await ac.createCampaign({
-      name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 40)}`,
+      name: `${launch.slug} · ${String(emailNum).padStart(2, "0")} · ${email.subject.slice(0, 40)}`,
       listId: launch.activeCampaignListId,
       templateId: tplId,
       subject: email.subject,
       preheaderText: email.preheader,
       scheduledDate,
     });
+    campaignIds.push(campaign.id);
+  }
 
+  // Schedule designed campaign emails
+  for (const designed of designedWithTemplate) {
+    emailNum++;
+    const scheduledDate = computeScheduledDate(designed.phase, designed.sendOffsetDays);
+
+    const campaign = await ac.createCampaign({
+      name: `${launch.slug} · D${String(emailNum).padStart(2, "0")} · ${designed.subject.slice(0, 40)}`,
+      listId: launch.activeCampaignListId,
+      templateId: designed.acTemplateId,
+      subject: designed.subject,
+      preheaderText: designed.preheader,
+      scheduledDate,
+    });
     campaignIds.push(campaign.id);
   }
 

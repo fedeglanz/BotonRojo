@@ -29,6 +29,14 @@ export type CustomEmailBody = {
   source?: string;
   /** Id de la plantilla en ActiveCampaign, cuando ya se ha subido. */
   acTemplateId?: string;
+  /** Fase del lanzamiento (mismo enum que milestones). */
+  phase?: string;
+  /** Días de offset respecto al inicio de la fase. */
+  sendOffsetDays?: number;
+  /** Descripción corta de cuándo enviar. */
+  timing?: string;
+  /** Aprobado para enviar a AC. */
+  approved?: boolean;
 };
 
 export function isCustomEmailBody(body: unknown): body is CustomEmailBody {

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { SubmitButton } from "./submit-button";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +35,19 @@ export function ActiveCampaignPanel({
   pushEmailsAction,
   scheduleCampaignsAction,
 }: Props) {
+  const [error, setError] = useState<string | null>(null);
+
+  function wrapAction<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
+    return async (...args: A) => {
+      setError(null);
+      try {
+        await fn(...args);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    };
+  }
+
   if (!configured) {
     return (
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
@@ -74,8 +90,14 @@ export function ActiveCampaignPanel({
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
       {/* Step 1: Provision list + tags */}
-      <form action={provisionAction.bind(null, launchId)} className="space-y-3">
+      <form action={wrapAction(provisionAction).bind(null, launchId)} className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="block">
             <span className="block text-[10px] uppercase tracking-widest text-zinc-500">
@@ -102,7 +124,7 @@ export function ActiveCampaignPanel({
       {/* Step 2: Push email templates */}
       <div className="flex flex-wrap items-center gap-3">
         {hasEmails && emailAssetId ? (
-          <form action={pushEmailsAction.bind(null, launchId, emailAssetId)}>
+          <form action={wrapAction(pushEmailsAction).bind(null, launchId, emailAssetId)}>
             <SubmitButton variant={hasTemplates ? "outline" : "primary"} pendingLabel="Subiendo plantillas…">
               {hasTemplates ? "Re-subir plantillas de email" : "2. Subir emails como plantillas AC"}
             </SubmitButton>
@@ -117,7 +139,7 @@ export function ActiveCampaignPanel({
       {/* Step 3: Schedule campaigns */}
       <div className="flex flex-wrap items-center gap-3">
         {canSchedule ? (
-          <form action={scheduleCampaignsAction.bind(null, launchId)}>
+          <form action={wrapAction(scheduleCampaignsAction).bind(null, launchId)}>
             <SubmitButton variant={hasCampaigns ? "outline" : "primary"} pendingLabel="Creando campanas…">
               {hasCampaigns ? "Re-crear campanas programadas" : "3. Crear campanas programadas en AC"}
             </SubmitButton>

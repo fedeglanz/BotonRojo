@@ -46,6 +46,8 @@ import {
   fetchAcAutomationsAction,
   linkAcAutomationAction,
   unlinkAcAutomationAction,
+  updateDesignedEmailPhaseAction,
+  approveDesignedEmailAction,
   connectTelegramGroupAction,
   disconnectTelegramGroupAction,
   sendTelegramTestAction,
@@ -84,7 +86,7 @@ import { GenerationProgress } from "@/components/admin/generation-progress";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { AiGeneratingOverlay } from "@/components/admin/ai-generating-overlay";
 import { MarcoCopyEditor } from "@/components/admin/marco-copy-editor";
-import { EmailEditor } from "@/components/admin/email-editor";
+import { UnifiedEmailList } from "@/components/admin/unified-email-list";
 import { StripeProductForm } from "@/components/admin/stripe-product-form";
 import { PricingPlanForm } from "@/components/admin/pricing-plan-form";
 import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
@@ -115,7 +117,6 @@ import {
   claudeCampaignsPrompt,
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
-import { DesignedCampaigns } from "@/components/admin/designed-campaigns";
 import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { listLaunchTasks } from "@/server/launch-tasks";
 
@@ -180,7 +181,7 @@ export default async function LaunchHubPage(props: {
   const [emailAsset] = await db
     .select()
     .from(assets)
-    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email")))
+    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "email"), eq(assets.pageKey, "main")))
     .orderBy(desc(assets.createdAt))
     .limit(1);
 
@@ -292,6 +293,10 @@ export default async function LaunchHubPage(props: {
         preheader: body.preheader ?? null,
         publishedAt: body.publishedAt ?? null,
         acTemplateId: body.acTemplateId ?? null,
+        phase: body.phase ?? null,
+        sendOffsetDays: body.sendOffsetDays ?? null,
+        timing: body.timing ?? null,
+        approved: body.approved ?? null,
       };
     });
 
@@ -725,43 +730,12 @@ export default async function LaunchHubPage(props: {
         <>
           {active === "todo" && <GroupHeading>Campaña</GroupHeading>}
 
-          {/* Campañas diseñadas en Claude. Van antes de la secuencia generada porque
-              en un lanzamiento de Claude son las de verdad; la secuencia se queda
-              debajo y sigue disponible para quien la quiera. */}
-          {launch.designMode === "claude" && (
-            <WizardStep
-              index={4}
-              title="Campañas en Claude Design"
-              subtitle="Emails diseñados con la identidad del lanzamiento. Tantos como quieras."
-              status={
-                !hasMarco
-                  ? "needs-prev"
-                  : designedCampaigns.length > 0
-                    ? "ready"
-                    : "empty"
-              }
-            >
-              <DesignedCampaigns
-                campaigns={designedCampaigns}
-                launchSlug={launch.slug}
-                hasConnector={connector}
-                acConfigured={acConfigured}
-                claudeUrl={CLAUDE_DESIGN_URL}
-                claudePrompt={claudeCampaignsPrompt({
-                  launchSlug: launch.slug,
-                  launchName: launch.name,
-                })}
-                pushAction={pushDesignedEmailToAcAction.bind(null, launch.id)}
-              />
-            </WizardStep>
-          )}
-
-          {/* Step 4 — Emails */}
+          {/* Step 4 — Emails del lanzamiento (unificado: secuencia IA + diseñados) */}
           <WizardStep
-            index={launch.designMode === "claude" ? 4.5 : 4}
-            title="Secuencia de emails"
-            subtitle={`Plan específico para tipo ${meta?.label ?? launch.type}.`}
-            status={!hasMarco ? "needs-prev" : hasEmails ? "ready" : "empty"}
+            index={4}
+            title="Emails del lanzamiento"
+            subtitle={`Secuencia generada por IA${launch.designMode === "claude" ? " y emails diseñados en Claude" : ""}. Agrupados por fase.`}
+            status={!hasMarco ? "needs-prev" : (hasEmails || designedCampaigns.length > 0) ? "ready" : "empty"}
             action={
               <form action={generateEmailsAction.bind(null, launch.id)}>
                 <AiGeneratingOverlay
@@ -776,29 +750,42 @@ export default async function LaunchHubPage(props: {
                   pendingLabel="Generando emails…"
                   disabled={!hasMarco}
                 >
-                  {hasEmails ? "Regenerar emails" : "Generar emails"}
+                  {hasEmails ? "Regenerar secuencia IA" : "Generar secuencia IA"}
                 </SubmitButton>
               </form>
             }
           >
-            <EmailEditor
+            <UnifiedEmailList
               launchId={launch.id}
-              body={
-                (emailAsset?.body ?? null) as Parameters<
-                  typeof EmailEditor
-                >[0]["body"]
+              launchSlug={launch.slug}
+              designMode={launch.designMode}
+              sequenceBody={
+                (emailAsset?.body ?? null) as { emails: Array<{ subject: string; preheader?: string; body: string; ctaText?: string; ctaUrl?: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> } | null
               }
               brand={{
                 logoUrl: launch.brandLogoUrl,
                 palette: launch.brandPalette,
                 fonts: launch.brandFonts,
               }}
+              designedCampaigns={designedCampaigns}
+              phases={launchMilestones.map((m) => ({ phase: m.phase, label: m.label }))}
+              hasConnector={connector}
+              acConfigured={acConfigured}
+              claudeUrl={CLAUDE_DESIGN_URL}
+              claudePrompt={claudeCampaignsPrompt({
+                launchSlug: launch.slug,
+                launchName: launch.name,
+              })}
+              hasMarco={hasMarco}
               refineAction={refineEmailAction}
               updateAction={updateEmailAction}
               approveAction={approveEmailAction}
               approveAllAction={approveAllEmailsAction}
+              pushDesignedAction={pushDesignedEmailToAcAction}
+              updatePhaseAction={updateDesignedEmailPhaseAction}
+              approveDesignedAction={approveDesignedEmailAction}
             />
-            {hasEmails && (
+            {(hasEmails || designedCampaigns.length > 0) && (
               <div className="mt-4 flex justify-end">
                 <Link
                   href={`/admin/emails?launch=${launch.id}`}
@@ -839,41 +826,52 @@ export default async function LaunchHubPage(props: {
               scheduleCampaignsAction={scheduleAcCampaignsAction}
             />
 
-            {/* Campaign Calendar */}
-            {hasEmails && hasMilestones && (
-              <div className="mt-6 space-y-2">
-                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                  Calendario de envios
-                </h3>
-                <CampaignCalendar
-                  launchId={launch.id}
-                  emails={
-                    (
-                      emailAsset?.body as {
-                        emails: Array<{
-                          subject: string;
-                          phase?: string;
-                          timing?: string;
-                          sendOffsetDays?: number;
-                          approved?: boolean;
-                        }>;
-                      }
-                    )?.emails ?? []
-                  }
-                  milestones={launchMilestones.map((m) => ({
-                    phase: m.phase,
-                    label: m.label,
-                    startsAt: m.startsAt.toISOString(),
-                    endsAt: m.endsAt.toISOString(),
-                  }))}
-                  hasCampaigns={Boolean(
-                    (launch.assetsCache as Record<string, unknown>)
-                      ?.acCampaignIds,
-                  )}
-                  updateOffsetAction={updateEmailOffsetAction}
-                />
-              </div>
-            )}
+            {/* Campaign Calendar — merged from sequence + designed emails */}
+            {(hasEmails || designedCampaigns.some((c) => c.phase)) && hasMilestones && (() => {
+              // Phases covered by designed campaigns (these replace sequence emails)
+              const designedPhaseSet = new Set(
+                designedCampaigns.filter((c) => c.phase).map((c) => c.phase!),
+              );
+              const sequenceEmails = (
+                (emailAsset?.body as { emails: Array<{ subject: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> })?.emails ?? []
+              ).filter((e) => !e.phase || !designedPhaseSet.has(e.phase))
+                .map((e) => ({ ...e, source: "sequence" as const }));
+              const designedEmails = designedCampaigns
+                .filter((c) => c.phase)
+                .map((c) => ({
+                  subject: c.subject,
+                  phase: c.phase!,
+                  sendOffsetDays: c.sendOffsetDays ?? 0,
+                  approved: c.approved ?? false,
+                  source: "designed" as const,
+                  assetId: c.id,
+                }));
+              const allEmails = [...sequenceEmails, ...designedEmails];
+              if (!allEmails.length) return null;
+              return (
+                <div className="mt-6 space-y-2">
+                  <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                    Calendario de envios
+                  </h3>
+                  <CampaignCalendar
+                    launchId={launch.id}
+                    emails={allEmails}
+                    milestones={launchMilestones.map((m) => ({
+                      phase: m.phase,
+                      label: m.label,
+                      startsAt: m.startsAt.toISOString(),
+                      endsAt: m.endsAt.toISOString(),
+                    }))}
+                    hasCampaigns={Boolean(
+                      (launch.assetsCache as Record<string, unknown>)
+                        ?.acCampaignIds,
+                    )}
+                    updateOffsetAction={updateEmailOffsetAction}
+                    updateDesignedOffsetAction={updateDesignedEmailPhaseAction}
+                  />
+                </div>
+              );
+            })()}
 
             {/* AC Automations */}
             {acConfigured && acAutomations.length > 0 && (

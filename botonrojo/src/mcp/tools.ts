@@ -1247,6 +1247,16 @@ const publicarEmail: ToolDef = {
         description:
           "El email completo: CSS en línea, maquetado con tablas, 600px de ancho. Ver contrato_email.",
       },
+      fase: {
+        type: "string",
+        description:
+          "Fase del lanzamiento: pre_captacion, captacion, calentamiento, evento_vivo, replay, apertura_carrito, venta, cierre_carrito, urgencia, pre_pre_lanzamiento, plc_1, plc_2, plc_3, plc_4. Opcional; si no se indica, se asigna después desde el panel.",
+      },
+      offset_dias: {
+        type: "number",
+        description:
+          "Días de offset respecto al inicio de la fase (0 = primer día). Opcional.",
+      },
     },
     required: ["lanzamiento", "nombre", "asunto", "html"],
     additionalProperties: false,
@@ -1302,6 +1312,9 @@ const publicarEmail: ToolDef = {
       .where(eq(mcpTokens.id, auth.tokenId))
       .limit(1);
 
+    const fase = typeof args.fase === "string" ? args.fase.trim() : undefined;
+    const offsetDias = typeof args.offset_dias === "number" ? args.offset_dias : undefined;
+
     const body: CustomEmailBody = {
       format: "html",
       html: resolved,
@@ -1310,6 +1323,8 @@ const publicarEmail: ToolDef = {
       name: nombre,
       publishedAt: new Date().toISOString(),
       source: "claude-design",
+      phase: fase || undefined,
+      sendOffsetDays: offsetDias,
     };
 
     // Sustituye la que tenga el mismo nombre, en vez de acumular versiones: al
