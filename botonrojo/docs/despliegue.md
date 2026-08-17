@@ -97,6 +97,34 @@ update mcp_tokens set revoked_at = now() where revoked_at is null;
 Esto pasó dos veces: el token de trabajo de JC apareció revocado al mismo segundo
 que un token de prueba, y desde fuera parecía que el producto los caducaba solo.
 
+## Conectar el dominio de un cliente
+
+Dos partes, y las dos hacen falta: los DNS del cliente y el alta en este servidor.
+
+**1. El cliente apunta su dominio aquí.** Vale cualquiera de las dos:
+
+| Registro | Nombre | Valor |
+|---|---|---|
+| `A` | el subdominio (o `@` si es el dominio raíz) | `194.163.129.230` |
+| `CNAME` | el subdominio | `botonrojo.escuelanomadadigital.com` |
+
+**2. Se da de alta en el servidor**, porque nginx no sirve un nombre que no conoce:
+
+```bash
+/opt/botonrojo/botonrojo/deploy/conectar-dominio.sh paginas.cliente.com
+```
+
+El script comprueba primero que el DNS ya apunta aquí —pedir el certificado antes
+gastaría uno de los cinco intentos por semana que da Let's Encrypt—, crea el dominio en
+Hestia, le pone la plantilla de proxy y saca el certificado.
+
+**3. En el panel del lanzamiento**, añadir el dominio y darle a Verificar.
+
+Sin el paso 2 el nombre resuelve pero no carga: el visitante se encuentra el sitio por
+defecto del servidor o un aviso de certificado. Con Caddy esto se habría resuelto solo
+—su TLS a demanda pide el certificado en la primera visita— pero aquí manda nginx, y
+esa comodidad se cambió por no tumbar los otros doce sitios del servidor.
+
 ## Actualizar
 
 ```bash
