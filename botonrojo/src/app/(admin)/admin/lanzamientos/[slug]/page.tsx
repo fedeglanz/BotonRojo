@@ -115,6 +115,7 @@ import {
   claudeCampaignsPrompt,
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
+import { ProximosPasos, type Paso } from "@/components/admin/proximos-pasos";
 import { DesignedCampaigns } from "@/components/admin/designed-campaigns";
 import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { listLaunchTasks } from "@/server/launch-tasks";
@@ -355,6 +356,91 @@ export default async function LaunchHubPage(props: {
     { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
   ];
 
+  // Qué toca ahora, en un lanzamiento normal. Los de Claude ya lo tienen resuelto
+  // por la cola de tareas, que dice lo mismo con más detalle.
+  const pasos: Paso[] = [
+    {
+      titulo: "Contar qué vendes",
+      queHacer:
+        "Escribe el brief: qué es, a quién le sirve y qué lo hace distinto. Con eso se escribe todo lo demás, así que cuanto más concreto, menos tendrás que corregir después.",
+      hecho: hasBrief,
+      href: `${basePath}?seccion=marca`,
+    },
+    {
+      titulo: "Aprobar la identidad visual",
+      queHacer:
+        "Genera colores y tipografías y aprueba la que te guste. Hasta que no hay una aprobada, las páginas no se pueden generar.",
+      hecho: brandKitApproved,
+      href: `${basePath}?seccion=marca`,
+    },
+    {
+      titulo: "Definir la promesa y el avatar",
+      queHacer:
+        "El marco de copy: a quién le hablas y qué le prometes. Es lo que la IA usa para escribir los titulares de todas las páginas y los correos.",
+      hecho: hasMarco,
+      href: `${basePath}?seccion=marca`,
+    },
+    ...(esEvergreen
+      ? []
+      : [
+          {
+            titulo: "Poner las fechas",
+            queHacer:
+              "Marca en el calendario cuándo abre y cierra el carrito. De ahí salen las cuentas atrás de las páginas y el envío de los correos.",
+            hecho: hasMilestones,
+            href: `${basePath}?seccion=marca`,
+          },
+        ]),
+    {
+      titulo: `Generar las ${pages.length} páginas`,
+      queHacer:
+        "Dale a generar y revisa el resultado. Cada página se puede retocar luego desde la propia página con el modo edición.",
+      hecho: hasLanding,
+      href: `${basePath}?seccion=paginas`,
+    },
+    {
+      titulo: "Escribir los correos",
+      queHacer:
+        "La secuencia de la campaña. Se genera entera y luego cambias lo que no te suene a ti.",
+      hecho: hasEmails,
+      href: `${basePath}?seccion=campana`,
+    },
+    ...(esEvergreen
+      ? []
+      : [
+          {
+            titulo: "Crear el producto de pago",
+            queHacer:
+              "El producto en Stripe con su precio y sus plazos, si los hay. Sin esto el botón de comprar no lleva a ninguna parte.",
+            hecho: hasProduct,
+            href: `${basePath}?seccion=conexiones`,
+          },
+        ]),
+    {
+      titulo: "Conectar ActiveCampaign",
+      queHacer:
+        "Elige la lista donde caen los registros. Sin lista, los correos no salen de aquí.",
+      hecho: hasAc,
+      href: `${basePath}?seccion=conexiones`,
+    },
+    {
+      titulo: "Usar tu propio dominio",
+      queHacer:
+        "Si quieres que las páginas se vean en tu dominio en vez de en el nuestro, añádelo y verifícalo.",
+      hecho: hasActiveDomain,
+      href: `${basePath}?seccion=conexiones`,
+      opcional: true,
+    },
+    {
+      titulo: "Avisos por Telegram",
+      queHacer:
+        "Para que te llegue al móvil cada venta y cada registro. No hace falta para lanzar.",
+      hecho: hasTelegram,
+      href: `${basePath}?seccion=conexiones`,
+      opcional: true,
+    },
+  ];
+
   const requested = SECTIONS.find((s) => s === seccion);
   const active: SectionId = requested ?? "todo";
 
@@ -416,6 +502,8 @@ export default async function LaunchHubPage(props: {
           }}
         />
       )}
+
+      {launch.designMode !== "claude" && <ProximosPasos pasos={pasos} />}
 
       <LaunchTabs tabs={tabs} active={active} basePath={basePath} />
 
