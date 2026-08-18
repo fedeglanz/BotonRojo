@@ -128,10 +128,28 @@ esa comodidad se cambió por no tumbar los otros doce sitios del servidor.
 ## Actualizar
 
 ```bash
-cd botonrojo/botonrojo
-git pull
-docker compose up -d --build app
+cd /opt/botonrojo/botonrojo
+docker compose -f docker-compose.prod.yml up -d --build app
 ```
+
+**Siempre con `-f docker-compose.prod.yml`.** Los dos ficheros comparten el nombre de
+proyecto (`botonrojo`), así que un `docker compose up` a secas no arranca otra cosa al
+lado: recrea *estos mismos* contenedores con la configuración de desarrollo. Y esa
+publica Redis en el 6379 del host, que aquí ya lo ocupa el Redis del sistema, con lo
+que Redis no arranca, la app no arranca y el sitio se queda en 502 hasta que se vuelve
+a levantar con el fichero bueno. Pasó el 18 de agosto y costó cuatro minutos de caída.
+
+El código llega por `rsync` desde el portátil —el repo es privado y el servidor no
+tiene credenciales de GitHub, así que `git pull` ahí falla:
+
+```bash
+rsync -az --delete --exclude node_modules --exclude .next --exclude .env \
+  --exclude deploy/data --exclude .git \
+  ./ root@194.163.129.230:/opt/botonrojo/botonrojo/
+```
+
+Los `--exclude` de `.env` y `deploy/data` no son optimización: con `--delete` puestos,
+sin ellos se borran la configuración y la base de datos del servidor.
 
 Las migraciones nuevas se aplican solas al arrancar. Ojo con una cosa: Drizzle
 decide qué migraciones faltan comparando la marca de tiempo del `_journal.json`,
