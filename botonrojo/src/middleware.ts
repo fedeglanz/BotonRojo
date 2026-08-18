@@ -3,13 +3,26 @@ import type { NextRequest } from "next/server";
 
 /**
  * Any request whose Host header isn't our own app domain gets rewritten to
- * /_sites/<host>/... , where a normal (Node-runtime) route looks the hostname
+ * /sitios/<host>/... , where a normal (Node-runtime) route looks the hostname
  * up in the `domains` table and serves that launch's landing page. Custom
  * domains never redirect — the browser URL bar stays on the client's domain.
+ *
+ * El destino se llamaba `/_sites`, y con ese nombre no funcionó nunca: Next trata
+ * cualquier carpeta que empiece por guion bajo como privada y la deja fuera del
+ * enrutado, así que la reescritura apuntaba a una ruta que no existía y todo
+ * dominio propio contestaba 404. Se ve solo con un dominio real conectado, que es
+ * cuando apareció.
  */
 export function middleware(req: NextRequest) {
   const host = req.headers.get("host")?.split(":")[0]?.toLowerCase() ?? "";
   const ownHost = req.nextUrl.hostname.toLowerCase();
+
+  // Nadie llega a `/sitios/...` escribiéndolo: es el destino interno de la
+  // reescritura. Pedido desde fuera serviría la página de un cliente colgando de
+  // nuestro dominio, con su formulario y su carrito en la dirección equivocada.
+  if (req.nextUrl.pathname.startsWith("/sitios")) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   const isOwnHost =
     !host ||
@@ -24,7 +37,7 @@ export function middleware(req: NextRequest) {
   if (isOwnHost) return NextResponse.next();
 
   const url = req.nextUrl.clone();
-  url.pathname = `/_sites/${host}${req.nextUrl.pathname}`;
+  url.pathname = `/sitios/${host}${req.nextUrl.pathname}`;
   return NextResponse.rewrite(url);
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { PantallaEspera } from "@/components/admin/creando-overlay";
 
 /**
  * El botón rojo: el que crea el lanzamiento.
@@ -13,20 +14,31 @@ import { useFormStatus } from "react-dom";
  * Mientras trabaja se queda hundido y latiendo en vez de volver a su sitio. Un
  * botón que rebota hacia arriba después de pulsarlo dice "ya está", y aquí no
  * está: lo que viene después tarda.
+ *
+ * Con `espera`, además, tapa la pantalla entera con el planeta del lanzamiento
+ * que se está creando. La pantalla de espera se dibuja desde aquí y no desde su
+ * propio componente colgado del `<form>` porque allí `useFormStatus` devolvía
+ * `pending: false` durante todo el envío —el mismo envío que este botón sí ve—,
+ * y una espera que no aparece es peor que no tenerla. Aquí cuelga del único sitio
+ * donde el hook responde.
  */
 export function BotonRojo({
   children = "Lanzar",
   pendingLabel = "Creando el lanzamiento…",
   disabled,
+  espera = false,
 }: {
   children?: React.ReactNode;
   pendingLabel?: string;
   disabled?: boolean;
+  /** Tapar la pantalla con el planeta mientras el formulario se envía. */
+  espera?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const { pending, data } = useFormStatus();
 
   return (
     <span className={pending || disabled ? undefined : "boton-rojo-halo"}>
+      {espera && pending && <PantallaEspera data={data ?? null} />}
       <button
         type="submit"
         className="boton-rojo"

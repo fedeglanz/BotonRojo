@@ -260,7 +260,7 @@ const RESERVED_PAGE_KEYS = new Set([
   "admin",
   "login",
   "archivos",
-  "_sites",
+  "sitios",
 ]);
 
 export function pageKeyFrom(

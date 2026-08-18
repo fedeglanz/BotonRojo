@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
 import {
   Planet,
   TYPE_PLANET_COLOR,
@@ -14,44 +13,37 @@ const MENSAJES = [
   "Creando el lanzamiento…",
   "Reservando su dirección pública…",
   "Preparando sus páginas…",
-  "Dejando el panel listo…",
+  "Proponiendo la identidad visual…",
 ];
 
 /**
  * La espera de crear un lanzamiento, a pantalla completa.
  *
- * Crear tarda —hay que reservar el slug, montar la configuración de páginas y
- * dejar la cola preparada— y hasta ahora lo único que decía que algo estaba
- * pasando era un botón hundido al final de un formulario largo: si habías
- * bajado la vista, la pantalla parecía muerta y daban ganas de volver a pulsar.
+ * Crear tarda unos segundos —reserva el slug, monta la configuración de páginas
+ * y propone la identidad visual— y el único aviso era el botón hundido al final
+ * de un formulario largo: con la vista abajo, la pantalla parecía muerta y daban
+ * ganas de volver a pulsar.
  *
- * Lo que aparece es el planeta del tipo que estás creando, con una luna por
- * cada página que va a tener. No es una animación cualquiera puesta a hacer
- * bulto: es exactamente lo que verás en el panel dentro de unos segundos, así
- * que la espera ya te enseña lo que estás pidiendo. Las lunas salen apagadas
- * porque ninguna página está hecha todavía; se irán encendiendo en el panel.
+ * Lo que aparece es el planeta del tipo que estás creando, con una luna por cada
+ * página que va a tener. No es una animación de relleno: es el mismo planeta que
+ * verás en el panel dentro de unos segundos, así que la espera ya enseña lo que
+ * has pedido. Las lunas salen apagadas porque todavía no hay ninguna página
+ * hecha.
  *
- * Va dentro del `<form>` a propósito: `useFormStatus` solo sabe del envío si
- * cuelga de él, y de paso el mismo `FormData` que se está enviando dice qué
- * tipo y qué páginas dibujar, sin duplicar estado en ningún sitio.
+ * Recibe el `FormData` del envío en vez de leerlo por su cuenta: quien lo tiene
+ * es `useFormStatus`, y ese hook solo funciona donde funciona — ver el comentario
+ * de `BotonRojo`.
  */
-export function CreandoOverlay() {
-  const { pending, data } = useFormStatus();
+export function PantallaEspera({ data }: { data: FormData | null }) {
   const [mensaje, setMensaje] = useState(0);
 
   useEffect(() => {
-    if (!pending) {
-      setMensaje(0);
-      return;
-    }
     const id = setInterval(
       () => setMensaje((i) => (i + 1) % MENSAJES.length),
       2200,
     );
     return () => clearInterval(id);
-  }, [pending]);
-
-  if (!pending) return null;
+  }, []);
 
   const tipoEnviado = String(data?.get("type") ?? "");
   const tipo: LaunchType = (LAUNCH_TYPE_KEYS as readonly string[]).includes(
@@ -61,9 +53,14 @@ export function CreandoOverlay() {
     : "venta_directa";
 
   const nombre = String(data?.get("name") ?? "").trim();
-  const paginas = data
-    ? resolvePages(tipo, pageConfigFromFormData(data)).length
-    : 0;
+  let paginas = 0;
+  try {
+    paginas = data ? resolvePages(tipo, pageConfigFromFormData(data)).length : 0;
+  } catch {
+    // Contar las páginas es un adorno de la espera; si el formulario trae algo
+    // raro, el planeta sale sin lunas antes que sin pantalla.
+    paginas = 0;
+  }
 
   return (
     <div className="creando-backdrop" role="status" aria-live="polite">
@@ -72,7 +69,7 @@ export function CreandoOverlay() {
         fallbackColor={TYPE_PLANET_COLOR[tipo]}
         kind={TYPE_PLANET_KIND[tipo]}
         moons={Array.from({ length: paginas }, () => "pendiente" as const)}
-        size="min(60vh, 60vw)"
+        size="min(58vh, 58vw)"
       />
 
       <div className="space-y-2 text-center">

@@ -1,14 +1,28 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { products, trackingEvents, launches, users, orders } from "@/db/schema";
+import {
+  products,
+  trackingEvents,
+  launches,
+  users,
+  orders,
+  domains,
+} from "@/db/schema";
 import { env } from "@/lib/env";
 import { createCheckoutSession } from "@/lib/stripe";
 import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 import { sendAutomatedTelegramMessage } from "@/server/launches";
+import {
+  resolvePages,
+  pagePath,
+  type PageConfig,
+} from "@/lib/launch-pages";
+import type { LaunchType } from "@/lib/launch-types";
 
 /**
  * Resolves which launch a /gracias visit belongs to, so that page can be
@@ -34,6 +48,31 @@ export async function resolveGraciasLaunch(params: { launchSlug?: string; sessio
   return null;
 }
 
+/**
+ * El dominio por el que ha entrado el visitante, para las URLs de vuelta de Stripe.
+ *
+ * Fijas a `APP_URL`, un comprador que estaba en el dominio de su formador acababa
+ * el pago en botonrojo.escuelanomadadigital.com — la marca cambiaba justo en el
+ * momento de más desconfianza de todo el proceso.
+ *
+ * Solo se acepta un dominio que esté verificado y activo en la base de datos. El
+ * `Host` lo pone quien llama, y una URL de vuelta construida con ese valor sin
+ * comprobar sería una forma de que Stripe mandase al comprador a donde quisiera
+ * quien manipulase la cabecera.
+ */
+async function requestOrigin(): Promise<string> {
+  const host = (await headers()).get("host")?.split(":")[0]?.toLowerCase();
+  if (!host || env.APP_URL.includes(host)) return env.APP_URL;
+
+  const [dominio] = await db
+    .select()
+    .from(domains)
+    .where(and(eq(domains.hostname, host), eq(domains.status, "active")))
+    .limit(1);
+
+  return dominio ? `https://${host}` : env.APP_URL;
+}
+
 export async function startCheckoutAction(formData: FormData) {
   const productSlug = String(formData.get("productSlug") ?? "");
   const email = (formData.get("email") ? String(formData.get("email")) : "").trim() || undefined;
@@ -43,10 +82,11 @@ export async function startCheckoutAction(formData: FormData) {
   if (!product?.stripePriceId) throw new Error("product_not_configured");
   if (!product.organizationId) throw new Error("product_not_configured");
 
+  const origen = await requestOrigin();
   const session = await createCheckoutSession(product.organizationId, {
     priceId: product.stripePriceId,
-    successUrl: `${env.APP_URL}/gracias?session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${env.APP_URL}/${productSlug}`,
+    successUrl: `${origen}/gracias?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${origen}/${productSlug}`,
     customerEmail: email,
     affiliateRef: ref,
     launchId: product.launchId ?? undefined,
@@ -141,6 +181,18 @@ export async function captureLeadAction(formData: FormData) {
       leadName: name,
       email,
     }).catch((err) => console.error("Telegram on_lead (landing) failed", err));
+  }
+
+  // Si el lanzamiento tiene su propia página de gracias, ahí. En una newsletter esa
+  // página es la entrega —el lead magnet, el primer paso, lo que se prometió— y
+  // mandar a la de gracias genérica de la plataforma la dejaba sin visitas: existía,
+  // se generaba y nadie llegaba a ella nunca.
+  if (launch) {
+    const propia = resolvePages(
+      launch.type as LaunchType,
+      launch.pageConfig as PageConfig | null,
+    ).find((page) => page.kind === "gracias");
+    if (propia) redirect(pagePath(launch.slug, propia));
   }
 
   redirect(`/gracias?lead=1&launch=${launchSlug}`);
