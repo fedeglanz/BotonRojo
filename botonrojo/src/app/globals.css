@@ -588,6 +588,60 @@ html, body {
   text-align: center;
 }
 
+/* ==========================================================================
+   Los campos del panel
+   --------------------------------------------------------------------------
+   Sobre un fondo negro, un campo con fondo negro y borde al 10 % desaparece: la
+   pantalla se lee como texto suelto y no se ve dónde se escribe. Aquí se les
+   pone un relleno algo más claro que el fondo y un borde que se vea, y el borde
+   se enciende al pasar por encima para que se note que aquello es tocable.
+
+   Va aquí y no campo por campo porque hay más de sesenta repartidos por veinte
+   formularios, cada uno con sus clases; una regla de elemento acotada al panel
+   los alcanza todos y no se escapa a las páginas públicas, que llevan su propia
+   identidad visual y no deben heredar nada de esta.
+
+   Fuera de `@layer` a propósito: así gana a las utilidades de Tailwind que hoy
+   traen los campos (`bg-black/40`, `border-white/10`) sin tener que quitarlas de
+   veinte ficheros.
+   ========================================================================== */
+.panel {
+  /* Para que los desplegables nativos y los selectores de fecha del navegador
+     salgan oscuros en vez de blancos. */
+  color-scheme: dark;
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]):hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]):focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: color-mix(in srgb, var(--color-red-bright) 65%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-red-bright) 16%, transparent);
+}
+
+.panel :is(input, select, textarea):disabled {
+  opacity: 0.55;
+}
+
+.panel ::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 /* Focus ring used on form inputs across the app */
 .field-input {
   background: rgba(255, 255, 255, 0.03);

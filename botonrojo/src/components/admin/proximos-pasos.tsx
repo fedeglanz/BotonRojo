@@ -62,9 +62,16 @@ export function ProximosPasos({ pasos }: { pasos: Paso[] }) {
         </Link>
       </div>
 
-      <ol className="grid gap-1.5 sm:grid-cols-2">
+      {/* Dos columnas con `columns`, no con `grid`: una rejilla de dos columnas
+          rellena por filas, así que la lista se leería 1-2 / 3-4 en zigzag y esto
+          es una secuencia — tiene que bajar entera por la izquierda y seguir arriba
+          a la derecha. */}
+      <ol className="sm:columns-2 sm:gap-x-10">
         {pasos.map((paso) => (
-          <li key={paso.titulo} className="flex items-center gap-2.5 text-sm">
+          <li
+            key={paso.titulo}
+            className="flex break-inside-avoid items-center gap-2.5 py-[3px] text-sm"
+          >
             <span
               aria-hidden
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
