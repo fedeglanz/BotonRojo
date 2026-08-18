@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Script from "next/script";
-import { env } from "@/lib/env";
 import { BrandStyle } from "@/components/public/brand-style";
 import type { Launch } from "@/db/schema/launches";
 
@@ -12,7 +11,6 @@ export function GraciasContent({ isLead, launch }: { isLead: boolean; launch: La
       <Script
         src="/track.js"
         data-launch={launch?.slug ?? ""}
-        data-api={env.APP_URL}
         strategy="afterInteractive"
       />
 

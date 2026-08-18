@@ -1,6 +1,5 @@
 import Script from "next/script";
 
-import { env } from "@/lib/env";
 import {
   replaceTokens,
   rewriteAssetPaths,
@@ -120,7 +119,6 @@ export function CustomHtmlPage({
       <Script
         src="/track.js"
         data-launch={launch.slug}
-        data-api={env.APP_URL}
         strategy="afterInteractive"
       />
       <Script

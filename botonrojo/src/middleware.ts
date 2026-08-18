@@ -45,5 +45,14 @@ export const config = {
   // `ads-render` is the internal ad-creative surface, only ever fetched by the
   // screenshot service — it must never be rewritten as a custom domain. It
   // can't live under an `_`-prefixed folder: Next excludes those from routing.
-  matcher: ["/((?!_next/|ads-render|api/|favicon.ico|track.js).*)"],
+  //
+  // `track.js` y `br-runtime.js` son los dos scripts que hacen funcionar las
+  // páginas: el que mide y el que da comportamiento a las diseñadas en Claude.
+  // Reescritos como si fueran una página del cliente contestaban 404, y en el
+  // dominio propio eso dejaba el formulario de registro sin nadie que lo enviara
+  // — el navegador lo mandaba por GET y el correo del visitante acababa en la
+  // barra de direcciones en vez de en la lista.
+  matcher: [
+    "/((?!_next/|ads-render|api/|favicon.ico|track.js|br-runtime.js).*)",
+  ],
 };

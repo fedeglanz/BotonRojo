@@ -55,7 +55,6 @@ import {
   movePartAction,
 } from "@/server/page-edit";
 
-import { env } from "@/lib/env";
 import { startCheckoutAction, captureLeadAction } from "@/server/checkout";
 import type { Launch, LaunchType } from "@/db/schema/launches";
 
@@ -294,7 +293,6 @@ export async function LaunchLandingPage({
         <Script
           src="/track.js"
           data-launch={launch.slug}
-          data-api={env.APP_URL}
           strategy="afterInteractive"
         />
 

@@ -9,7 +9,6 @@ import { usableDivider } from "@/components/public/section-design";
 import { PageBlocks } from "@/components/public/page-blocks";
 import { UnsubscribeForm } from "@/components/public/unsubscribe-form";
 import { resolveCtaStyle, resolveVisualStyle } from "@/lib/design/presets";
-import { env } from "@/lib/env";
 import type { Launch } from "@/db/schema/launches";
 import type { RegistroPageBody } from "@/components/public/page-bodies";
 
@@ -55,7 +54,6 @@ export function ServicePage({
       <Script
         src="/track.js"
         data-launch={launch.slug}
-        data-api={env.APP_URL}
         strategy="afterInteractive"
       />
 
