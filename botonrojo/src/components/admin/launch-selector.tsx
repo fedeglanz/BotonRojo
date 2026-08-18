@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import {
   Planet,
+  TYPE_PLANET_COLOR,
+  TYPE_PLANET_KIND,
   type MoonState,
-  type PlanetKind,
 } from "@/components/admin/planet";
 import type { BrandPalette } from "@/db/schema/launches";
 
@@ -21,35 +22,6 @@ type LaunchSummary = {
   /** Una luna por página, con su estado. */
   moons: MoonState[];
   pageCount: number;
-};
-
-/**
- * El color de un tipo de lanzamiento como color de planeta.
- *
- * LAUNCH_TYPES guarda su color como clases de Tailwind ("from-red-500 to-orange-500")
- * porque es lo que necesitan las tarjetas; un planeta necesita un color de verdad
- * para el degradado radial, así que la traducción vive aquí y no en el modelo.
- */
-const TYPE_PLANET_COLOR: Record<LaunchType, string> = {
-  venta_directa: "#ef4444",
-  semilla: "#d946ef",
-  plf: "#8b5cf6",
-  newsletter: "#0ea5e9",
-};
-
-/**
- * El mundo de cada tipo.
- *
- * No es decoración repartida al azar: cada uno dice algo del lanzamiento. El volcánico
- * para el evento con cierre, el gaseoso —que crece por capas— para la semilla, el
- * anillado para el PLF con su secuencia alrededor, y el helado para la newsletter, que
- * no tiene urgencia ninguna.
- */
-const TYPE_PLANET_KIND: Record<LaunchType, PlanetKind> = {
-  venta_directa: "volcanico",
-  semilla: "gaseoso",
-  plf: "anillado",
-  newsletter: "helado",
 };
 
 export function LaunchSelector({ launches }: { launches: LaunchSummary[] }) {

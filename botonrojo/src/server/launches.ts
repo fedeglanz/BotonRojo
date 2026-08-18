@@ -108,6 +108,7 @@ import type { DesignReviewIssue } from "@/db/schema/assets";
 import {
   resolvePages,
   pagePath,
+  pageConfigFromFormData,
   type PageConfig,
   type PageDef,
   type LegalPageKey,
@@ -570,24 +571,7 @@ export async function createLaunchAction(formData: FormData) {
     .limit(1);
   if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-  const legalPages: LegalPageKey[] = [];
-  if (formData.get("legalPrivacidad")) legalPages.push("privacidad");
-  if (formData.get("legalTerminos")) legalPages.push("terminos");
-  if (formData.get("legalCookies")) legalPages.push("cookies");
-
-  const registroChannels = String(formData.get("registroChannels") ?? "")
-    .split("\n")
-    .map((c) => c.trim())
-    .filter(Boolean);
-
-  const pageConfig: PageConfig = {
-    registroChannels:
-      registroChannels.length > 0 ? registroChannels : undefined,
-    contentPageCount:
-      Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
-    includeAffiliateRegistro: formData.get("includeAffiliateRegistro") === "on",
-    legalPages,
-  };
+  const pageConfig: PageConfig = pageConfigFromFormData(formData);
 
   const contentDripRaw = String(
     formData.get("contentDripStartsAt") ?? "",

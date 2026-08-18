@@ -1,6 +1,7 @@
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { createLaunchAction } from "@/server/launches";
 import { BotonRojo } from "@/components/admin/boton-rojo";
+import { CreandoOverlay } from "@/components/admin/creando-overlay";
 import { LaunchPageOptionsFields } from "@/components/admin/launch-page-options-fields";
 import Link from "next/link";
 
@@ -35,6 +36,8 @@ export default async function NuevoLanzamientoPage(props: {
       </div>
 
       <form action={createLaunchAction} className="glass space-y-6 p-6">
+        <CreandoOverlay />
+
         <label className="block">
           <span className="block text-xs uppercase tracking-widest text-zinc-400">
             Nombre del lanzamiento

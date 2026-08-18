@@ -1566,6 +1566,54 @@ a.fx-orbit__label:focus-visible {
 }
 
 /* ==========================================================================
+   La espera al crear un lanzamiento
+
+   Crear tarda unos segundos y el único aviso era el botón hundido al final de un
+   formulario largo: si habías bajado la vista, la pantalla parecía muerta. Esto
+   la ocupa entera con el planeta del tipo que estás creando, que es el mismo que
+   verás luego en el panel.
+   ========================================================================== */
+
+.creando-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: 2rem;
+  /* `dvh` y no `vh`: en el móvil la barra del navegador se come el 100 vh y el
+     planeta quedaría cortado por abajo justo mientras se espera. */
+  height: 100dvh;
+  width: 100vw;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(240, 31, 54, 0.12),
+      transparent 55%
+    ),
+    rgba(3, 3, 4, 0.94);
+  backdrop-filter: blur(8px);
+  animation: creando-entrada 0.35s var(--ease-standard, ease-out);
+  /* En el panel las órbitas van a 26 s porque son fondo; aquí son lo único que
+     se mueve en toda la pantalla, y a esa velocidad parecerían paradas. */
+  --orbit-duration: 11s;
+}
+
+@keyframes creando-entrada {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
    EL BOTÓN ROJO
 
    El producto se llama así, y hasta ahora el botón de crear un lanzamiento era

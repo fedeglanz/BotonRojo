@@ -86,6 +86,35 @@ export type PageDef = {
  * `PageDef`. Semilla and PLF both always have registro + venta (+ their
  * gracias) — that pairing is never optional.
  */
+/**
+ * El `PageConfig` que sale del formulario de crear lanzamiento.
+ *
+ * Vive aquí y no dentro del server action porque lo leen dos sitios: el que crea
+ * el lanzamiento y la pantalla de espera, que dibuja una luna por página y tiene
+ * que enseñar exactamente las que se van a crear. Duplicado, cualquier campo
+ * nuevo saldría bien en un lado y mal en el otro.
+ */
+export function pageConfigFromFormData(formData: FormData): PageConfig {
+  const legalPages: LegalPageKey[] = [];
+  if (formData.get("legalPrivacidad")) legalPages.push("privacidad");
+  if (formData.get("legalTerminos")) legalPages.push("terminos");
+  if (formData.get("legalCookies")) legalPages.push("cookies");
+
+  const registroChannels = String(formData.get("registroChannels") ?? "")
+    .split("\n")
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  return {
+    registroChannels:
+      registroChannels.length > 0 ? registroChannels : undefined,
+    contentPageCount:
+      Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
+    includeAffiliateRegistro: formData.get("includeAffiliateRegistro") === "on",
+    legalPages,
+  };
+}
+
 export function resolvePages(
   type: LaunchType,
   config: PageConfig | null,
