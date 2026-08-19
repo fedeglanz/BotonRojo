@@ -7,7 +7,6 @@ import {
 } from "@/lib/launch-pages";
 import { ClaudeGoButton } from "@/components/admin/claude-go-button";
 import {
-  CLAUDE_DESIGN_URL,
   claudeDesignPagePrompt,
   claudeEditPagePrompt,
 } from "@/lib/claude-link";
@@ -55,6 +54,8 @@ export function PageIndex({
   domainHostname,
   generatedKeys,
   claudeKeys,
+  designUrls,
+  claudeHref,
   hasConnector,
   dripStartsAt,
 }: {
@@ -69,6 +70,10 @@ export function PageIndex({
   generatedKeys: Set<string>;
   /** pageKeys whose content is an HTML page designed in Claude. */
   claudeKeys: Set<string>;
+  /** pageKey → el archivo en Claude Design del que salió esa página. */
+  designUrls: Record<string, string>;
+  /** El proyecto de Claude del lanzamiento, o Claude Design a secas si no hay. */
+  claudeHref: string;
   /** Si la cuenta tiene el conector conectado; si no, el botón lleva a conectarlo. */
   hasConnector: boolean;
   dripStartsAt: Date | null;
@@ -134,11 +139,26 @@ export function PageIndex({
                 Ver ↗
               </a>
 
+              {/* El archivo de Claude Design del que salió. El botón de al lado
+                  abre un chat con la instrucción puesta, que sirve para rehacer;
+                  esto lleva al diseño que ya existe, que es lo que se quiere
+                  cuando hay que cambiarle una frase. */}
+              {designUrls[page.pageKey] && (
+                <a
+                  href={designUrls[page.pageKey]}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/20"
+                >
+                  Abrir en Claude ↗
+                </a>
+              )}
+
               {page.kind !== "legal" && (
                 <ClaudeGoButton
                   hasConnector={hasConnector}
                   label={fromClaude ? "Cambiar en Claude" : "Con Claude"}
-                  href={CLAUDE_DESIGN_URL}
+                  href={claudeHref}
                   prompt={
                     fromClaude
                       ? claudeEditPagePrompt({

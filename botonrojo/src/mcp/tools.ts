@@ -34,6 +34,7 @@ import {
   replaceTokens,
   rewriteAssetPaths,
   unresolvedReferences,
+  parseClaudeDesignUrl,
   type CustomPageAssets,
   type CustomPageBody,
 } from "@/lib/custom-page";
@@ -473,6 +474,43 @@ const contratoPagina: ToolDef = {
   handler: async () => PAGE_CONTRACT,
 };
 
+/**
+ * El enlace del proyecto de Claude Design, para poder volver a él desde el panel.
+ *
+ * Sin esto, una página diseñada en Claude era un callejón: quedaba publicada y
+ * nadie sabía dónde estaba el diseño del que salió, así que "cambiar algo" era
+ * empezar un chat nuevo y volver a explicarlo todo. El enlace lo tiene Claude en
+ * la barra del navegador mientras diseña; se pide una vez y se guarda.
+ */
+const URL_CLAUDE_PARAM = {
+  type: "string" as const,
+  description:
+    "El enlace de este proyecto en Claude Design, tal cual sale en la barra del navegador (https://claude.ai/design/p/…). Se guarda para poder volver al diseño desde el panel. Mándalo siempre que lo tengas.",
+};
+
+/** Guarda el enlace del proyecto en el lanzamiento y devuelve el del archivo. */
+async function guardarUrlDeDiseno(
+  launch: { id: string; assetsCache: unknown },
+  raw: unknown,
+): Promise<string | undefined> {
+  const parsed = parseClaudeDesignUrl(
+    typeof raw === "string" ? raw : undefined,
+  );
+  if (!parsed) return undefined;
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  if (cache.claudeProjectUrl !== parsed.projectUrl) {
+    await db
+      .update(launches)
+      .set({
+        assetsCache: { ...cache, claudeProjectUrl: parsed.projectUrl },
+        updatedAt: new Date(),
+      })
+      .where(eq(launches.id, launch.id));
+  }
+  return parsed.fileUrl;
+}
+
 const publicarPagina: ToolDef = {
   name: "publicar_pagina",
   title: "Publicar una página diseñada",
@@ -499,6 +537,7 @@ const publicarPagina: ToolDef = {
           "Documento HTML completo, tal cual, sin inlinear los archivos",
       },
       titulo: { type: "string", description: "Título de la página (opcional)" },
+      url_claude: URL_CLAUDE_PARAM,
       archivos: {
         type: "array",
         description:
@@ -584,6 +623,8 @@ const publicarPagina: ToolDef = {
       .where(eq(mcpTokens.id, auth.tokenId))
       .limit(1);
 
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+
     const body: CustomPageBody = {
       format: "html",
       html,
@@ -591,6 +632,7 @@ const publicarPagina: ToolDef = {
       publishedAt: new Date().toISOString(),
       source: "claude-design",
       title: String(args.titulo ?? "") || pageDef.label,
+      ...(designUrl ? { designUrl } : {}),
     };
 
     await db.insert(assets).values({
@@ -636,6 +678,12 @@ const publicarPagina: ToolDef = {
           }
         : {}),
       archivos_alojados: Object.keys(files).length,
+      ...(designUrl
+        ? { diseno_enlazado: designUrl }
+        : {
+            falta:
+              "No me has mandado url_claude. Con él, en el panel aparece un botón que abre este diseño; sin él, cambiar algo obliga a empezar un chat nuevo.",
+          }),
       aviso:
         "La página ya está en vivo. La medición, el formulario, el pago y los afiliados están cableados por la plataforma.",
     };
@@ -901,6 +949,7 @@ const guardarIdentidad: ToolDef = {
         description:
           "En qué se ha pensado al elegirla: tono, referencias, qué se evita.",
       },
+      url_claude: URL_CLAUDE_PARAM,
     },
     required: ["lanzamiento", "paleta", "tipografias"],
     additionalProperties: false,
@@ -952,13 +1001,22 @@ const guardarIdentidad: ToolDef = {
       result: `${palette.primary} · ${display} / ${body}`,
     });
 
+    const urlProyecto = await guardarUrlDeDiseno(launch, args.url_claude);
+
     revalidatePath(`/admin/lanzamientos/${launch.slug}`);
     return {
       guardada: true,
       aprobada: true,
       estilo_ajustado: design,
+      proyecto_guardado: Boolean(urlProyecto),
       siguiente:
         "Ya puedes diseñar las páginas: mira trabajo_pendiente para ver cuáles quedan.",
+      ...(urlProyecto
+        ? {}
+        : {
+            falta:
+              "No me has mandado url_claude: mándamelo y desde el panel se podrá volver a este proyecto para cambiar cualquier cosa.",
+          }),
     };
   },
 };
@@ -1247,6 +1305,7 @@ const publicarEmail: ToolDef = {
         description:
           "El email completo: CSS en línea, maquetado con tablas, 600px de ancho. Ver contrato_email.",
       },
+      url_claude: URL_CLAUDE_PARAM,
     },
     required: ["lanzamiento", "nombre", "asunto", "html"],
     additionalProperties: false,
@@ -1302,6 +1361,8 @@ const publicarEmail: ToolDef = {
       .where(eq(mcpTokens.id, auth.tokenId))
       .limit(1);
 
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+
     const body: CustomEmailBody = {
       format: "html",
       html: resolved,
@@ -1310,6 +1371,7 @@ const publicarEmail: ToolDef = {
       name: nombre,
       publishedAt: new Date().toISOString(),
       source: "claude-design",
+      ...(designUrl ? { designUrl } : {}),
     };
 
     // Sustituye la que tenga el mismo nombre, en vez de acumular versiones: al
@@ -1349,6 +1411,12 @@ const publicarEmail: ToolDef = {
       publicada: true,
       nombre,
       sustituida: Boolean(previa),
+      ...(designUrl
+        ? { diseno_enlazado: designUrl }
+        : {
+            falta:
+              "No me has mandado url_claude. Con él, en el panel aparece un botón que abre este diseño; sin él, cambiar la campaña obliga a empezar un chat nuevo.",
+          }),
       aviso:
         "Guardada con los valores ya resueltos. Desde el panel se puede previsualizar y subir a ActiveCampaign como plantilla.",
     };

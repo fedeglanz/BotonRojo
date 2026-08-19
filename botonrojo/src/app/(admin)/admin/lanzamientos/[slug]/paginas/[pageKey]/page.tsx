@@ -98,6 +98,18 @@ export default async function LaunchPageEditor(props: {
   const domainHostname =
     (await listDomainsForLaunch(launch.id)).find((d) => d.status === "active")
       ?.hostname ?? null;
+  // El diseño del que salió esta página, y el proyecto donde vive. Con ellos, el
+  // botón de Claude abre el trabajo que ya existe en vez de una pantalla en blanco.
+  const designUrl =
+    isCustomPageBody(asset?.body) && asset.body.designUrl
+      ? asset.body.designUrl
+      : null;
+  const claudeHref =
+    ((launch.assetsCache as Record<string, unknown> | null)
+      ?.claudeProjectUrl as string | undefined) ??
+    designUrl ??
+    CLAUDE_DESIGN_URL;
+
   const publicUrl = publicPageUrl({
     appUrl: env.APP_URL,
     hostname: domainHostname,
@@ -189,6 +201,17 @@ export default async function LaunchPageEditor(props: {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {designUrl && (
+              <a
+                href={designUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-300 transition hover:bg-emerald-400/20"
+              >
+                Abrir en Claude ↗
+              </a>
+            )}
+
             <a
               href={publicUrl}
               target="_blank"
@@ -204,7 +227,7 @@ export default async function LaunchPageEditor(props: {
               <ClaudeGoButton
                 hasConnector={connector}
                 label={fromClaude ? "Cambiar en Claude" : "Diseñar en Claude"}
-                href={CLAUDE_DESIGN_URL}
+                href={claudeHref}
                 prompt={
                   fromClaude
                     ? claudeEditPagePrompt(claudeLinkArgs)

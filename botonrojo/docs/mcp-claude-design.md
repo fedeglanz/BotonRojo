@@ -234,3 +234,25 @@ contiene `</`; toda versión con regex de esto acaba comiéndose media página.
 - Las páginas legales no se pueden sustituir: su texto lo mantiene la plataforma.
 - El editor en la propia página (`?editar=1`) no actúa sobre una página de diseño
   propio: ahí se edita rediseñando y volviendo a publicar, o retirándola.
+
+## El enlace del proyecto de Claude
+
+Cada herramienta que guarda algo diseñado —`guardar_identidad`, `publicar_pagina`,
+`publicar_email`— acepta `url_claude`: el enlace del proyecto tal como está en la
+barra del navegador de Claude Design
+(`https://claude.ai/design/p/<id>?file=Gracias.dc.html`).
+
+Se guardan dos cosas de ese enlace, porque responden a preguntas distintas: el
+archivo concreto queda con la página o la campaña —"llévame a este diseño"— y el
+proyecto queda en el lanzamiento —"llévame a donde está todo". A partir de ahí, en
+el panel, cada página diseñada enseña un botón **Abrir en Claude** y todos los
+botones que abren Claude van al proyecto en vez de a una pantalla en blanco.
+
+Sin esto, una página diseñada en Claude era un callejón: quedaba publicada y nadie
+sabía de qué diseño había salido, así que cambiarle una frase significaba abrir un
+chat nuevo y volver a explicarlo todo. Se valida que sea una URL de `claude.ai` con
+forma de proyecto — se enseña como botón en el panel, y un botón que lleva a donde
+diga un dato de fuera es un sitio por donde mandar a alguien a cualquier parte.
+
+Los mensajes que abren Claude desde el panel ya se lo piden en la última línea, así
+que en el uso normal no hay que acordarse de nada.

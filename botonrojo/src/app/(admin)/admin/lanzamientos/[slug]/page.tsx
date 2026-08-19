@@ -293,6 +293,7 @@ export default async function LaunchHubPage(props: {
         preheader: body.preheader ?? null,
         publishedAt: body.publishedAt ?? null,
         acTemplateId: body.acTemplateId ?? null,
+        designUrl: body.designUrl ?? null,
       };
     });
 
@@ -323,6 +324,15 @@ export default async function LaunchHubPage(props: {
   const acLinkedAutomationIds =
     ((launch.assetsCache as Record<string, unknown>)
       ?.acLinkedAutomationIds as string[]) ?? [];
+
+  // El proyecto de Claude Design de este lanzamiento, si Claude lo mandó al
+  // guardar la identidad o al publicar. Con él, todos los botones que abren
+  // Claude llevan al proyecto donde está el trabajo en vez de a una pantalla en
+  // blanco donde hay que empezar otra vez.
+  const claudeProjectUrl =
+    ((launch.assetsCache as Record<string, unknown> | null)
+      ?.claudeProjectUrl as string | undefined) ?? null;
+  const claudeHref = claudeProjectUrl ?? CLAUDE_DESIGN_URL;
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
@@ -520,7 +530,7 @@ export default async function LaunchHubPage(props: {
               result: task.result,
             }))}
             hasConnector={connector}
-            queueHref={CLAUDE_DESIGN_URL}
+            queueHref={claudeHref}
             queuePrompt={claudeQueuePrompt({
               launchSlug: launch.slug,
               launchName: launch.name,
@@ -791,6 +801,7 @@ export default async function LaunchHubPage(props: {
               launchName={launch.name}
               appUrl={env.APP_URL.replace(/\/$/, "")}
               domainHostname={domainHostname}
+              claudeHref={claudeHref}
               hasConnector={connector}
               generatedKeys={new Set(latestByPageKey.keys())}
               claudeKeys={
@@ -800,6 +811,13 @@ export default async function LaunchHubPage(props: {
                     .map(([pageKey]) => pageKey),
                 )
               }
+              designUrls={Object.fromEntries(
+                [...latestByPageKey.entries()].flatMap(([pageKey, asset]) =>
+                  isCustomPageBody(asset.body) && asset.body.designUrl
+                    ? [[pageKey, asset.body.designUrl]]
+                    : [],
+                ),
+              )}
               dripStartsAt={launch.contentDripStartsAt}
             />
 
@@ -878,7 +896,7 @@ export default async function LaunchHubPage(props: {
                 launchSlug={launch.slug}
                 hasConnector={connector}
                 acConfigured={acConfigured}
-                claudeUrl={CLAUDE_DESIGN_URL}
+                claudeUrl={claudeHref}
                 claudePrompt={claudeCampaignsPrompt({
                   launchSlug: launch.slug,
                   launchName: launch.name,

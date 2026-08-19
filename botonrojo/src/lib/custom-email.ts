@@ -29,6 +29,8 @@ export type CustomEmailBody = {
   source?: string;
   /** Id de la plantilla en ActiveCampaign, cuando ya se ha subido. */
   acTemplateId?: string;
+  /** El archivo concreto en Claude Design del que salió esta campaña. */
+  designUrl?: string;
 };
 
 export function isCustomEmailBody(body: unknown): body is CustomEmailBody {

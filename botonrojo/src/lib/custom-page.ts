@@ -34,7 +34,43 @@ export type CustomPageBody = {
   /** Who wrote it, for the panel. Always "claude-design" for now. */
   source?: string;
   title?: string;
+  /** El archivo concreto en Claude Design del que salió esta página. */
+  designUrl?: string;
 };
+
+/**
+ * La URL de Claude Design de una página, y la del proyecto que la contiene.
+ *
+ * Un enlace de Claude Design es del tipo
+ * `https://claude.ai/design/p/<id>?file=Gracias.dc.html`: el proyecto es la ruta y
+ * el archivo va en la query. Guardamos los dos porque responden a preguntas
+ * distintas — "llévame a esta página" y "llévame al proyecto donde está todo".
+ *
+ * Se valida el dominio y la forma en vez de aceptar cualquier texto: este enlace
+ * se enseña como botón en el panel, y un botón que lleva a donde diga un dato de
+ * fuera es un sitio por donde mandar a alguien a cualquier parte.
+ */
+export function parseClaudeDesignUrl(
+  raw: string | undefined | null,
+): { fileUrl: string; projectUrl: string } | null {
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(String(raw).trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  if (url.hostname !== "claude.ai") return null;
+  const match = /^\/design\/p\/([A-Za-z0-9-]+)$/.exec(
+    url.pathname.replace(/\/$/, ""),
+  );
+  if (!match) return null;
+  return {
+    fileUrl: url.toString(),
+    projectUrl: `https://claude.ai/design/p/${match[1]}`,
+  };
+}
 
 export function isCustomPageBody(body: unknown): body is CustomPageBody {
   return (

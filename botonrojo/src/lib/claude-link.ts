@@ -41,7 +41,9 @@ export function claudeEditPagePrompt(input: {
 2. contrato_pagina, para no perder los atributos data-br ni los {{tokens}} al retocarlo.
 3. Cámbialo y publícalo con publicar_pagina en la misma página.
 
-Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.`;
+Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
 /** Diseñar desde cero una página del lanzamiento. */
@@ -62,7 +64,9 @@ export function claudeDesignPagePrompt(input: {
 
 Es una página de tipo "${input.pageKind}" y quedará en ${input.publicUrl}. Las imágenes mándalas por url en "archivos", nunca en base64.
 
-Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.`;
+Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
 /**
@@ -94,7 +98,9 @@ TAREAS SIGUIENTES — una por página. Lee contrato_pagina, diseña el documento
 
 No hace falta avisar de nada al terminar: cada tarea se cierra sola al guardar la identidad o al publicar la página.
 
-Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.`;
+Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
 /**
@@ -115,7 +121,9 @@ export function claudeCampaignsPrompt(input: {
 3. listar_emails, para ver las que ya existen y no repetir nombre sin querer.
 4. Cada campaña: la diseñas, me la enseñas, y la publicas con publicar_email dándole un nombre ("Bienvenida 1", "Carta del martes 3"), su asunto y su preencabezado.
 
-Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una secuencia entera sin preguntar.`;
+Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una secuencia entera sin preguntar.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
 /** Crear una página que el lanzamiento todavía no tiene. */
@@ -131,6 +139,8 @@ export function claudeNewPageUrl(input: {
 3. crear_pagina con el nombre y el tipo que acordemos (registro, venta, contenido o afiliados).
 4. Diséñala y publícala con publicar_pagina.
 
-Pregúntame primero para qué es la página antes de crear nada.`,
+Pregúntame primero para qué es la página antes de crear nada.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`,
   );
 }
