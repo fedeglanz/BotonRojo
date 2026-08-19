@@ -75,7 +75,14 @@ import {
   listAdImages,
   fixAdCopyLengthsAction,
 } from "@/server/ads";
-import { listMediaItems } from "@/server/media";
+import {
+  listMediaItems,
+  generateMediaItemAction,
+  deleteMediaItemAction,
+  updateMediaLabelAction,
+} from "@/server/media";
+import { MediaLibraryPanel } from "@/components/admin/media-library-panel";
+import { isImageGenConfigured } from "@/integrations/image-gen";
 
 import { WizardStep } from "@/components/admin/wizard-step";
 import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
@@ -202,7 +209,7 @@ export default async function LaunchHubPage(props: {
   const [product] = launchProducts;
 
   const [mediaItems, adImages] = await Promise.all([
-    listMediaItems(),
+    listMediaItems(launch.id),
     listAdImages(launch.id),
   ]);
 
@@ -984,6 +991,25 @@ export default async function LaunchHubPage(props: {
                 fixLengthsAction={fixAdCopyLengthsAction}
               />
 
+              {/* Las fotos de este lanzamiento, aquí mismo. Antes esto mandaba a
+                  otra pantalla ("sube primero las fotos en Anuncios → Biblioteca")
+                  con la biblioteca de toda la cuenta: había que salir del
+                  lanzamiento, subir, volver y elegir entre las fotos de todos. */}
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-widest text-zinc-400">
+                  Fotos de este lanzamiento
+                </div>
+                <MediaLibraryPanel
+                  items={mediaItems}
+                  launchId={launch.id}
+                  deleteAction={deleteMediaItemAction}
+                  updateLabelAction={updateMediaLabelAction}
+                  generateAction={
+                    isImageGenConfigured() ? generateMediaItemAction : undefined
+                  }
+                />
+              </div>
+
               {/* Los estáticos, a mano en Claude. La galería es la misma: quien
                   los sube a Meta no distingue de dónde salió cada uno, y tener
                   dos sitios distintos según quién lo diseñó sería inventarse una
@@ -1005,14 +1031,16 @@ export default async function LaunchHubPage(props: {
                 />
               </div>
 
-              {adsAsset && (
+              {/* Con copy generado o sin él: sin esto, un anuncio diseñado en
+                  Claude quedaba publicado y sin ningún sitio donde verse. */}
+              {(adsAsset || adImages.length > 0) && (
                 <div>
                   <div className="mb-2 text-xs uppercase tracking-widest text-zinc-400">
                     Componer estáticos con tus fotos
                   </div>
                   <AdStaticsGenerator
                     launchId={launch.id}
-                    concepts={(adsAsset.body as AdsBody).statics ?? []}
+                    concepts={(adsAsset?.body as AdsBody | undefined)?.statics ?? []}
                     mediaItems={mediaItems}
                     adImages={adImages}
                     generateAction={generateAdStaticsAction}

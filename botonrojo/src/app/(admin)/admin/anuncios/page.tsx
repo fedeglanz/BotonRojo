@@ -51,7 +51,9 @@ export default async function AnunciosPage() {
           Biblioteca de fotos
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Compartida por todos los lanzamientos de este cliente — súbelas una vez y reutilízalas.
+          Todas las fotos de la cuenta, para verlas de un tirón. Las nuevas se suben o
+          se generan dentro de cada lanzamiento, en su paso de Anuncios: así cada
+          campaña tiene las suyas y no hay que elegir entre las de todos los clientes.
         </p>
         <div className="mt-4">
           <MediaLibraryPanel
