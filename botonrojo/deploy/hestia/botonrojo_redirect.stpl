@@ -33,6 +33,35 @@ server {
 		try_files $uri =404;
 	}
 
+	# La API NO se redirige, se sigue sirviendo.
+	#
+	# Aquí no llega gente con un navegador: llega el conector de Claude, el webhook
+	# de Stripe, el de Telegram. Ninguno de ellos reintenta un 301 —Stripe da la
+	# entrega por fallida y Claude lo cuenta como un error de permisos—, así que
+	# redirigir esto rompe integraciones que ya estaban configuradas con el nombre
+	# viejo, en sitios donde nadie va a ir a cambiarlo hoy.
+	location ^~ /api/ {
+		proxy_pass http://127.0.0.1:3020;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_read_timeout 300s;
+		client_max_body_size 50m;
+	}
+
+	# Y los archivos publicados, por si alguna página antigua sigue pidiéndolos
+	# por el nombre viejo: una imagen redirigida carga, pero da un salto de más
+	# en cada visita.
+	location /archivos/ {
+		proxy_pass http://127.0.0.1:9000/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_hide_header x-amz-id-2;
+		proxy_hide_header x-amz-request-id;
+	}
+
 	location / {
 		return 301 https://botonrojo.estelarys.com$request_uri;
 	}

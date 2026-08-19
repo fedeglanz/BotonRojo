@@ -478,34 +478,41 @@ export default async function LaunchHubPage(props: {
         </Link>
       </header>
 
-      {launch.designMode === "claude" && (
-        <ClaudeQueue
-          tasks={queue.map((task) => ({
-            id: task.id,
-            kind: task.kind,
-            pageKey: task.pageKey,
-            label: task.label,
-            status: task.status,
-            result: task.result,
-          }))}
-          hasConnector={connector}
-          queueHref={CLAUDE_DESIGN_URL}
-          queuePrompt={claudeQueuePrompt({
-            launchSlug: launch.slug,
-            launchName: launch.name,
-          })}
-          launchSlug={launch.slug}
-          missing={{
-            copy: !hasMarco,
-            // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
-            dates: !launch.cartClosesAt && !launch.registrationClosesAt,
-          }}
-        />
-      )}
-
-      {launch.designMode !== "claude" && <ProximosPasos pasos={pasos} />}
-
       <LaunchTabs tabs={tabs} active={active} basePath={basePath} />
+
+      {/* La cola de Claude, solo en "Todo" y en "Páginas". Antes salía en las cuatro
+          secciones y era lo primero de la pantalla en todas, así que pulsar cualquier
+          botón de arriba parecía llevar siempre al mismo sitio: lo que cambiaba
+          quedaba debajo del pliegue. */}
+      {launch.designMode === "claude" &&
+        (active === "todo" || active === "paginas") && (
+          <ClaudeQueue
+            tasks={queue.map((task) => ({
+              id: task.id,
+              kind: task.kind,
+              pageKey: task.pageKey,
+              label: task.label,
+              status: task.status,
+              result: task.result,
+            }))}
+            hasConnector={connector}
+            queueHref={CLAUDE_DESIGN_URL}
+            queuePrompt={claudeQueuePrompt({
+              launchSlug: launch.slug,
+              launchName: launch.name,
+            })}
+            launchSlug={launch.slug}
+            missing={{
+              copy: !hasMarco,
+              // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
+              dates: !launch.cartClosesAt && !launch.registrationClosesAt,
+            }}
+          />
+        )}
+
+      {launch.designMode !== "claude" && active === "todo" && (
+        <ProximosPasos pasos={pasos} />
+      )}
 
       {(active === "todo" || active === "marca") && (
         <>
@@ -793,12 +800,18 @@ export default async function LaunchHubPage(props: {
                 currentUrl={launch.referenceUrl}
                 saveAction={updateReferenceUrlAction}
               />
-              <CartScheduleForm
-                launchId={launch.id}
-                currentCartClosesAt={launch.cartClosesAt}
-                currentRegistrationClosesAt={launch.registrationClosesAt}
-                saveAction={updateCartScheduleAction}
-              />
+              {/* Nada de fechas de cierre en una newsletter: es evergreen, no hay
+                  carrito que cerrar ni registro que caduque, y un campo "Cierre del
+                  carrito" en un lanzamiento sin carrito hace dudar de si falta algo
+                  por configurar. */}
+              {!esEvergreen && (
+                <CartScheduleForm
+                  launchId={launch.id}
+                  currentCartClosesAt={launch.cartClosesAt}
+                  currentRegistrationClosesAt={launch.registrationClosesAt}
+                  saveAction={updateCartScheduleAction}
+                />
+              )}
               <LandingInstructionsForm
                 launchId={launch.id}
                 currentInstructions={launch.landingGeneralInstructions}
