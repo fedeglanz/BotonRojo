@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { SubmitButton } from "./submit-button";
 import { Button } from "@/components/ui/button";
 
@@ -219,9 +219,12 @@ export function PdcCheckoutPanel({
 
   // ---- Linked ----
   // Load product data on first render when linked
-  if (!productLoaded && pdcProductId) {
-    loadProductData();
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!productLoaded && pdcProductId) {
+      loadProductData();
+    }
+  }, [pdcProductId]);
 
   return (
     <div className="space-y-4">
