@@ -53,6 +53,34 @@ type Props = {
   }>;
 };
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="shrink-0 rounded border border-white/10 px-2 py-1 text-[10px] uppercase tracking-widest text-zinc-400 transition hover:border-white/30 hover:text-white"
+    >
+      {copied ? "Copiado!" : "Copiar"}
+    </button>
+  );
+}
+
+function priceLabel(p: PdcPrice): string {
+  if (p.tipo_pago === "cuotas" && p.num_cuotas) {
+    return `${p.precio}€ x ${p.num_cuotas} cuotas (${p.precio * p.num_cuotas}€ total)`;
+  }
+  if (p.tipo_pago === "recurrente") {
+    return `${p.precio}€/mes (recurrente)`;
+  }
+  return `${p.precio}€ pago unico`;
+}
+
 export function PdcCheckoutPanel({
   launchId,
   configured,
@@ -81,6 +109,13 @@ export function PdcCheckoutPanel({
   } | null>(null);
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [showCreatePrice, setShowCreatePrice] = useState(false);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!productLoaded && pdcProductId) {
+      loadProductData();
+    }
+  }, [pdcProductId]);
 
   if (!configured) {
     return (
@@ -218,13 +253,9 @@ export function PdcCheckoutPanel({
   }
 
   // ---- Linked ----
-  // Load product data on first render when linked
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!productLoaded && pdcProductId) {
-      loadProductData();
-    }
-  }, [pdcProductId]);
+  const activePrices = pdcPrices.filter(
+    (p) => p.activo === 1 && !p.checkout_url_stripe?.includes("checkout_padre"),
+  );
 
   return (
     <div className="space-y-4">
@@ -357,7 +388,7 @@ export function PdcCheckoutPanel({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Product info */}
           <div className="rounded-lg border border-white/5 bg-black/30 p-4">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500">
@@ -390,47 +421,61 @@ export function PdcCheckoutPanel({
             )}
           </div>
 
-          {/* Prices */}
-          {pdcPrices.length > 0 && (
-            <div className="space-y-2">
+          {/* Prices with checkout URLs */}
+          {activePrices.length > 0 && (
+            <div className="space-y-3">
               <div className="text-[10px] uppercase tracking-widest text-zinc-500">
-                Precios
+                Precios y URLs de checkout
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {pdcPrices
-                  .filter((p) => p.activo === 1 && !p.checkout_url_stripe?.includes("checkout_padre"))
-                  .map((p) => (
-                    <div
-                      key={p.id}
-                      className="rounded-lg border border-white/5 bg-black/30 p-3"
+              {activePrices.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-lg border border-white/5 bg-black/30 p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-white">
+                      {priceLabel(p)}
+                    </span>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
+                        p.stripe_price_id
+                          ? "border-emerald-500/40 text-emerald-300"
+                          : "border-amber-500/40 text-amber-300"
+                      }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-white">
-                          {p.precio}€
-                          {p.tipo_pago === "cuotas" && p.num_cuotas
-                            ? ` x ${p.num_cuotas} cuotas`
-                            : p.tipo_pago === "recurrente"
-                              ? "/mes"
-                              : " pago unico"}
-                        </span>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
-                            p.stripe_price_id
-                              ? "border-emerald-500/40 text-emerald-300"
-                              : "border-amber-500/40 text-amber-300"
-                          }`}
-                        >
-                          {p.stripe_price_id ? "Stripe OK" : "Pendiente"}
-                        </span>
+                      {p.stripe_price_id ? "Stripe OK" : "Pendiente"}
+                    </span>
+                  </div>
+
+                  {p.checkout_url_stripe && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                        URL Stripe
                       </div>
-                      {p.checkout_url_stripe && (
-                        <div className="mt-1 truncate font-[family-name:var(--font-mono)] text-[10px] text-zinc-500">
+                      <div className="flex items-center gap-2">
+                        <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-sky-300">
                           {p.checkout_url_stripe}
-                        </div>
-                      )}
+                        </code>
+                        <CopyButton text={p.checkout_url_stripe} />
+                      </div>
                     </div>
-                  ))}
-              </div>
+                  )}
+
+                  {p.checkout_url_whop && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                        URL Whop
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-purple-300">
+                          {p.checkout_url_whop}
+                        </code>
+                        <CopyButton text={p.checkout_url_whop} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -442,6 +487,9 @@ export function PdcCheckoutPanel({
               disabled={showCreatePrice}
             >
               Agregar precio
+            </Button>
+            <Button variant="outline" onClick={loadProductData} disabled={isPending}>
+              Actualizar datos
             </Button>
           </div>
 
@@ -518,11 +566,38 @@ export function PdcCheckoutPanel({
         </div>
       )}
 
-      {/* Summary when fully set up */}
-      {pdcProductId && pdcPrices.length > 0 && (
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-          El checkout del campus esta configurado. Los compradores pueden pagar directamente
-          desde las URLs de checkout generadas arriba.
+      {/* How it connects to the landing */}
+      {pdcProductId && activePrices.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
+            Como conectar a la pagina de venta
+          </div>
+          <div className="space-y-2 text-[11px] text-zinc-500">
+            <p>
+              Los botones de compra en tu pagina de venta pueden apuntar directamente a estas
+              URLs de checkout del campus. En tu diseno, usa el atributo{" "}
+              <code className="text-sky-400">data-br=&quot;comprar-externo&quot;</code> en el boton
+              con la URL del precio que corresponda:
+            </p>
+            {activePrices.filter((p) => p.checkout_url_stripe).map((p) => (
+              <div key={p.id} className="rounded bg-black/60 p-3 font-[family-name:var(--font-mono)] text-[10px]">
+                <span className="text-zinc-500">&lt;a</span>{" "}
+                <span className="text-amber-300">href</span>
+                <span className="text-zinc-500">=&quot;</span>
+                <span className="text-sky-300">{p.checkout_url_stripe}</span>
+                <span className="text-zinc-500">&quot;</span>{" "}
+                <span className="text-amber-300">data-br</span>
+                <span className="text-zinc-500">=&quot;</span>
+                <span className="text-emerald-300">comprar-externo</span>
+                <span className="text-zinc-500">&quot;&gt;</span>
+                <span className="text-white">{priceLabel(p)}</span>
+                <span className="text-zinc-500">&lt;/a&gt;</span>
+              </div>
+            ))}
+            <p className="text-zinc-600">
+              El runtime de la pagina propagara automaticamente el codigo de afiliado (?ref=) a estas URLs.
+            </p>
+          </div>
         </div>
       )}
     </div>

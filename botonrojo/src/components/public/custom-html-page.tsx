@@ -68,6 +68,11 @@ export function CustomHtmlPage({
       : `/${launch.slug}`,
     url_venta: venta ? pagePath(launch.slug, venta) : `/${launch.slug}`,
     url_gracias: "/gracias",
+    url_checkout_campus: (() => {
+      const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+      const urls = (cache.pdcCheckoutUrls ?? []) as Array<{ checkout_url_stripe: string | null }>;
+      return urls[0]?.checkout_url_stripe ?? "";
+    })(),
   };
 
   // Order matters: paths first, then tokens. A token could otherwise expand into

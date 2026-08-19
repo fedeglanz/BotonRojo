@@ -72,9 +72,10 @@
       if (!href || /^(?:[a-z]+:|#|\/\/)/i.test(href) && href.indexOf("//") !== 0) {
         if (/^(?:mailto:|tel:|#)/i.test(href || "")) return;
       }
+      var isExternal = a.getAttribute("data-br") === "comprar-externo";
       try {
         var url = new URL(a.href, location.href);
-        if (url.origin !== location.origin) return;
+        if (url.origin !== location.origin && !isExternal) return;
         if (!url.searchParams.get("ref")) {
           url.searchParams.set("ref", r);
           a.href = url.toString();

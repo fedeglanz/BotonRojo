@@ -61,6 +61,8 @@ export type PageTokens = {
   url_venta: string;
   url_gracias: string;
   slug: string;
+  /** URL de checkout del campus (PDC Checkout), si está conectado. */
+  url_checkout_campus: string;
 };
 
 /** `{{ precio }}` and `{{precio}}` are the same token; anything unknown is left

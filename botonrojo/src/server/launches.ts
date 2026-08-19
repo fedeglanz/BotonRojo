@@ -4246,10 +4246,30 @@ export async function createPdcPriceAction(launchId: string, formData: FormData)
   });
 
   const currentPriceIds = (launch.pdcPriceIds as number[] | null) ?? [];
+  const currentCache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const currentCheckoutUrls = (currentCache.pdcCheckoutUrls ?? []) as Array<{
+    id: number; tipo_pago: string; precio: number; num_cuotas: number | null;
+    checkout_url_stripe: string | null; checkout_url_whop: string | null;
+  }>;
+
   await db
     .update(launches)
     .set({
       pdcPriceIds: [...currentPriceIds, price.id],
+      assetsCache: {
+        ...currentCache,
+        pdcCheckoutUrls: [
+          ...currentCheckoutUrls,
+          {
+            id: price.id,
+            tipo_pago: tipoPago,
+            precio,
+            num_cuotas: numCuotas ?? null,
+            checkout_url_stripe: price.checkout_url_stripe ?? null,
+            checkout_url_whop: price.checkout_url_whop ?? null,
+          },
+        ],
+      },
       updatedAt: new Date(),
     })
     .where(eq(launches.id, launchId));
