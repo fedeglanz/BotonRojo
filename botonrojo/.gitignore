@@ -16,3 +16,6 @@ deploy/data
 deploy/caddy_data
 deploy/caddy_config
 tsconfig.tsbuildinfo
+
+# Notas con accesos: nunca al repositorio.
+credenciales.txt

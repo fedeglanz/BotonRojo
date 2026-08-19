@@ -52,7 +52,7 @@ export async function resolveGraciasLaunch(params: { launchSlug?: string; sessio
  * El dominio por el que ha entrado el visitante, para las URLs de vuelta de Stripe.
  *
  * Fijas a `APP_URL`, un comprador que estaba en el dominio de su formador acababa
- * el pago en botonrojo.escuelanomadadigital.com — la marca cambiaba justo en el
+ * el pago en el dominio de la plataforma — la marca cambiaba justo en el
  * momento de más desconfianza de todo el proceso.
  *
  * Solo se acepta un dominio que esté verificado y activo en la base de datos. El

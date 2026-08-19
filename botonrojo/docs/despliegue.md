@@ -63,7 +63,7 @@ base de datos. En los logs se ve:
 ## Comprobaciones
 
 ```bash
-curl -I https://tudominio.com/login                    # 200
+curl -I https://botonrojo.estelarys.com/login          # 200
 curl -s https://tudominio.com/api/mcp -X POST \
   -H "Authorization: Bearer br_mcp_…" \
   -H "Content-Type: application/json" \
@@ -106,7 +106,7 @@ Dos partes, y las dos hacen falta: los DNS del cliente y el alta en este servido
 | Registro | Nombre | Valor |
 |---|---|---|
 | `A` | el subdominio (o `@` si es el dominio raíz) | `194.163.129.230` |
-| `CNAME` | el subdominio | `botonrojo.escuelanomadadigital.com` |
+| `CNAME` | el subdominio | `botonrojo.estelarys.com` |
 
 **2. Se da de alta en el servidor**, porque nginx no sirve un nombre que no conoce:
 
@@ -124,6 +124,40 @@ Sin el paso 2 el nombre resuelve pero no carga: el visitante se encuentra el sit
 defecto del servidor o un aviso de certificado. Con Caddy esto se habría resuelto solo
 —su TLS a demanda pide el certificado en la primera visita— pero aquí manda nginx, y
 esa comodidad se cambió por no tumbar los otros doce sitios del servidor.
+
+## Cambiar el dominio de la plataforma
+
+Pasó una vez —de `botonrojo.escuelanomadadigital.com` a `botonrojo.estelarys.com`—
+y son cuatro sitios, no uno:
+
+1. **El vhost y el certificado**, igual que un dominio de cliente:
+   `deploy/conectar-dominio.sh botonrojo.nuevodominio.com`. Si el nombre está ya
+   dado de alta en Hestia bajo otro usuario, basta con cambiarle la plantilla de
+   proxy y pedirle el certificado con `v-add-letsencrypt-domain <usuario> <dominio>`.
+2. **El `.env`**: `APP_URL`, `NEXTAUTH_URL` y `S3_PUBLIC_URL`. Los tres, y el
+   tercero es el que se olvida: es el que usan las páginas publicadas para pedir
+   sus imágenes. Luego `docker compose -f docker-compose.prod.yml up -d
+   --force-recreate app` — sin `--force-recreate` el contenedor sigue con el
+   entorno viejo.
+3. **El dominio antiguo, redirigido**: se le pone la plantilla
+   `botonrojo_redirect` (en `deploy/hestia/`), que hace un 301 conservando la ruta.
+   Sin eso, el nombre viejo llega a la app como un dominio de cliente que no
+   conoce y contesta 404 — que no es "esto se ha movido". Y no se borra: está
+   escrito en enlaces, en el conector de Claude y en páginas ya publicadas.
+4. **Lo que ya estaba guardado**: las páginas y los correos publicados llevan URLs
+   absolutas del dominio viejo dentro del cuerpo. El 301 las salva, pero conviene
+   reescribirlas (con copia antes):
+
+   ```sql
+   update assets
+      set body = replace(body::text, 'dominio.viejo', 'dominio.nuevo')::jsonb
+    where body::text like '%dominio.viejo%';
+   ```
+
+Y avisar de una cosa que no se arregla desde el servidor: **el conector de Claude
+apunta a la URL vieja**. Los tokens siguen valiendo —son filas de la base de
+datos, no dependen del nombre— pero hay que editar la URL del conector en
+claude.ai a `https://<dominio nuevo>/api/mcp`.
 
 ## Actualizar
 
