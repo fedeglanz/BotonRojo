@@ -1394,6 +1394,77 @@ a.fx-orbit__label:focus-visible {
   to { transform: translate3d(-2%, -3%, 0); }
 }
 
+/* --- La galaxia de la portada -------------------------------------------- */
+
+.hero-galaxia {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Solo la primera pantalla: es donde se decide si sigues bajando. Más abajo la
+     página tiene que dejar leer, y un fondo en movimiento detrás de seis tarjetas
+     de texto es ruido. */
+  height: 100svh;
+  z-index: 0;
+  /* Los planetas se salen por los lados a propósito —así la escena parece más
+     grande que la ventana— y sin recortar eso serían barras de scroll. */
+  overflow: clip;
+  pointer-events: none;
+  /* Se apaga hacia abajo en vez de cortarse en seco: un borde recto delataría que
+     esto es una caja pegada encima. */
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+}
+
+/* El mesh rojo del tema tapaba los planetas: aquí se rebaja para que la galaxia
+   sea lo que se ve, sin quitarlo del resto de la página. */
+.hero-galaxia::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    75% 60% at 50% 40%,
+    rgba(4, 4, 6, 0.72),
+    transparent 75%
+  );
+  pointer-events: none;
+}
+
+.hero-galaxia__planeta {
+  position: absolute;
+  animation-name: hero-galaxia-flota;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  /* Cada uno gira sus lunas a su ritmo; con la misma duración los cuatro
+     sistemas laten a la vez y se ve el truco. */
+  --orbit-duration: 40s;
+}
+
+.hero-galaxia__planeta:nth-child(2) { --orbit-duration: 55s; }
+.hero-galaxia__planeta:nth-child(3) { --orbit-duration: 33s; }
+.hero-galaxia__planeta:nth-child(4) { --orbit-duration: 62s; }
+
+@keyframes hero-galaxia-flota {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(1.5vw, -3vh, 0); }
+}
+
+/* El contenido de la portada, por encima de la galaxia. */
+.hero-contenido {
+  position: relative;
+  z-index: 1;
+}
+
+/* En un móvil el titular ocupa casi toda la pantalla y los planetas se le meten
+   detrás de las letras. Se bajan de intensidad en vez de quitarlos: el fondo
+   sigue estando, pero el texto se lee, que es a lo que se viene. */
+@media (max-width: 640px) {
+  .hero-galaxia__planeta {
+    opacity: 0.42 !important;
+  }
+}
+
 /* --- El planeta ---------------------------------------------------------- */
 
 .planet-system {

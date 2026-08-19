@@ -5,7 +5,7 @@ import {
   Planet,
   TYPE_PLANET_COLOR,
   TYPE_PLANET_KIND,
-} from "@/components/admin/planet";
+} from "@/components/planet";
 import { LAUNCH_TYPE_KEYS, type LaunchType } from "@/lib/launch-types";
 import { pageConfigFromFormData, resolvePages } from "@/lib/launch-pages";
 

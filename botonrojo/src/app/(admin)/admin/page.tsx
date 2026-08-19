@@ -6,7 +6,7 @@ import { requireOrgAdmin } from "@/lib/auth-helpers";
 import type { LaunchType } from "@/lib/launch-types";
 import { resolvePages } from "@/lib/launch-pages";
 import { isCustomPageBody } from "@/lib/custom-page";
-import type { MoonState } from "@/components/admin/planet";
+import type { MoonState } from "@/components/planet";
 
 export const dynamic = "force-dynamic";
 

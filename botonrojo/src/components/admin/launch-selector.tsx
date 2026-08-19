@@ -8,7 +8,7 @@ import {
   TYPE_PLANET_COLOR,
   TYPE_PLANET_KIND,
   type MoonState,
-} from "@/components/admin/planet";
+} from "@/components/planet";
 import type { BrandPalette } from "@/db/schema/launches";
 
 type LaunchSummary = {
