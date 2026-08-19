@@ -12,6 +12,7 @@ import { encryptSecret, decryptSecret, maskSecret } from "@/lib/crypto";
 
 export type StripeCredentials = { secretKey: string; webhookSecret: string; publishableKey: string };
 export type ActiveCampaignCredentials = { apiUrl: string; apiKey: string; fromName: string; fromEmail: string };
+export type PdcCheckoutCredentials = { siteUrl: string; apiKey: string };
 export type SingleTokenCredentials = { token: string };
 
 const PROVIDER_SCHEMAS = {
@@ -31,6 +32,10 @@ const PROVIDER_SCHEMAS = {
   telegram: z.object({ token: z.string().min(1) }),
   notion: z.object({ token: z.string().min(1) }),
   youtube: z.object({ token: z.string().min(1) }),
+  pdc_checkout: z.object({
+    siteUrl: z.string().url(),
+    apiKey: z.string().min(1),
+  }),
 } satisfies Record<IntegrationProvider, z.ZodTypeAny>;
 
 function maskedPreviewFor(provider: IntegrationProvider, payload: Record<string, string>): string {

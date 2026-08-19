@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { isActiveCampaignConfigured } from "@/integrations/activecampaign";
+import { isPdcCheckoutConfigured } from "@/integrations/pdc-checkout";
 import {
   getMe as getTelegramBot,
   getTelegramToken,
@@ -60,6 +61,14 @@ import {
   refineTelegramMessageAction,
   updateLaunchCountryAction,
   generateMilestonesAction,
+  listPdcLaunchesAction,
+  connectPdcLaunchAction,
+  createPdcLaunchAction,
+  disconnectPdcLaunchAction,
+  createPdcProductAction,
+  createPdcPriceAction,
+  fetchPdcProductAndPricesAction,
+  fetchPdcAccountsAction,
   updateMilestoneAction,
   analyzeCalendarAction,
   generateBrandKitAction,
@@ -94,6 +103,7 @@ import { ActiveCampaignPanel } from "@/components/admin/activecampaign-panel";
 import { CampaignCalendar } from "@/components/admin/campaign-calendar";
 import { AcAutomationsPanel } from "@/components/admin/ac-automations-panel";
 import { TelegramPanel } from "@/components/admin/telegram-panel";
+import { PdcCheckoutPanel } from "@/components/admin/pdc-checkout-panel";
 import { CalendarPanel } from "@/components/admin/calendar-panel";
 import { DomainPanel } from "@/components/admin/domain-panel";
 import { BrandKitPanel } from "@/components/admin/brand-kit-panel";
@@ -313,11 +323,13 @@ export default async function LaunchHubPage(props: {
   const hasEmails = Boolean(emailAsset);
   const hasProduct = Boolean(product);
   const hasAc = Boolean(launch.activeCampaignListId);
+  const hasPdc = Boolean(launch.pdcLaunchId);
   const hasTelegram = Boolean(launch.telegramChatId);
   const hasMilestones = launchMilestones.length > 0;
   const launchDomains = await listDomainsForLaunch(launch.id);
   const hasActiveDomain = launchDomains.some((d) => d.status === "active");
   const acConfigured = await isActiveCampaignConfigured(organizationId);
+  const pdcConfigured = await isPdcCheckoutConfigured(organizationId);
   const acAutomations = acConfigured
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
     : [];
@@ -333,7 +345,7 @@ export default async function LaunchHubPage(props: {
     marca: [brandKitApproved, hasMarco, hasMilestones].filter(Boolean).length,
     paginas: hasLanding ? 1 : 0,
     campana: [hasEmails, Boolean(adsAsset)].filter(Boolean).length,
-    conexiones: [hasProduct, hasAc, hasActiveDomain, hasTelegram].filter(
+    conexiones: [hasProduct, hasAc, hasActiveDomain, hasTelegram, hasPdc].filter(
       Boolean,
     ).length,
   };
@@ -342,7 +354,7 @@ export default async function LaunchHubPage(props: {
       id: "todo",
       label: "Todo",
       done: done.marca + done.paginas + done.campana + done.conexiones,
-      total: 10,
+      total: 11,
     },
     { id: "marca", label: "Marca, copy y fechas", done: done.marca, total: 3 },
     {
@@ -359,7 +371,7 @@ export default async function LaunchHubPage(props: {
       total: 2,
       blocked: !hasMarco,
     },
-    { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
+    { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 5 },
   ];
 
   const requested = SECTIONS.find((s) => s === seccion);
@@ -1068,6 +1080,38 @@ export default async function LaunchHubPage(props: {
               refineMessageAction={refineTelegramMessageAction}
             />
           </WizardStep>
+
+          {/* Step 9 — PDC Checkout (campus) */}
+          {!esEvergreen && (
+            <WizardStep
+              index={9}
+              title="PDC Checkout (Campus)"
+              subtitle="Conecta el sistema de checkout del campus del cliente. Crea lanzamientos, productos y precios automaticamente."
+              status={
+                !pdcConfigured
+                  ? "needs-prev"
+                  : hasPdc
+                    ? "ready"
+                    : "empty"
+              }
+            >
+              <PdcCheckoutPanel
+                launchId={launch.id}
+                configured={pdcConfigured}
+                pdcLaunchId={launch.pdcLaunchId ?? null}
+                pdcProductId={launch.pdcProductId ?? null}
+                pdcPriceIds={(launch.pdcPriceIds as number[] | null) ?? []}
+                listLaunchesAction={listPdcLaunchesAction}
+                connectLaunchAction={connectPdcLaunchAction}
+                createLaunchAction={createPdcLaunchAction}
+                disconnectLaunchAction={disconnectPdcLaunchAction}
+                createProductAction={createPdcProductAction}
+                createPriceAction={createPdcPriceAction}
+                fetchProductAction={fetchPdcProductAndPricesAction}
+                fetchAccountsAction={fetchPdcAccountsAction}
+              />
+            </WizardStep>
+          )}
         </>
       )}
     </div>

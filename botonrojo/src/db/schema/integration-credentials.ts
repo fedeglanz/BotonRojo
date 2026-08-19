@@ -10,6 +10,7 @@ export const integrationProvider = pgEnum("integration_provider", [
   "telegram",
   "notion",
   "youtube",
+  "pdc_checkout",
 ]);
 
 /**

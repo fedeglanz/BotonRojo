@@ -65,6 +65,15 @@ export const PROVIDER_SPECS: ProviderSpec[] = [
     hint: "Para futuras integraciones de clips/vídeo.",
     fields: [{ name: "token", label: "API key", type: "password" }],
   },
+  {
+    provider: "pdc_checkout",
+    label: "PDC Checkout",
+    hint: "Conecta el sistema de checkout del campus del cliente. Crea lanzamientos, productos y precios sin salir de Boton Rojo.",
+    fields: [
+      { name: "siteUrl", label: "URL del campus", placeholder: "https://campus.ejemplo.com" },
+      { name: "apiKey", label: "API Key", type: "password", placeholder: "La clave de WordPress > Checkout > Configuracion > API Externa" },
+    ],
+  },
 ];
 
 type ConnectedInfo = { maskedPreview: string; connectedAt: Date } | undefined;

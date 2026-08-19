@@ -4128,3 +4128,171 @@ export async function discoverTelegramGroupsAction() {
   const { discoverGroups } = await import("@/integrations/telegram");
   return discoverGroups(orgBotToken);
 }
+
+// ========================================================================
+// PDC Checkout (campus) actions
+// ========================================================================
+
+export async function listPdcLaunchesAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  await getOrgLaunch(launchId, organizationId);
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+  return pdc.listLaunches();
+}
+
+export async function connectPdcLaunchAction(launchId: string, pdcLaunchId: number) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  await db
+    .update(launches)
+    .set({ pdcLaunchId: pdcLaunchId, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function createPdcLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  const pdcLaunch = await pdc.createLaunch({
+    nombre: launch.name,
+    descripcion: launch.promise ?? undefined,
+  });
+
+  await db
+    .update(launches)
+    .set({ pdcLaunchId: Number(pdcLaunch.id), updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  return pdcLaunch;
+}
+
+export async function disconnectPdcLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  await db
+    .update(launches)
+    .set({
+      pdcLaunchId: null,
+      pdcProductId: null,
+      pdcPriceIds: [],
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+export async function createPdcProductAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+  if (!launch.pdcLaunchId) throw new Error("pdc_launch_not_linked");
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  const nombre = String(formData.get("nombre") || launch.name);
+  const cuentaFacturacion = String(formData.get("cuenta_facturacion") || "");
+  const stripeAccountId = formData.get("stripe_account_id")
+    ? Number(formData.get("stripe_account_id"))
+    : undefined;
+
+  const product = await pdc.createProduct({
+    nombre,
+    lanzamiento_id: launch.pdcLaunchId,
+    cuenta_facturacion: cuentaFacturacion || undefined,
+    stripe_account_id: stripeAccountId,
+  });
+
+  await db
+    .update(launches)
+    .set({ pdcProductId: product.id, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  return product;
+}
+
+export async function createPdcPriceAction(launchId: string, formData: FormData) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+  if (!launch.pdcProductId) throw new Error("pdc_product_not_linked");
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  const tipoPago = String(formData.get("tipo_pago") || "unico") as "unico" | "cuotas" | "recurrente";
+  const precio = Number(formData.get("precio") || 0);
+  const numCuotas = formData.get("num_cuotas") ? Number(formData.get("num_cuotas")) : undefined;
+  const frecuencia = String(formData.get("frecuencia") || "") || undefined;
+
+  const price = await pdc.createPrice(launch.pdcProductId, {
+    tipo_pago: tipoPago,
+    precio,
+    num_cuotas: numCuotas,
+    frecuencia,
+  });
+
+  const currentPriceIds = (launch.pdcPriceIds as number[] | null) ?? [];
+  await db
+    .update(launches)
+    .set({
+      pdcPriceIds: [...currentPriceIds, price.id],
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  return price;
+}
+
+export async function fetchPdcProductAndPricesAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  let product = null;
+  let prices: Awaited<ReturnType<typeof pdc.listPrices>> = [];
+
+  if (launch.pdcProductId) {
+    try {
+      product = await pdc.getProduct(launch.pdcProductId);
+      prices = await pdc.listPrices(launch.pdcProductId);
+    } catch {
+      // product may have been deleted on the campus side
+    }
+  }
+
+  return { product, prices };
+}
+
+export async function fetchPdcAccountsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  await getOrgLaunch(launchId, organizationId);
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  const [stripeAccounts, billingAccounts] = await Promise.all([
+    pdc.listStripeAccounts(),
+    pdc.listBillingAccounts(),
+  ]);
+
+  return { stripeAccounts, billingAccounts };
+}

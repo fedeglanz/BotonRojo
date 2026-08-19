@@ -97,6 +97,11 @@ export const launches = pgTable("launches", {
     .$type<Record<string, number>>()
     .default({}),
 
+  // PDC Checkout (campus) provisioning
+  pdcLaunchId: integer("pdc_launch_id"),
+  pdcProductId: integer("pdc_product_id"),
+  pdcPriceIds: jsonb("pdc_price_ids").$type<number[]>().default([]),
+
   // Telegram provisioning
   telegramChatId: text("telegram_chat_id"),
   telegramInviteLink: text("telegram_invite_link"),
