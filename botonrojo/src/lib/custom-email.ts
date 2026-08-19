@@ -37,6 +37,12 @@ export type CustomEmailBody = {
   timing?: string;
   /** Aprobado para enviar a AC. */
   approved?: boolean;
+  /**
+   * Tipo de envío:
+   * - "campaign" = broadcast a toda la lista en fecha fija (por defecto)
+   * - "automation" = drip por persona, se dispara al entrar en la automatización
+   */
+  sendType?: "campaign" | "automation";
 };
 
 export function isCustomEmailBody(body: unknown): body is CustomEmailBody {

@@ -16,6 +16,7 @@ type SequenceEmail = {
   timing?: string;
   sendOffsetDays?: number;
   approved?: boolean;
+  sendType?: "campaign" | "automation";
 };
 
 type DesignedCampaign = {
@@ -28,6 +29,7 @@ type DesignedCampaign = {
   timing?: string | null;
   approved?: boolean | null;
   acTemplateId?: string | null;
+  sendType?: "campaign" | "automation" | null;
 };
 
 type BrandKit = {
@@ -56,10 +58,10 @@ type Props = {
   updateAction: (launchId: string, emailIndex: number, formData: FormData) => Promise<void>;
   approveAction: (launchId: string, emailIndex: number, approved: boolean) => Promise<void>;
   approveAllAction: (launchId: string) => Promise<void>;
-  updateSequencePhaseAction: (launchId: string, emailIndex: number, phase: string, sendOffsetDays?: number) => Promise<void>;
+  updateSequencePhaseAction: (launchId: string, emailIndex: number, phase: string, sendOffsetDays?: number, sendType?: "campaign" | "automation") => Promise<void>;
   // Designed actions
   pushDesignedAction: (launchId: string, assetId: string) => Promise<void>;
-  updatePhaseAction: (assetId: string, phase: string, sendOffsetDays?: number) => Promise<void>;
+  updatePhaseAction: (assetId: string, phase: string, sendOffsetDays?: number, sendType?: "campaign" | "automation") => Promise<void>;
   approveDesignedAction: (assetId: string, approved: boolean) => Promise<void>;
 };
 
@@ -351,6 +353,15 @@ export function UnifiedEmailList({
                             En AC
                           </span>
                         )}
+                        {/* Send type badge */}
+                        {(() => {
+                          const st = item.source === "sequence" ? item.email.sendType : (item.campaign.sendType ?? undefined);
+                          return st === "automation" ? (
+                            <span className="rounded-full border border-sky-500/30 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-sky-400">
+                              Drip
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className={`mt-0.5 truncate text-sm font-semibold ${isReplaced ? "line-through text-zinc-500" : "text-white"}`}>
                         {item.source === "designed" && item.campaign.name !== subject
@@ -458,12 +469,7 @@ function SequenceEmailExpanded({
               onChange={(e) => {
                 const phase = e.target.value;
                 startTransition(async () => {
-                  await updateSequencePhaseAction(
-                    launchId,
-                    index,
-                    phase,
-                    email.sendOffsetDays,
-                  );
+                  await updateSequencePhaseAction(launchId, index, phase, email.sendOffsetDays, email.sendType);
                 });
               }}
               disabled={isPending}
@@ -475,6 +481,23 @@ function SequenceEmailExpanded({
                   {label}
                 </option>
               ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">Tipo:</span>
+            <select
+              value={email.sendType ?? "campaign"}
+              onChange={(e) => {
+                const sendType = e.target.value as "campaign" | "automation";
+                startTransition(async () => {
+                  await updateSequencePhaseAction(launchId, index, email.phase ?? "", email.sendOffsetDays, sendType);
+                });
+              }}
+              disabled={isPending}
+              className="rounded border border-white/10 bg-black/60 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30"
+            >
+              <option value="campaign">Campana (broadcast)</option>
+              <option value="automation">Automatizacion (drip)</option>
             </select>
           </div>
         </div>
@@ -663,7 +686,7 @@ function DesignedEmailExpanded({
 
   return (
     <div className="space-y-4 p-4">
-      {/* Phase selector */}
+      {/* Phase + type selector */}
       <div className="flex flex-wrap items-end gap-4">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-widest text-zinc-500">Fase</span>
@@ -672,11 +695,7 @@ function DesignedEmailExpanded({
             onChange={(e) => {
               const phase = e.target.value;
               startTransition(async () => {
-                await updatePhaseAction(
-                  campaign.id,
-                  phase,
-                  campaign.sendOffsetDays ?? undefined,
-                );
+                await updatePhaseAction(campaign.id, phase, campaign.sendOffsetDays ?? undefined, (campaign.sendType as "campaign" | "automation") ?? undefined);
               });
             }}
             disabled={isPending}
@@ -703,12 +722,30 @@ function DesignedEmailExpanded({
               const val = Number(e.target.value);
               if (val !== (campaign.sendOffsetDays ?? 0)) {
                 startTransition(async () => {
-                  await updatePhaseAction(campaign.id, campaign.phase ?? "", val);
+                  await updatePhaseAction(campaign.id, campaign.phase ?? "", val, (campaign.sendType as "campaign" | "automation") ?? undefined);
                 });
               }
             }}
             disabled={isPending}
           />
+        </label>
+
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-widest text-zinc-500">Tipo de envio</span>
+          <select
+            value={campaign.sendType ?? "campaign"}
+            onChange={(e) => {
+              const sendType = e.target.value as "campaign" | "automation";
+              startTransition(async () => {
+                await updatePhaseAction(campaign.id, campaign.phase ?? "", campaign.sendOffsetDays ?? undefined, sendType);
+              });
+            }}
+            disabled={isPending}
+            className="mt-1 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white/30"
+          >
+            <option value="campaign">Campana (broadcast)</option>
+            <option value="automation">Automatizacion (drip)</option>
+          </select>
         </label>
       </div>
 

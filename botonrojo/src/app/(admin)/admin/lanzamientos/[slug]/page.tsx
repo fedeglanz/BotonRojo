@@ -298,6 +298,7 @@ export default async function LaunchHubPage(props: {
         sendOffsetDays: body.sendOffsetDays ?? null,
         timing: body.timing ?? null,
         approved: body.approved ?? null,
+        sendType: body.sendType ?? null,
       };
     });
 

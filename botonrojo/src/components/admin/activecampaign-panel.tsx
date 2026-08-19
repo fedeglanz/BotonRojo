@@ -154,14 +154,51 @@ export function ActiveCampaignPanel({
       {hasCampaigns && (
         <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-200">
           Las campanas fueron creadas y programadas en ActiveCampaign segun las fechas del calendario.
+          Solo se programan los emails marcados como <strong>Campana (broadcast)</strong>. Los de tipo
+          Automatizacion (drip) se gestionan desde AC.
           Revisa en tu panel de AC que los horarios y contenido sean correctos antes de activarlas.
+        </div>
+      )}
+
+      {/* Guidance: campaigns vs automations */}
+      {provisioned && (
+        <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
+            Campanas vs Automatizaciones
+          </div>
+          <div className="space-y-2 text-[11px] text-zinc-500">
+            <p>
+              <strong className="text-amber-400">Campana (broadcast):</strong> Se envia una vez a toda
+              la lista en una fecha fija. Ideal para emails de apertura de carrito, cierre, evento en
+              vivo, etc. Se programan automaticamente desde aqui con el paso 3.
+            </p>
+            <p>
+              <strong className="text-sky-400">Automatizacion (drip):</strong> Se dispara por persona
+              cuando se registra. Ideal para bienvenida, recordatorios a las 24/48hs, etc. Estos emails
+              hay que configurarlos como automatizacion en AC:
+            </p>
+            <ol className="ml-4 list-decimal space-y-1 text-zinc-500">
+              <li>Subi las plantillas a AC (paso 2 de arriba)</li>
+              <li>
+                En AC, crea una automatizacion con trigger{" "}
+                <em className="text-zinc-400">&ldquo;Se suscribe a la lista&rdquo;</em> de este lanzamiento
+              </li>
+              <li>Agrega los emails de tipo drip como pasos, con waits entre ellos (1 dia, 2 dias, etc)</li>
+              <li>Activa la automatizacion en AC</li>
+              <li>Volvé aca abajo y vincula la automatizacion (paso 4)</li>
+            </ol>
+            <p className="text-zinc-600">
+              Al registrarse un lead, el sistema lo suscribe a la lista + lo mete en las automatizaciones
+              vinculadas. AC se encarga de enviar los emails del drip a su ritmo.
+            </p>
+          </div>
         </div>
       )}
 
       {provisioned && (
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-          Cuando un lead entre con <code>?launch={launchSlug}</code> y deje email, se sincronizara
-          automaticamente en AC con la lista y el tag correspondiente.
+          Cuando un lead se registre, se sincroniza automaticamente en AC con la lista, el tag, y
+          las automatizaciones vinculadas.
         </div>
       )}
     </div>

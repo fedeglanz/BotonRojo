@@ -2397,6 +2397,7 @@ type EmailItem = {
   timing?: string;
   sendOffsetDays?: number;
   approved?: boolean;
+  sendType?: "campaign" | "automation";
 };
 
 async function loadEmailAsset(launchId: string, organizationId: string) {
@@ -2571,6 +2572,7 @@ export async function updateSequenceEmailPhaseAction(
   emailIndex: number,
   phase: string,
   sendOffsetDays?: number,
+  sendType?: "campaign" | "automation",
 ) {
   const { organizationId } = await requireOrgAdmin();
   const { launch, body } = await loadEmailAsset(launchId, organizationId);
@@ -2582,6 +2584,7 @@ export async function updateSequenceEmailPhaseAction(
     ...email,
     phase: phase || undefined,
     sendOffsetDays: sendOffsetDays ?? email.sendOffsetDays,
+    sendType: sendType ?? email.sendType,
   };
 
   await db.insert(assets).values({
@@ -2951,11 +2954,12 @@ export async function pushDesignedEmailToAcAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-/** Assign phase + offset to a designed email campaign. */
+/** Assign phase + offset + sendType to a designed email campaign. */
 export async function updateDesignedEmailPhaseAction(
   assetId: string,
   phase: string,
   sendOffsetDays?: number,
+  sendType?: "campaign" | "automation",
 ) {
   const { organizationId } = await requireOrgAdmin();
   const [asset] = await db
@@ -2966,7 +2970,7 @@ export async function updateDesignedEmailPhaseAction(
   if (!asset || asset.kind !== "email" || !isCustomEmailBody(asset.body)) {
     throw new Error("asset_not_found");
   }
-  const body = { ...asset.body, phase: phase || undefined, sendOffsetDays };
+  const body = { ...asset.body, phase: phase || undefined, sendOffsetDays, sendType: sendType ?? asset.body.sendType };
   await db
     .update(assets)
     .set({ body: body as unknown as Record<string, unknown>, updatedAt: new Date() })
@@ -3035,6 +3039,7 @@ export async function scheduleAcCampaignsAction(launchId: string) {
         phase: body.phase!,
         sendOffsetDays: body.sendOffsetDays ?? 0,
         acTemplateId: body.acTemplateId!,
+        sendType: body.sendType,
       };
     });
 
@@ -3047,6 +3052,7 @@ export async function scheduleAcCampaignsAction(launchId: string) {
     phase?: string;
     timing?: string;
     sendOffsetDays?: number;
+    sendType?: "campaign" | "automation";
   };
   const sequence = emailAsset
     ? (emailAsset.body as { emails: EmailItem[] })
@@ -3091,11 +3097,13 @@ export async function scheduleAcCampaignsAction(launchId: string) {
   const campaignIds: string[] = [];
   let emailNum = 0;
 
-  // Schedule sequence emails (skip those replaced by designed campaigns)
+  // Schedule sequence emails (skip automations and those replaced by designed campaigns)
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     const tplId = templateIds?.[i];
     if (!email || !tplId) continue;
+    // Skip automation emails — those go via AC automations, not broadcasts
+    if (email.sendType === "automation") continue;
     // Skip if a designed campaign covers this phase
     if (email.phase && designedPhaseSet.has(email.phase)) continue;
 
@@ -3113,8 +3121,10 @@ export async function scheduleAcCampaignsAction(launchId: string) {
     campaignIds.push(campaign.id);
   }
 
-  // Schedule designed campaign emails
+  // Schedule designed campaign emails (skip automations)
   for (const designed of designedWithTemplate) {
+    if (designed.sendType === "automation") continue;
+
     emailNum++;
     const scheduledDate = computeScheduledDate(designed.phase, designed.sendOffsetDays);
 
