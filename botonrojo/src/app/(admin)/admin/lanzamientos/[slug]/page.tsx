@@ -108,11 +108,13 @@ import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
+import { ClaudeGoButton } from "@/components/admin/claude-go-button";
 import {
   CLAUDE_DESIGN_URL,
   claudeNewPageUrl,
   claudeQueuePrompt,
   claudeCampaignsPrompt,
+  claudeAdsPrompt,
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
 import { ProximosPasos, type Paso } from "@/components/admin/proximos-pasos";
@@ -981,6 +983,27 @@ export default async function LaunchHubPage(props: {
                 launchId={launch.id}
                 fixLengthsAction={fixAdCopyLengthsAction}
               />
+
+              {/* Los estáticos, a mano en Claude. La galería es la misma: quien
+                  los sube a Meta no distingue de dónde salió cada uno, y tener
+                  dos sitios distintos según quién lo diseñó sería inventarse una
+                  diferencia que al usarlos no existe. */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                <p className="max-w-2xl text-sm text-zinc-400">
+                  ¿Los quieres diseñados a mano en vez de compuestos con una
+                  plantilla? Claude los hace con la identidad del lanzamiento y
+                  aparecen en esta misma galería.
+                </p>
+                <ClaudeGoButton
+                  hasConnector={connector}
+                  label="Diseñar anuncios en Claude"
+                  href={claudeHref}
+                  prompt={claudeAdsPrompt({
+                    launchSlug: launch.slug,
+                    launchName: launch.name,
+                  })}
+                />
+              </div>
 
               {adsAsset && (
                 <div>

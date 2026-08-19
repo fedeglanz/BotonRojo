@@ -175,7 +175,17 @@ export function AdStaticsGenerator({
                     <div className="font-[family-name:var(--font-mono)] text-[10px] text-zinc-500">
                       {meta?.width}×{meta?.height}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(img.body as { designUrl?: string })?.designUrl && (
+                        <a
+                          href={(img.body as { designUrl?: string }).designUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/20"
+                        >
+                          Abrir en Claude ↗
+                        </a>
+                      )}
                       {img.fileUrl && (
                         <a
                           href={img.fileUrl}

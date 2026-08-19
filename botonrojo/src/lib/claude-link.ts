@@ -126,6 +126,30 @@ Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una se
 En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
+/**
+ * Diseñar los anuncios estáticos en Claude, en vez de componerlos con las
+ * plantillas de la plataforma.
+ *
+ * El generador de Botón Rojo pone el copy sobre una foto con una de sus cuatro
+ * plantillas: rápido y suficiente para tirar quince formatos de una tacada. Esto es
+ * lo otro, un diseño hecho a mano para una campaña concreta. Los dos acaban en la
+ * misma galería, que es de donde se descargan para subirlos a Meta o a Google.
+ */
+export function claudeAdsPrompt(input: {
+  launchSlug: string;
+  launchName: string;
+}): string {
+  return `Con el conector de Botón Rojo, diseña anuncios estáticos para el lanzamiento ${input.launchSlug}.
+
+1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": la identidad visual, la promesa y el avatar. Los anuncios tienen que parecer de la misma casa que las páginas.
+2. contrato_anuncio: los formatos con sus medidas exactas y las reglas del HTML. Un anuncio es una foto fija del tamaño justo — lo que se sale, no aparece.
+3. Cada anuncio: lo diseñas al tamaño exacto del formato, me lo enseñas, y lo publicas con publicar_anuncio dándole un nombre ("Testimonio Marta", "Oferta cierre") y su formato.
+
+Pregúntame primero para qué canal son y cuántos quiero. Si quieres el mismo anuncio en varios tamaños, publícalo una vez por formato: cada medida necesita su composición, no vale escalar.
+
+En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
+}
+
 /** Crear una página que el lanzamiento todavía no tiene. */
 export function claudeNewPageUrl(input: {
   launchSlug: string;

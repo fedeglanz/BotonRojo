@@ -256,3 +256,27 @@ diga un dato de fuera es un sitio por donde mandar a alguien a cualquier parte.
 
 Los mensajes que abren Claude desde el panel ya se lo piden en la última línea, así
 que en el uso normal no hay que acordarse de nada.
+
+## Anuncios estáticos diseñados en Claude
+
+`contrato_anuncio` da los formatos con sus medidas exactas y las reglas;
+`publicar_anuncio` recibe el HTML de uno y lo deja en la galería del lanzamiento,
+junto a los que compone el generador de Botón Rojo.
+
+Lo que llega es un documento; lo que hace falta subir a Meta o a Google es un PNG
+del tamaño justo. En medio va el mismo camino que ya usaba el generador —el
+servicio de capturas fotografía una URL— pero la URL sirve el HTML guardado en vez
+de una plantilla con el copy: `/ads-render/propio`, con el id del anuncio firmado,
+sin sesión y sin el layout de la aplicación encima.
+
+Dos cosas que el contrato deja claras porque un anuncio no perdona ninguna:
+
+· **Lo que se sale del recuadro no existe.** No hay scroll en una imagen, así que
+  el HTML se diseña al tamaño exacto y se comprueba que el titular entra.
+· **Nada de `{{tokens}}`.** En una página los sustituye el servidor al servirla; en
+  una imagen no hay nadie después, se quedarían impresos. `publicar_anuncio` los
+  rechaza en vez de dejar salir un PNG con `{{precio}}` escrito.
+
+Publicar con el mismo nombre y formato sustituye, como en las campañas: al corregir
+un anuncio se quiere corregirlo, no acabar con ocho versiones sin saber cuál es la
+buena.

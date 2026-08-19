@@ -39,6 +39,13 @@ import {
   type CustomPageBody,
 } from "@/lib/custom-page";
 import { startPageGeneration, readGenerationProgress } from "@/server/launches";
+import { publishDesignedAd } from "@/server/designed-ads";
+import {
+  AD_FORMATS,
+  AD_FORMAT_LIST,
+  isAdFormatKey,
+  type AdFormatKey,
+} from "@/lib/ad-templates";
 import {
   listPendingTasks,
   listLaunchTasks,
@@ -1530,6 +1537,164 @@ const metricasLanzamiento: ToolDef = {
   },
 };
 
+const contratoAnuncio: ToolDef = {
+  name: "contrato_anuncio",
+  title: "Qué tiene que cumplir un anuncio estático",
+  description:
+    "Los formatos disponibles con sus medidas exactas y las reglas del HTML de un anuncio. Léelo antes de diseñar el primero.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  handler: async () => ({
+    formatos: AD_FORMAT_LIST.map((f) => ({
+      formato: f.key,
+      nombre: f.label,
+      ancho: f.width,
+      alto: f.height,
+      canal: f.channel,
+    })),
+    reglas: [
+      "El HTML es un documento completo y se fotografía a las medidas exactas del formato: pon el body a ese ancho y alto exactos, sin márgenes, sin scroll y con overflow hidden.",
+      "Lo que se sale del recuadro no aparece: no hay scroll en una imagen. Comprueba que el titular entra a ese tamaño.",
+      "Deja aire en los bordes —un 6% por lado— porque Meta recorta las esquinas en algunos emplazamientos.",
+      "Nada de JavaScript ni de animaciones: es una foto fija. Lo que se anime saldrá congelado en un fotograma cualquiera.",
+      "Las tipografías, de Google Fonts por <link>, o el texto saldrá con la de por defecto.",
+      "Las imágenes van en \"archivos\" por url, como en las páginas; nunca en base64.",
+      "Sin {{tokens}}: un anuncio es una imagen y no hay nada que los sustituya después. Escribe los valores, que los tienes en contexto_lanzamiento → valores_listos.",
+    ],
+    aviso:
+      "Un anuncio no lleva medición: es una imagen que se sube a Meta o a Google. Lo que mide es el enlace de destino, que ya es la página del lanzamiento.",
+  }),
+};
+
+const publicarAnuncio: ToolDef = {
+  name: "publicar_anuncio",
+  title: "Publicar un anuncio estático diseñado",
+  description:
+    "Convierte un HTML en la imagen de un anuncio del tamaño exacto del formato y la guarda en la galería del lanzamiento, junto a los que genera Botón Rojo. Publicar con el mismo nombre y formato sustituye. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string", description: "Slug del lanzamiento" },
+      nombre: {
+        type: "string",
+        description:
+          'Cómo se llama este anuncio: "Testimonio Marta", "Oferta cierre". El mismo nombre en el mismo formato lo sustituye.',
+      },
+      formato: {
+        type: "string",
+        enum: AD_FORMAT_LIST.map((f) => f.key),
+        description:
+          "El tamaño. Míralos en contrato_anuncio: el HTML tiene que estar diseñado a esas medidas exactas.",
+      },
+      html: {
+        type: "string",
+        description:
+          "Documento HTML completo del tamaño exacto del formato. Se fotografía tal cual.",
+      },
+      archivos: {
+        type: "array",
+        description:
+          'Las imágenes y css que el HTML referencia con rutas relativas. Para imágenes usa siempre "url": mandarlas en base64 no termina.',
+        items: {
+          type: "object",
+          properties: {
+            nombre: { type: "string" },
+            url: { type: "string" },
+            contenido: { type: "string" },
+            base64: { type: "boolean" },
+          },
+          required: ["nombre"],
+          additionalProperties: false,
+        },
+      },
+      url_claude: URL_CLAUDE_PARAM,
+    },
+    required: ["lanzamiento", "nombre", "formato", "html"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio. Los estáticos se pueden componer desde el panel con el generador de Botón Rojo.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+    const formato = String(args.formato ?? "");
+    const html = String(args.html ?? "");
+
+    if (!nombre) throw new ToolError("Falta el nombre del anuncio.");
+    if (!isAdFormatKey(formato)) {
+      throw new ToolError(
+        `Ese formato no existe. Los que hay: ${AD_FORMAT_LIST.map((f) => f.key).join(", ")}. Mira contrato_anuncio para sus medidas.`,
+      );
+    }
+    if (html.length < 100) {
+      throw new ToolError(
+        "Ese HTML está vacío o es demasiado corto para ser un anuncio.",
+      );
+    }
+
+    // Un {{token}} en una imagen se queda escrito para siempre: no hay nada que lo
+    // sustituya después, porque lo que se sube a Meta es el PNG.
+    const tokens = [...new Set(html.match(/\{\{\s*[a-z_]+\s*\}\}/gi) ?? [])];
+    if (tokens.length) {
+      throw new ToolError(
+        `El HTML lleva ${tokens.join(", ")} y esto es una imagen: saldrían impresos tal cual. Escribe los valores (contexto_lanzamiento → valores_listos).`,
+      );
+    }
+
+    const files = await uploadFiles(
+      auth,
+      launch.slug,
+      `anuncio-${formato}`,
+      args.archivos,
+    );
+    const missing = unresolvedReferences(html, files);
+    if (missing.length) {
+      throw new ToolError(
+        `Faltan archivos que el HTML referencia: ${missing.join(", ")}. Mándalos en "archivos" y vuelve a publicar.`,
+      );
+    }
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+    const format = AD_FORMATS[formato as AdFormatKey];
+
+    const resultado = await publishDesignedAd({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      authorId: token?.createdById ?? null,
+      name: nombre,
+      formatKey: formato as AdFormatKey,
+      html: rewriteAssetPaths(html, files),
+      files,
+      designUrl,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      publicado: true,
+      nombre,
+      formato: format.label,
+      medidas: `${resultado.width}×${resultado.height}`,
+      imagen: resultado.imageUrl,
+      ...(designUrl ? { diseno_enlazado: designUrl } : {}),
+      aviso:
+        "Ya está en la galería de anuncios del lanzamiento, con los que genera Botón Rojo. Desde ahí se descarga para subirlo a Meta o a Google.",
+    };
+  },
+};
+
 export const TOOLS: ToolDef[] = [
   listarLanzamientos,
   contextoLanzamiento,
@@ -1547,6 +1712,8 @@ export const TOOLS: ToolDef[] = [
   listarEmails,
   publicarEmail,
   borrarEmail,
+  contratoAnuncio,
+  publicarAnuncio,
   metricasLanzamiento,
 ];
 
