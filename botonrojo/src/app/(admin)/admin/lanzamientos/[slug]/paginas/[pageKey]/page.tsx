@@ -16,7 +16,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, launches, users } from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
-import { pagePath, resolvePages, contentUnlockDate } from "@/lib/launch-pages";
+import {
+  publicPageUrl,
+  resolvePages,
+  contentUnlockDate,
+} from "@/lib/launch-pages";
+import { listDomainsForLaunch } from "@/server/domains";
 import { fieldsForKind } from "@/lib/page-fields";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 
@@ -88,15 +93,24 @@ export default async function LaunchPageEditor(props: {
   const fromClaude = isCustomPageBody(asset?.body);
   // Un botón que abre Claude solo sirve si la cuenta tiene el conector conectado.
   const connector = await hasActiveConnector(launch.organizationId);
-  const publicUrl = pagePath(launch.slug, pageDef);
+  // La dirección pública de verdad: la del dominio propio si el lanzamiento tiene
+  // uno conectado, y solo entonces la de la plataforma.
+  const domainHostname =
+    (await listDomainsForLaunch(launch.id)).find((d) => d.status === "active")
+      ?.hostname ?? null;
+  const publicUrl = publicPageUrl({
+    appUrl: env.APP_URL,
+    hostname: domainHostname,
+    slug: launch.slug,
+    page: pageDef,
+  });
   const claudeLinkArgs = {
     launchSlug: launch.slug,
     launchName: launch.name,
     pageKey,
     pageLabel: pageDef.label,
-    publicUrl: `${env.APP_URL.replace(/\/$/, "")}${publicUrl}`,
+    publicUrl,
   };
-  const publicPath = pagePath(launch.slug, pageDef);
   const unlockDate = contentUnlockDate(launch.contentDripStartsAt, pageKey);
 
   // Version history is only kept for the sales page, which is the one edited
@@ -159,7 +173,7 @@ export default async function LaunchPageEditor(props: {
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
               <code className="text-[var(--color-red-bright)]">
-                {publicPath}
+                {publicUrl.replace(/^https?:\/\//, "")}
               </code>
               {" · "}
               {fromClaude
@@ -176,7 +190,7 @@ export default async function LaunchPageEditor(props: {
 
           <div className="flex flex-wrap items-center gap-2">
             <a
-              href={publicPath}
+              href={publicUrl}
               target="_blank"
               rel="noreferrer"
               className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[var(--color-red)]"

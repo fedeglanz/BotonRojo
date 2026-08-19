@@ -311,6 +311,11 @@ export default async function LaunchHubPage(props: {
   const hasMilestones = launchMilestones.length > 0;
   const launchDomains = await listDomainsForLaunch(launch.id);
   const hasActiveDomain = launchDomains.some((d) => d.status === "active");
+  // Con uno conectado, las páginas se enseñan y se abren por él: es su dirección
+  // de verdad. El primero por fecha si hubiera varios — el panel de dominios ya
+  // deja ver y quitar los demás.
+  const domainHostname =
+    launchDomains.find((d) => d.status === "active")?.hostname ?? null;
   const acConfigured = await isActiveCampaignConfigured(organizationId);
   const acAutomations = acConfigured
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
@@ -323,37 +328,56 @@ export default async function LaunchHubPage(props: {
   // Groups have to follow the order the steps appear in the page, so the
   // calendar sits with brand and copy (all three are launch groundwork) and
   // Telegram with the other integrations.
-  const done = {
-    marca: [brandKitApproved, hasMarco, hasMilestones].filter(Boolean).length,
-    paginas: hasLanding ? 1 : 0,
-    campana: [hasEmails, Boolean(adsAsset)].filter(Boolean).length,
-    conexiones: [hasProduct, hasAc, hasActiveDomain, hasTelegram].filter(
-      Boolean,
-    ).length,
+  // Los pasos de cada grupo, no un número escrito a mano: en una newsletter no hay
+  // calendario ni producto de pago, y esos dos pasos ni se enseñan. Contarlos de
+  // todas formas dejaba la barra pidiendo para siempre dos cosas que no existen —
+  // "2 de 3" sin un tercero al que ir.
+  const pasosPorGrupo = {
+    marca: esEvergreen
+      ? [brandKitApproved, hasMarco]
+      : [brandKitApproved, hasMarco, hasMilestones],
+    paginas: [hasLanding],
+    campana: [hasEmails, Boolean(adsAsset)],
+    conexiones: esEvergreen
+      ? [hasAc, hasActiveDomain, hasTelegram]
+      : [hasProduct, hasAc, hasActiveDomain, hasTelegram],
   };
+  const hechos = (grupo: boolean[]) => grupo.filter(Boolean).length;
+  const todos = Object.values(pasosPorGrupo).flat();
+
   const tabs: LaunchTab[] = [
     {
       id: "todo",
       label: "Todo",
-      done: done.marca + done.paginas + done.campana + done.conexiones,
-      total: 10,
+      done: hechos(todos),
+      total: todos.length,
     },
-    { id: "marca", label: "Marca, copy y fechas", done: done.marca, total: 3 },
+    {
+      id: "marca",
+      label: esEvergreen ? "Marca y copy" : "Marca, copy y fechas",
+      done: hechos(pasosPorGrupo.marca),
+      total: pasosPorGrupo.marca.length,
+    },
     {
       id: "paginas",
       label: "Páginas",
-      done: done.paginas,
-      total: 1,
+      done: hechos(pasosPorGrupo.paginas),
+      total: pasosPorGrupo.paginas.length,
       blocked: !hasMarco || !brandKitApproved,
     },
     {
       id: "campana",
       label: "Campaña",
-      done: done.campana,
-      total: 2,
+      done: hechos(pasosPorGrupo.campana),
+      total: pasosPorGrupo.campana.length,
       blocked: !hasMarco,
     },
-    { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 4 },
+    {
+      id: "conexiones",
+      label: "Conexiones",
+      done: hechos(pasosPorGrupo.conexiones),
+      total: pasosPorGrupo.conexiones.length,
+    },
   ];
 
   // Qué toca ahora, en un lanzamiento normal. Los de Claude ya lo tienen resuelto
@@ -760,6 +784,7 @@ export default async function LaunchHubPage(props: {
               launchSlug={launch.slug}
               launchName={launch.name}
               appUrl={env.APP_URL.replace(/\/$/, "")}
+              domainHostname={domainHostname}
               hasConnector={connector}
               generatedKeys={new Set(latestByPageKey.keys())}
               claudeKeys={

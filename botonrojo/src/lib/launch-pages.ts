@@ -294,6 +294,41 @@ export function pagePath(slug: string, pageDef: PageDef): string {
 }
 
 /**
+ * La dirección pública de una página, la de verdad: la que hay que abrir, mandar
+ * o enseñarle a Claude.
+ *
+ * Con un dominio propio conectado no es la misma que `pagePath`. Ahí las páginas
+ * no llevan el slug —la de entrada es la raíz del dominio y las demás cuelgan de
+ * ella—, así que el panel enseñaba y abría la dirección de la plataforma cuando el
+ * lanzamiento ya vivía en el dominio del cliente. Se veía la página, sí, pero era
+ * la dirección equivocada: la que no se puede compartir, la que no lleva la marca
+ * de nadie y la que un día dejará de existir.
+ *
+ * Una función y no dos porque se usa en cuatro sitios —el índice, la pantalla de
+ * cada página, "editar encima" y el texto que se le pasa a Claude— y con cuatro
+ * copias basta con olvidar una para volver a enseñar la dirección de antes.
+ */
+export function publicPageUrl({
+  appUrl,
+  hostname,
+  slug,
+  page,
+}: {
+  /** La URL de la plataforma, sin barra final. */
+  appUrl: string;
+  /** El dominio propio activo del lanzamiento, si tiene uno. */
+  hostname: string | null;
+  slug: string;
+  page: PageDef;
+}): string {
+  const base = appUrl.replace(/\/$/, "");
+  if (!hostname) return `${base}${pagePath(slug, page)}`;
+  return page.isEntry
+    ? `https://${hostname}/`
+    : `https://${hostname}/${page.pageKey}`;
+}
+
+/**
  * PLF content pages drip one per day: "contenido-1" unlocks on
  * `dripStartsAt` itself, "contenido-2" the day after, etc. Returns `null`
  * when there's nothing to gate (no schedule set, or not a numbered content

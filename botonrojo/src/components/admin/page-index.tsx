@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { pagePath, contentUnlockDate, type PageDef } from "@/lib/launch-pages";
+import {
+  publicPageUrl,
+  contentUnlockDate,
+  type PageDef,
+} from "@/lib/launch-pages";
 import { ClaudeGoButton } from "@/components/admin/claude-go-button";
 import {
   CLAUDE_DESIGN_URL,
@@ -48,6 +52,7 @@ export function PageIndex({
   launchSlug,
   launchName,
   appUrl,
+  domainHostname,
   generatedKeys,
   claudeKeys,
   hasConnector,
@@ -58,6 +63,8 @@ export function PageIndex({
   launchName: string;
   /** Para poder darle a Claude la URL pública completa de cada página. */
   appUrl: string;
+  /** El dominio propio activo del lanzamiento; manda sobre el de la plataforma. */
+  domainHostname: string | null;
   /** pageKeys that already have content. */
   generatedKeys: Set<string>;
   /** pageKeys whose content is an HTML page designed in Claude. */
@@ -72,6 +79,13 @@ export function PageIndex({
         const generated = generatedKeys.has(page.pageKey);
         const fromClaude = claudeKeys.has(page.pageKey);
         const unlock = contentUnlockDate(dripStartsAt, page.pageKey);
+        // Con dominio propio, esta es la dirección del cliente; sin él, la nuestra.
+        const url = publicPageUrl({
+          appUrl,
+          hostname: domainHostname,
+          slug: launchSlug,
+          page,
+        });
 
         return (
           <li key={page.pageKey}>
@@ -89,7 +103,7 @@ export function PageIndex({
                   {page.label}
                 </span>
                 <span className="block truncate font-[family-name:var(--font-mono)] text-[11px] text-zinc-500">
-                  {pagePath(launchSlug, page)}
+                  {url.replace(/^https?:\/\//, "")}
                   {page.isEntry && " · entrada"}
                   {unlock && ` · se abre el ${unlock.toLocaleDateString("es")}`}
                 </span>
@@ -112,7 +126,7 @@ export function PageIndex({
               )}
 
               <a
-                href={pagePath(launchSlug, page)}
+                href={url}
                 target="_blank"
                 rel="noreferrer"
                 className="shrink-0 rounded-md border border-white/15 px-2.5 py-1 text-[11px] uppercase tracking-widest text-zinc-300 transition hover:border-white/40"
@@ -132,7 +146,7 @@ export function PageIndex({
                           launchName,
                           pageKey: page.pageKey,
                           pageLabel: page.label,
-                          publicUrl: `${appUrl}${pagePath(launchSlug, page)}`,
+                          publicUrl: url,
                         })
                       : claudeDesignPagePrompt({
                           launchSlug,
@@ -140,7 +154,7 @@ export function PageIndex({
                           pageKey: page.pageKey,
                           pageLabel: page.label,
                           pageKind: page.kind,
-                          publicUrl: `${appUrl}${pagePath(launchSlug, page)}`,
+                          publicUrl: url,
                         })
                   }
                 />
@@ -148,7 +162,7 @@ export function PageIndex({
 
               {generated && !fromClaude && IN_PAGE_EDITABLE.has(page.kind) && (
                 <a
-                  href={`${pagePath(launchSlug, page)}?editar=1`}
+                  href={`${url}?editar=1`}
                   target="_blank"
                   rel="noreferrer"
                   title="Abrir la página y editarla señalando encima"
