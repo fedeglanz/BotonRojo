@@ -1082,36 +1082,34 @@ export default async function LaunchHubPage(props: {
           </WizardStep>
 
           {/* Step 9 — PDC Checkout (campus) */}
-          {!esEvergreen && (
-            <WizardStep
-              index={9}
-              title="PDC Checkout (Campus)"
-              subtitle="Conecta el sistema de checkout del campus del cliente. Crea lanzamientos, productos y precios automaticamente."
-              status={
-                !pdcConfigured
-                  ? "needs-prev"
-                  : hasPdc
-                    ? "ready"
-                    : "empty"
-              }
-            >
-              <PdcCheckoutPanel
-                launchId={launch.id}
-                configured={pdcConfigured}
-                pdcLaunchId={launch.pdcLaunchId ?? null}
-                pdcProductId={launch.pdcProductId ?? null}
-                pdcPriceIds={(launch.pdcPriceIds as number[] | null) ?? []}
-                listLaunchesAction={listPdcLaunchesAction}
-                connectLaunchAction={connectPdcLaunchAction}
-                createLaunchAction={createPdcLaunchAction}
-                disconnectLaunchAction={disconnectPdcLaunchAction}
-                createProductAction={createPdcProductAction}
-                createPriceAction={createPdcPriceAction}
-                fetchProductAction={fetchPdcProductAndPricesAction}
-                fetchAccountsAction={fetchPdcAccountsAction}
-              />
-            </WizardStep>
-          )}
+          <WizardStep
+            index={9}
+            title="PDC Checkout (Campus)"
+            subtitle="Conecta el sistema de checkout del campus del cliente. Crea lanzamientos, productos y precios automaticamente."
+            status={
+              !pdcConfigured
+                ? "needs-prev"
+                : hasPdc
+                  ? "ready"
+                  : "empty"
+            }
+          >
+            <PdcCheckoutPanel
+              launchId={launch.id}
+              configured={pdcConfigured}
+              pdcLaunchId={launch.pdcLaunchId ?? null}
+              pdcProductId={launch.pdcProductId ?? null}
+              pdcPriceIds={(launch.pdcPriceIds as number[] | null) ?? []}
+              listLaunchesAction={listPdcLaunchesAction}
+              connectLaunchAction={connectPdcLaunchAction}
+              createLaunchAction={createPdcLaunchAction}
+              disconnectLaunchAction={disconnectPdcLaunchAction}
+              createProductAction={createPdcProductAction}
+              createPriceAction={createPdcPriceAction}
+              fetchProductAction={fetchPdcProductAndPricesAction}
+              fetchAccountsAction={fetchPdcAccountsAction}
+            />
+          </WizardStep>
         </>
       )}
     </div>
