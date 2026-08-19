@@ -528,8 +528,14 @@ export default async function LaunchHubPage(props: {
             launchSlug={launch.slug}
             missing={{
               copy: !hasMarco,
-              // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
-              dates: !launch.cartClosesAt && !launch.registrationClosesAt,
+              // Con una de las dos basta para que la cuenta atrás tenga a qué
+              // contar. En una newsletter, ninguna: es evergreen, no hay cuenta
+              // atrás y el campo donde se ponían ya no se enseña — pedirlas
+              // mandaba a un sitio que no existe.
+              dates:
+                !esEvergreen &&
+                !launch.cartClosesAt &&
+                !launch.registrationClosesAt,
             }}
           />
         )}
