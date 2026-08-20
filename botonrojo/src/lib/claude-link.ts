@@ -27,6 +27,16 @@ function claudeChatUrl(prompt: string): string {
   return `${CLAUDE_CHAT}?q=${encodeURIComponent(prompt)}`;
 }
 
+
+/**
+ * El recordatorio de nivel, en los mensajes que abren Claude.
+ *
+ * El contrato ya lleva la dirección de arte entera, pero se lee después de abrir el
+ * chat y no todo el mundo llega hasta ahí. Las primeras páginas de prueba salieron
+ * correctas y planas, así que el nivel se pide desde la primera frase.
+ */
+const NIVEL_DE_DISENO = `NIVEL: no quiero una plantilla. Un gesto visual protagonista por página, animación SVG de verdad (trazos que se dibujan con stroke-dashoffset, formas que se transforman, degradados en movimiento, grano con feTurbulence), aparición al hacer scroll con el estado final visible, profundidad por capas y micro-interacciones en botones y tarjetas. Respeta prefers-reduced-motion y anima solo transform y opacity. La dirección de arte completa está en contrato_pagina — léela.`;
+
 /** Rediseñar una página que ya se diseñó en Claude. */
 export function claudeEditPagePrompt(input: {
   launchSlug: string;
@@ -42,6 +52,8 @@ export function claudeEditPagePrompt(input: {
 3. Cámbialo y publícalo con publicar_pagina en la misma página.
 
 Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.
+
+${NIVEL_DE_DISENO}
 
 En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
@@ -65,6 +77,8 @@ export function claudeDesignPagePrompt(input: {
 Es una página de tipo "${input.pageKind}" y quedará en ${input.publicUrl}. Las imágenes mándalas por url en "archivos", nunca en base64.
 
 Empieza leyendo el contexto y proponme la idea antes de escribir el HTML.
+
+${NIVEL_DE_DISENO}
 
 En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
@@ -99,6 +113,8 @@ TAREAS SIGUIENTES — una por página. Lee contrato_pagina, diseña el documento
 No hace falta avisar de nada al terminar: cada tarea se cierra sola al guardar la identidad o al publicar la página.
 
 Empieza enseñándome la lista de tareas y tu propuesta de identidad visual.
+
+${NIVEL_DE_DISENO}
 
 En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
@@ -164,6 +180,8 @@ export function claudeNewPageUrl(input: {
 4. Diséñala y publícala con publicar_pagina.
 
 Pregúntame primero para qué es la página antes de crear nada.
+
+${NIVEL_DE_DISENO}
 
 En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`,
   );

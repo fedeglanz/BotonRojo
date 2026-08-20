@@ -106,6 +106,64 @@ Una página creada así se lleva desde aquí a partir de ese momento. Para cambi
 pide su HTML con \`ver_pagina\`, retócalo y vuelve a publicar; el panel no la toca a
 propósito, porque regenerarla la sustituiría por una página del sistema.
 
+## Dirección de arte: que no parezca una plantilla
+
+Las páginas de este producto son la primera impresión de un lanzamiento, y una
+página correcta pero plana —titular centrado, tres tarjetas iguales, un botón— hace
+que el producto parezca barato aunque no lo sea. Trabájalas.
+
+**Un gesto protagonista por página.** Una idea visual que se recuerde y que solo
+podría ser de este lanzamiento: una forma que atraviesa la pantalla, un objeto que
+se monta al entrar, un fondo que reacciona. Uno, no cinco: cinco gestos compiten
+entre sí y no gana ninguno.
+
+**Animación SVG de verdad, en línea y sin librerías.** No un fundido genérico:
+
+- trazos que se dibujan solos — \`stroke-dasharray\` + \`stroke-dashoffset\`
+  animados: subrayados, flechas, círculos que rodean una palabra, líneas que
+  conectan pasos;
+- formas que se transforman, con \`<animate>\` sobre la \`d\` de un \`path\` o
+  interpolando \`clip-path\`;
+- degradados en movimiento dentro del propio SVG (\`<linearGradient>\` con
+  \`animateTransform\`, o animando \`--angulo\` con \`@property\`);
+- máscaras que revelan al hacer scroll;
+- ruido y grano con \`<feTurbulence>\` para que los degradados no se vean digitales.
+
+**Movimiento al entrar en pantalla**, con \`animation-timeline: view()\` o un
+\`IntersectionObserver\` de cuatro líneas. Regla dura: el estado FINAL es el visible.
+Si la animación no llega a ejecutarse, la página tiene que estar entera igualmente —
+un \`opacity: 0\` de partida sin red de seguridad es una página en blanco.
+
+**Profundidad, no un fondo de color.** Capas con desenfoque, degradados de malla,
+grano, luces que se salen del bloque, un poco de solape entre secciones. Que se note
+que hay planos.
+
+**Tipografía con contraste fuerte.** Titular de 4 a 6 veces el cuerpo, tracking
+negativo en los display grandes, 60–70 caracteres por línea en el texto largo. El
+contraste de tamaño es lo que hace que una página se lea de un vistazo.
+
+**Micro-interacciones.** Botones y tarjetas que responden al ratón con
+\`transform\` y sombra, 150–250 ms, \`ease-out\`. Y el botón principal, distinto de
+todo lo demás de la página.
+
+**Detalle hecho a mano.** Un subrayado dibujado, una marca sobre una palabra, iconos
+propios en SVG. Nada de emojis como iconografía y nada de imágenes de relleno: si
+falta una foto, resuélvelo con formas, degradados y tipografía.
+
+Tres cosas que no son negociables:
+
+1. **\`prefers-reduced-motion: reduce\`**: un bloque que deja todo quieto. No es
+   decoración, es que hay gente a la que el movimiento le marea.
+2. **Solo \`transform\` y \`opacity\`** en lo que se anima. Animar \`width\`,
+   \`height\`, \`top\` o \`left\` recalcula el diseño en cada fotograma y en un móvil
+   se ve a tirones.
+3. **El texto que hay que leer no se mueve.** Que aparezca, sí; que flote mientras
+   se lee, no.
+
+Y lo que delata una plantilla, por si sirve de lista de "no": todo centrado, tres
+tarjetas idénticas en fila, iconos de librería, un héroe con titular y botón y nada
+más, secciones separadas por líneas grises, sombras iguales en todo.
+
 ## Lo que no debes hacer
 
 - No metas tu propia analítica ni pixels de terceros: la medición ya va dentro.
