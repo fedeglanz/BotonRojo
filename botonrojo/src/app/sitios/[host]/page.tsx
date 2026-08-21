@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+import { pageMetadataFor } from "@/lib/page-seo";
+import { env } from "@/lib/env";
 import { notFound } from "next/navigation";
 import { renderLaunchPage } from "@/components/public/launch-page-renderer";
 import { resolveLaunchByHostname } from "@/server/domains";
@@ -17,4 +20,17 @@ export default async function CustomDomainPage(props: {
   const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
   const entryPage = pages.find((p) => p.isEntry) ?? pages[0];
   return renderLaunchPage(launch, entryPage, pages, searchParams);
+}
+
+export async function generateMetadata(props: {
+  params: Promise<{ host: string }>;
+}): Promise<Metadata> {
+  const { host } = await props.params;
+  const launch = await resolveLaunchByHostname(host);
+  if (!launch) return {};
+  const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
+  const page = pages.find((p) => p.isEntry) ?? pages[0];
+  if (!page) return {};
+  // En el dominio del cliente el canónico es el suyo, no el nuestro.
+  return pageMetadataFor({ launch, page, hostname: host, appUrl: env.APP_URL });
 }

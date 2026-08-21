@@ -52,7 +52,9 @@ export const config = {
   // dominio propio eso dejaba el formulario de registro sin nadie que lo enviara
   // — el navegador lo mandaba por GET y el correo del visitante acababa en la
   // barra de direcciones en vez de en la lista.
+  // `robots.txt` y `sitemap.xml` tampoco se reescriben: son rutas nuestras que
+  // miran el `Host` por su cuenta para contestar una cosa u otra según el dominio.
   matcher: [
-    "/((?!_next/|ads-render|api/|favicon.ico|track.js|br-runtime.js).*)",
+    "/((?!_next/|ads-render|api/|favicon.ico|track.js|br-runtime.js|robots.txt|sitemap.xml).*)",
   ],
 };

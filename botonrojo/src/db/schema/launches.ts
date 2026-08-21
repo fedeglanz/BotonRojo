@@ -19,6 +19,21 @@ export const launchType = pgEnum("launch_type", [
   // Sin carrito y sin fechas: captar suscriptores en evergreen.
   "newsletter",
 ]);
+/**
+ * Lo que se puede decidir del SEO de una página.
+ *
+ * El tipo vive junto a la tabla porque `lib/page-seo.ts` —quien lo usa— ya importa
+ * `Launch` de aquí: definirlo allí y traerlo aquí cerraría un ciclo entre los dos.
+ */
+export type PageSeo = {
+  title?: string;
+  description?: string;
+  /** `false` mete un noindex. Sin valor, decide el tipo de página. */
+  index?: boolean;
+  imageUrl?: string;
+  canonicalUrl?: string;
+};
+
 export const launchStatus = pgEnum("launch_status", [
   "draft",
   "scheduled",
@@ -119,6 +134,13 @@ export const launches = pgTable("launches", {
    *  colours and fonts, and each generation improvised the rest. */
   brandDesign: jsonb("brand_design").$type<BrandDesign | null>(),
   designSystemProjectId: text("design_system_project_id"),
+  /**
+   * Título, descripción e indexado de cada página, por `pageKey`.
+   *
+   * Aquí y no con el contenido de la página porque el contenido se sustituye —se
+   * regenera, se rediseña en Claude— y el SEO no tiene por qué irse con él.
+   */
+  seo: jsonb("seo").$type<Record<string, PageSeo> | null>(),
   /**
    * Quién diseña este lanzamiento.
    *

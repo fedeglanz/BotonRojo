@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+import { pageMetadataFor } from "@/lib/page-seo";
+import { env } from "@/lib/env";
 import { notFound, redirect } from "next/navigation";
 import { renderLaunchPage } from "@/components/public/launch-page-renderer";
 import { resolveLaunchByHostname } from "@/server/domains";
@@ -51,4 +54,16 @@ export default async function CustomDomainPath(props: {
   if (pageDef.pageKey === entry.pageKey) redirect("/");
 
   return renderLaunchPage(launch, pageDef, pages, searchParams);
+}
+
+export async function generateMetadata(props: {
+  params: Promise<{ host: string; path: string[] }>;
+}): Promise<Metadata> {
+  const { host, path } = await props.params;
+  const launch = await resolveLaunchByHostname(host);
+  if (!launch || path.length !== 1) return {};
+  const pages = resolvePages(launch.type as LaunchType, launch.pageConfig);
+  const page = pages.find((p) => p.pageKey === path[0]);
+  if (!page) return {};
+  return pageMetadataFor({ launch, page, hostname: host, appUrl: env.APP_URL });
 }

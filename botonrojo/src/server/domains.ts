@@ -177,3 +177,22 @@ export async function resolveLaunchByHostname(hostname: string) {
   if (!row || row.domain.status !== "active") return null;
   return row.launch;
 }
+
+/**
+ * El dominio propio activo de un lanzamiento, o null.
+ *
+ * Lo piden las páginas públicas para saber cuál es su dirección canónica: la del
+ * cliente si la tiene, y solo entonces la de la plataforma. Sin sesión, porque esto
+ * lo llama el renderizado público, no el panel.
+ */
+export async function activeHostnameFor(
+  launchId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ hostname: domains.hostname })
+    .from(domains)
+    .where(and(eq(domains.launchId, launchId), eq(domains.status, "active")))
+    .orderBy(domains.createdAt)
+    .limit(1);
+  return row?.hostname ?? null;
+}

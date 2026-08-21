@@ -99,6 +99,13 @@
       "when": 1787145307469,
       "tag": "0013_fixed_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787327294947,
+      "tag": "0014_quick_mandroid",
+      "breakpoints": true
     }
   ]
 }

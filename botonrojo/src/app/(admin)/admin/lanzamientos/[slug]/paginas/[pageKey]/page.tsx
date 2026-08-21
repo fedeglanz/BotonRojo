@@ -22,6 +22,10 @@ import {
   contentUnlockDate,
 } from "@/lib/launch-pages";
 import { listDomainsForLaunch } from "@/server/domains";
+import { SeoPanel } from "@/components/admin/seo-panel";
+import { updatePageSeoAction } from "@/server/launches";
+import { seoFor, shouldIndex } from "@/lib/page-seo";
+import { listMediaForLaunch } from "@/server/media-store";
 import { fieldsForKind } from "@/lib/page-fields";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 
@@ -109,6 +113,11 @@ export default async function LaunchPageEditor(props: {
       ?.claudeProjectUrl as string | undefined) ??
     designUrl ??
     CLAUDE_DESIGN_URL;
+
+  const fotosDelLanzamiento = await listMediaForLaunch({
+    organizationId: launch.organizationId,
+    launchId: launch.id,
+  }).catch(() => []);
 
   const publicUrl = publicPageUrl({
     appUrl: env.APP_URL,
@@ -423,6 +432,30 @@ export default async function LaunchPageEditor(props: {
           refineAction={refinePageFieldAction}
         />
       )}
+
+      {/* El SEO va al final y en todas las páginas, también en las diseñadas en
+          Claude: es de la página, no de cómo se hizo. */}
+      <section className="mt-10 rounded-xl border border-white/10 bg-black/20 p-5">
+        <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+          SEO y cómo se comparte
+        </div>
+        <div className="mt-4">
+          <SeoPanel
+            pageLabel={pageDef.label}
+            publicUrl={publicUrl}
+            seo={seoFor(launch, pageKey)}
+            indexaPorDefecto={shouldIndex(
+              { ...launch, seo: null },
+              pageDef,
+            )}
+            fotos={fotosDelLanzamiento.map((f) => ({
+              url: f.url,
+              etiqueta: f.label,
+            }))}
+            saveAction={updatePageSeoAction.bind(null, launch.id, pageKey)}
+          />
+        </div>
+      </section>
     </div>
   );
 }

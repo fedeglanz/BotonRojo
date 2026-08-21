@@ -112,6 +112,7 @@ import type {
   Launch,
 } from "@/db/schema/launches";
 import type { DesignReviewIssue } from "@/db/schema/assets";
+import type { PageSeo } from "@/db/schema/launches";
 import {
   resolvePages,
   pagePath,
@@ -4217,4 +4218,62 @@ export async function deleteLaunchAction(launchId: string) {
 
   revalidatePath("/admin");
   redirect("/admin");
+}
+
+/* ------------------------------------------------------------------- seo --- */
+
+/**
+ * El SEO de una página: título, descripción, imagen de la tarjeta y si se indexa.
+ *
+ * Se guarda en el lanzamiento y por `pageKey`, no con el contenido de la página: el
+ * contenido se sustituye —se regenera desde el panel, se rediseña en Claude— y el
+ * título con el que la página sale en Google no tiene por qué irse con él.
+ */
+export async function updatePageSeoAction(
+  launchId: string,
+  pageKey: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const texto = (campo: string, max: number) => {
+    const valor = String(formData.get(campo) ?? "").trim();
+    return valor ? valor.slice(0, max) : undefined;
+  };
+
+  const indexar = String(formData.get("index") ?? "");
+  const nuevo: PageSeo = {
+    // Los límites son los que de verdad se enseñan: Google corta el título sobre los
+    // 60 caracteres y la descripción sobre los 160. Guardar más es guardar algo que
+    // nadie va a leer, y encima esconde que está cortado.
+    title: texto("title", 70),
+    description: texto("description", 200),
+    imageUrl: texto("imageUrl", 500),
+    canonicalUrl: texto("canonicalUrl", 500),
+    ...(indexar === "si"
+      ? { index: true }
+      : indexar === "no"
+        ? { index: false }
+        : {}),
+  };
+
+  const actual = (launch.seo ?? {}) as Record<string, PageSeo>;
+  const limpio = Object.fromEntries(
+    Object.entries(nuevo).filter(([, v]) => v !== undefined),
+  ) as PageSeo;
+
+  const seo = { ...actual };
+  // Un ajuste vacío se borra en vez de guardarse como objeto vacío: así "sin nada
+  // configurado" es una sola cosa y no dos que se parecen.
+  if (Object.keys(limpio).length === 0) delete seo[pageKey];
+  else seo[pageKey] = limpio;
+
+  await db
+    .update(launches)
+    .set({ seo, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
