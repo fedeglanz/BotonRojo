@@ -14,6 +14,7 @@ const MENSAJES = [
   "Reservando su dirección pública…",
   "Preparando sus páginas…",
   "Proponiendo la identidad visual…",
+  "Abriendo el lanzamiento…",
 ];
 
 /**

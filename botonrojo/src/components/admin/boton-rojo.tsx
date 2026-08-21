@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { PantallaEspera } from "@/components/admin/creando-overlay";
 
@@ -21,6 +22,14 @@ import { PantallaEspera } from "@/components/admin/creando-overlay";
  * `pending: false` durante todo el envío —el mismo envío que este botón sí ve—,
  * y una espera que no aparece es peor que no tenerla. Aquí cuelga del único sitio
  * donde el hook responde.
+ *
+ * Y una vez enviado, la espera NO se quita. `pending` se apaga cuando el servidor
+ * contesta, no cuando la pantalla cambia: la acción crea el lanzamiento y redirige,
+ * pero cargar el panel del lanzamiento lleva sus segundos, y en ese hueco la
+ * pantalla de espera desaparecía y volvía a verse el formulario, entero y con el
+ * botón otra vez activo. Pasó lo que tenía que pasar: alguien lo pulsó de nuevo y
+ * se creó un lanzamiento duplicado. Desde el primer envío esto ya no vuelve atrás —
+ * lo único que puede pasar después es que la página cambie.
  */
 export function BotonRojo({
   children = "Lanzar",
@@ -35,23 +44,33 @@ export function BotonRojo({
   espera?: boolean;
 }) {
   const { pending, data } = useFormStatus();
+  // El último FormData visto: `data` vuelve a null en cuanto el envío termina, y la
+  // pantalla de espera sigue en pie hasta que se navega — sin guardarlo, el planeta
+  // se quedaría sin saber qué tipo de lanzamiento está creando.
+  const [enviado, setEnviado] = useState<FormData | null>(null);
+
+  useEffect(() => {
+    if (pending && data) setEnviado(data);
+  }, [pending, data]);
+
+  const trabajando = pending || Boolean(enviado);
 
   return (
-    <span className={pending || disabled ? undefined : "boton-rojo-halo"}>
-      {espera && pending && <PantallaEspera data={data ?? null} />}
+    <span className={trabajando || disabled ? undefined : "boton-rojo-halo"}>
+      {espera && trabajando && <PantallaEspera data={data ?? enviado} />}
       <button
         type="submit"
         className="boton-rojo"
-        data-enviando={pending ? "si" : undefined}
-        disabled={pending || disabled}
+        data-enviando={trabajando ? "si" : undefined}
+        disabled={trabajando || disabled}
       >
-        {pending && (
+        {trabajando && (
           <span
             aria-hidden
             className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
           />
         )}
-        {pending ? pendingLabel : children}
+        {trabajando ? pendingLabel : children}
       </button>
     </span>
   );
