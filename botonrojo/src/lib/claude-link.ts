@@ -49,7 +49,7 @@ export function claudeEditPagePrompt(input: {
 
 1. ver_pagina con lanzamiento="${input.launchSlug}" y pagina="${input.pageKey}" para tener el HTML que está publicado ahora.
 2. contrato_pagina, para no perder los atributos data-br ni los {{tokens}} al retocarlo.
-3. Cámbialo y publícalo con publicar_pagina en la misma página.
+3. Si es un retoque —un titular, un precio, un párrafo—, aplícalo con parchear_pagina: le pasas solo los trozos que cambian y tarda segundos. publicar_pagina obliga a reescribir el documento entero y son varios minutos.
 
 Está en vivo en ${input.publicUrl}. Antes de tocar nada, dime qué ves y qué propones cambiar.
 

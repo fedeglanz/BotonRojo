@@ -1034,6 +1034,171 @@ const guardarIdentidad: ToolDef = {
   },
 };
 
+/**
+ * Cambiar trozos de una página ya publicada, sin reescribirla entera.
+ *
+ * Republicar una página cuesta lo que cuesta escribirla: el HTML entero viaja como
+ * un solo argumento, y una página con su diseño y su CSS son treinta mil caracteres.
+ * Cambiar un titular obligaba a volver a escribir los treinta mil — y eso son varios
+ * minutos de Claude tecleando lo mismo que ya había.
+ *
+ * Aquí van solo los trozos: buscar esto, poner esto otro. Doscientos caracteres en
+ * vez de treinta mil.
+ *
+ * Cada búsqueda tiene que aparecer EXACTAMENTE UNA VEZ. Si no aparece, o aparece
+ * dos, no se aplica nada y se dice cuál falló: un reemplazo a ciegas sobre la página
+ * en vivo de un cliente puede dejarla peor que antes, y "no he cambiado nada" es
+ * mejor que "he cambiado algo, no sé qué".
+ */
+const parchearPagina: ToolDef = {
+  name: "parchear_pagina",
+  title: "Cambiar trozos de una página publicada",
+  description:
+    "Aplica cambios puntuales al HTML que ya está publicado, buscando y sustituyendo texto exacto. Para retoques —un titular, un precio, un enlace— es lo que hay que usar: publicar_pagina obliga a reescribir el documento entero y tarda minutos. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      pagina: { type: "string", description: "Clave de la página" },
+      cambios: {
+        type: "array",
+        description:
+          "Los reemplazos, en orden. Cada búsqueda debe aparecer una sola vez en el HTML: si no estás seguro, pide antes ver_pagina y copia un trozo con suficiente contexto alrededor.",
+        items: {
+          type: "object",
+          properties: {
+            buscar: {
+              type: "string",
+              description: "El texto exacto que hay ahora, tal cual",
+            },
+            reemplazar: {
+              type: "string",
+              description: "Lo que va en su lugar. Vacío lo borra.",
+            },
+          },
+          required: ["buscar", "reemplazar"],
+          additionalProperties: false,
+        },
+      },
+      url_claude: URL_CLAUDE_PARAM,
+    },
+    required: ["lanzamiento", "pagina", "cambios"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const pageDef = requirePage(launch, args.pagina);
+
+    const [asset] = await db
+      .select()
+      .from(assets)
+      .where(
+        and(
+          eq(assets.launchId, launch.id),
+          eq(assets.kind, "landing"),
+          eq(assets.pageKey, pageDef.pageKey),
+        ),
+      )
+      .orderBy(desc(assets.createdAt))
+      .limit(1);
+
+    if (!asset || !isCustomPageBody(asset.body)) {
+      throw new ToolError(
+        "Esta página no tiene un HTML propio publicado, así que no hay nada que parchear. Publícala con publicar_pagina.",
+      );
+    }
+
+    const cambios = Array.isArray(args.cambios) ? args.cambios : [];
+    if (!cambios.length) throw new ToolError("No has mandado ningún cambio.");
+
+    // Se comprueban TODOS antes de aplicar ninguno: a medio camino la página
+    // quedaría con la mitad de los cambios puestos, que es el peor de los estados.
+    let html = asset.body.html;
+    const problemas: string[] = [];
+    for (const [i, cambio] of cambios.entries()) {
+      const buscar = String(
+        (cambio as { buscar?: unknown }).buscar ?? "",
+      );
+      if (!buscar) {
+        problemas.push(`El cambio ${i + 1} no trae texto que buscar.`);
+        continue;
+      }
+      const veces = html.split(buscar).length - 1;
+      if (veces === 0) {
+        problemas.push(
+          `El cambio ${i + 1} no aparece en la página: «${buscar.slice(0, 60)}…». Pide ver_pagina y copia el texto tal cual está.`,
+        );
+      } else if (veces > 1) {
+        problemas.push(
+          `El cambio ${i + 1} aparece ${veces} veces: «${buscar.slice(0, 60)}…». Coge más contexto alrededor para que sea único.`,
+        );
+      }
+    }
+    if (problemas.length) {
+      throw new ToolError(
+        `No se ha cambiado nada. ${problemas.join(" ")}`,
+      );
+    }
+
+    for (const cambio of cambios) {
+      const buscar = String((cambio as { buscar?: unknown }).buscar ?? "");
+      const reemplazar = String(
+        (cambio as { reemplazar?: unknown }).reemplazar ?? "",
+      );
+      html = html.replace(buscar, reemplazar);
+    }
+
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    // Una versión nueva, no una edición: la anterior sigue en el historial y se puede
+    // volver a ella si el parche no era lo que se pensaba.
+    const body: CustomPageBody = {
+      ...asset.body,
+      html,
+      publishedAt: new Date().toISOString(),
+      ...(designUrl ? { designUrl } : {}),
+    };
+
+    await db.insert(assets).values({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      kind: "landing",
+      pageKey: pageDef.pageKey,
+      title: asset.title,
+      body: body as unknown as Record<string, unknown>,
+      authorId: token?.createdById ?? null,
+      generatedByAi: "claude-design",
+    });
+
+    const path = pagePath(launch.slug, pageDef);
+    revalidatePath(path);
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    revalidatePath(
+      `/admin/lanzamientos/${launch.slug}/paginas/${pageDef.pageKey}`,
+    );
+
+    return {
+      parcheada: true,
+      cambios: cambios.length,
+      url: absoluteUrl(path),
+      aviso:
+        "Ya está en vivo. La versión anterior queda en el historial de la página, por si el cambio no era lo que parecía.",
+    };
+  },
+};
+
 const verPagina: ToolDef = {
   name: "ver_pagina",
   title: "Ver el HTML publicado",
@@ -1867,6 +2032,7 @@ export const TOOLS: ToolDef[] = [
   guardarIdentidad,
   crearPagina,
   publicarPagina,
+  parchearPagina,
   verPagina,
   retirarPagina,
   borrarPagina,

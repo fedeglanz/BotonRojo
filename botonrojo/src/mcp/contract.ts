@@ -164,6 +164,27 @@ Y lo que delata una plantilla, por si sirve de lista de "no": todo centrado, tre
 tarjetas idénticas en fila, iconos de librería, un héroe con titular y botón y nada
 más, secciones separadas por líneas grises, sombras iguales en todo.
 
+## Para retocar, no republiques: parchea
+
+Publicar una página cuesta lo que cuesta escribirla. El HTML entero viaja como un
+solo argumento, y una página con su diseño son treinta mil caracteres: cambiar un
+titular reescribiéndola entera son varios minutos tecleando lo mismo que ya había.
+
+Para un retoque —un titular, un precio, un enlace, un párrafo— usa
+\`parchear_pagina\`: le pasas los trozos, "busca esto y pon esto otro". Doscientos
+caracteres en vez de treinta mil. Si no te acuerdas de cómo está escrito, pide
+\`ver_pagina\` primero y copia el texto tal cual.
+
+Cada búsqueda tiene que aparecer una sola vez en el documento. Si aparece dos, no se
+aplica nada: coge más contexto alrededor y repite.
+
+\`publicar_pagina\` es para la primera vez y para un rediseño de verdad.
+
+Y una cosa que ahorra tiempo en todas las publicaciones siguientes: pon el CSS en un
+archivo aparte (\`estilos.css\` en \`archivos\`) en vez de en un \`<style>\` dentro del
+HTML. El CSS es la mitad del peso de una página y casi nunca cambia; separado, no
+hay que volver a escribirlo cada vez.
+
 ## El logo y las fotos del cliente
 
 Las imágenes reales del lanzamiento las tienes en \`listar_fotos\`: el logo de la
