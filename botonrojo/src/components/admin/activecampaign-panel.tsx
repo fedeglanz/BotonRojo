@@ -1,19 +1,15 @@
 import { SubmitButton } from "./submit-button";
 import { Button } from "@/components/ui/button";
 
-type Opcion = { id: number; nombre: string };
+import { acTagsFor } from "@/lib/ac-tags";
 
-/** Los cuatro momentos que el lanzamiento etiqueta. */
-const CLAVES = [
-  { key: "registro", etiqueta: "Registro", para: "quien deja su email" },
-  { key: "comprador", etiqueta: "Comprador", para: "quien compra" },
-  { key: "evento", etiqueta: "Evento", para: "quien asiste al directo" },
-  { key: "abandono", etiqueta: "Carrito abandonado", para: "quien no terminó" },
-] as const;
+type Opcion = { id: number; nombre: string };
 
 type Props = {
   launchId: string;
   launchSlug: string;
+  /** Decide qué se etiqueta: una newsletter solo tiene suscrito y desuscrito. */
+  launchType: string;
   configured: boolean;
   listId: number | null;
   tagIds: Record<string, number>;
@@ -38,6 +34,7 @@ type Props = {
 export function ActiveCampaignPanel({
   launchId,
   launchSlug,
+  launchType,
   configured,
   listId,
   tagIds,
@@ -64,6 +61,7 @@ export function ActiveCampaignPanel({
     );
   }
 
+  const CLAVES = acTagsFor(launchType);
   const provisioned = Boolean(listId);
 
   // Se resuelve contra lo que hay ahora en la cuenta. Solo se afirma que algo se ha
@@ -81,7 +79,7 @@ export function ActiveCampaignPanel({
           if (!id) return null;
           return etiquetasExistentes.some((t) => t.id === id)
             ? null
-            : `la etiqueta de ${c.etiqueta.toLowerCase()} (#${id})`;
+            : `la etiqueta de ${c.label.toLowerCase()} (#${id})`;
         }),
       ].filter((x): x is string => Boolean(x));
   const canSchedule = provisioned && hasTemplates && hasMilestones;
@@ -134,7 +132,7 @@ export function ActiveCampaignPanel({
                   key={c.key}
                   className="flex items-center justify-between gap-2"
                 >
-                  <span className="text-zinc-500">{c.etiqueta}</span>
+                  <span className="text-zinc-500">{c.label}</span>
                   <span
                     className={nombre ? "text-zinc-200" : "text-red-300"}
                     title={`#${id}`}
@@ -210,9 +208,9 @@ export function ActiveCampaignPanel({
           {CLAVES.map((c) => (
             <label key={c.key} className="block">
               <span className="block text-[10px] uppercase tracking-widest text-zinc-500">
-                {c.etiqueta}{" "}
+                {c.label}{" "}
                 <span className="normal-case tracking-normal text-zinc-600">
-                  · {c.para}
+                  · {c.when}
                 </span>
               </span>
               <select

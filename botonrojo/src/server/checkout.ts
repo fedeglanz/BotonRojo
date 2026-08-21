@@ -23,6 +23,7 @@ import {
   type PageConfig,
 } from "@/lib/launch-pages";
 import type { LaunchType } from "@/lib/launch-types";
+import { altaTagKey } from "@/lib/ac-tags";
 
 /**
  * Resolves which launch a /gracias visit belongs to, so that page can be
@@ -106,7 +107,7 @@ export async function startCheckoutAction(formData: FormData) {
             launchSlug: launch.slug,
             launchListId: launch.activeCampaignListId ?? null,
             launchTagIds: tagIds,
-            intent: "registro",
+            intent: altaTagKey(launch.type),
           })
             .then((contact) => {
               if (contact) ac.applyTag(contact.id, String(abandonoTagId));
@@ -167,7 +168,7 @@ export async function captureLeadAction(formData: FormData) {
       launchSlug: launch.slug,
       launchListId: launch.activeCampaignListId ?? null,
       launchTagIds: (launch.activeCampaignTagIds ?? {}) as Record<string, number>,
-      intent: "registro",
+      intent: altaTagKey(launch.type),
     }).catch((err) => console.error("AC sync (landing lead) failed", err));
   }
 

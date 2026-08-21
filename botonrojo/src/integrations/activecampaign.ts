@@ -5,6 +5,7 @@
 // global/shared client, everything is built from that org's stored credentials.
 
 import { getDecryptedCredential } from "@/server/integrations";
+import { acTagsFor } from "@/lib/ac-tags";
 import type { ActiveCampaignCredentials } from "@/server/integrations";
 
 export class ActiveCampaignError extends Error {
@@ -319,19 +320,20 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
 
   // ---- High-level helpers ----
 
-  async function provisionLaunchInAc(input: { launchSlug: string; launchName: string; publicUrl: string }) {
+  async function provisionLaunchInAc(input: {
+    launchSlug: string;
+    launchName: string;
+    publicUrl: string;
+    /** Decide el juego de etiquetas: una newsletter no compra ni abandona carritos. */
+    launchType?: string;
+  }) {
     const list = await findOrCreateList({
       name: `Lanz: ${input.launchName}`,
       senderUrl: input.publicUrl,
       senderReminder: `Te suscribiste en ${input.publicUrl}`,
     });
 
-    const tagSpecs = [
-      { key: "registro", suffix: "-registro", description: "Registro / lead" },
-      { key: "comprador", suffix: "-comprador", description: "Compradores" },
-      { key: "evento", suffix: "-evento", description: "Asistente a evento" },
-      { key: "abandono", suffix: "-carrito-abandono", description: "Carrito abandonado" },
-    ];
+    const tagSpecs = acTagsFor(input.launchType ?? "");
 
     const tagIds: Record<string, number> = {};
     for (const t of tagSpecs) {
@@ -349,7 +351,13 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     launchListId?: number | null;
     launchTagIds?: Record<string, number>;
     automationIds?: string[];
-    intent: "registro" | "comprador" | "evento";
+    /**
+     * Con qué clave de `activeCampaignTagIds` etiquetar. Es texto y no una lista
+     * cerrada porque el juego de etiquetas depende del tipo de lanzamiento: una
+     * newsletter etiqueta "suscrito" y "desuscrito", una venta "registro",
+     * "comprador", "evento" y "abandono". Quien llama lo resuelve con `altaTagKey`.
+     */
+    intent: string;
   }) {
     const [firstName, ...rest] = (input.name ?? "").split(" ");
     const contact = await createOrUpdateContact({

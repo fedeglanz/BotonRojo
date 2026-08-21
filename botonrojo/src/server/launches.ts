@@ -113,6 +113,7 @@ import type {
 } from "@/db/schema/launches";
 import type { DesignReviewIssue } from "@/db/schema/assets";
 import type { PageSeo } from "@/db/schema/launches";
+import { acTagsFor, altaTagKey } from "@/lib/ac-tags";
 import {
   resolvePages,
   pagePath,
@@ -2777,6 +2778,7 @@ export async function provisionActiveCampaignAction(launchId: string) {
     launchSlug: launch.slug,
     launchName: launch.name,
     publicUrl,
+    launchType: launch.type,
   });
 
   await db
@@ -2864,16 +2866,7 @@ export async function linkActiveCampaignAction(
     listId = Number(elegida.id);
   }
 
-  const CLAVES = [
-    { key: "registro", suffix: "-registro", description: "Registro / lead" },
-    { key: "comprador", suffix: "-comprador", description: "Compradores" },
-    { key: "evento", suffix: "-evento", description: "Asistente a evento" },
-    {
-      key: "abandono",
-      suffix: "-carrito-abandono",
-      description: "Carrito abandonado",
-    },
-  ] as const;
+  const CLAVES = acTagsFor(launch.type);
 
   const etiquetasExistentes = await ac.listAllTags();
   const tagIds: Record<string, number> = {};
@@ -2894,7 +2887,7 @@ export async function linkActiveCampaignAction(
     const elegida = etiquetasExistentes.find((t) => String(t.id) === pedida);
     if (!elegida) {
       throw new Error(
-        `La etiqueta elegida para "${clave.key}" ya no está en ActiveCampaign. Vuelve a cargar la página.`,
+        `La etiqueta elegida para "${clave.label}" ya no está en ActiveCampaign. Vuelve a cargar la página.`,
       );
     }
     tagIds[clave.key] = Number(elegida.id);

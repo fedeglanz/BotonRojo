@@ -7,6 +7,7 @@ import { launches, trackingEvents, users } from "@/db/schema";
 import { getClientIp, classifySource } from "@/lib/tracking";
 import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 import { sendAutomatedTelegramMessage } from "@/server/launches";
+import { altaTagKey } from "@/lib/ac-tags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     launchListId: launch.activeCampaignListId ?? null,
     launchTagIds: (launch.activeCampaignTagIds ?? {}) as Record<string, number>,
     automationIds: ((launch.assetsCache as Record<string, unknown>)?.acLinkedAutomationIds as string[]) ?? [],
-    intent: "registro",
+    intent: altaTagKey(launch.type),
   }).catch((err) => console.error("AC sync (custom page lead) failed", err));
 
   if (launch.telegramChatId) {

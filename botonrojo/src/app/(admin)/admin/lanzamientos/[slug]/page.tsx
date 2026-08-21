@@ -1119,6 +1119,7 @@ export default async function LaunchHubPage(props: {
             <ActiveCampaignPanel
               launchId={launch.id}
               launchSlug={launch.slug}
+              launchType={launch.type}
               configured={acConfigured}
               listId={launch.activeCampaignListId ?? null}
               tagIds={
