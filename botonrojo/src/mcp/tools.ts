@@ -41,6 +41,12 @@ import {
 import { startPageGeneration, readGenerationProgress } from "@/server/launches";
 import { publishDesignedAd } from "@/server/designed-ads";
 import {
+  listMediaForLaunch,
+  storeMediaFromUrl,
+  generateMediaForLaunch,
+} from "@/server/media-store";
+import { isImageGenConfigured, type ImageSlot } from "@/integrations/image-gen";
+import {
   AD_FORMATS,
   AD_FORMAT_LIST,
   isAdFormatKey,
@@ -1695,6 +1701,164 @@ const publicarAnuncio: ToolDef = {
   },
 };
 
+/* ------------------------------------------------------------------ fotos -- */
+
+/**
+ * Las imágenes de un lanzamiento: el logo, y la biblioteca de fotos.
+ *
+ * Existe porque sin ella un diseño no tenía de dónde sacar una imagen real. Lo que
+ * pasaba entonces es lo peor que puede pasar: en vez de preguntar, se improvisaba —
+ * un cliente se encontró el logo de su marca sustituido por una versión tipográfica
+ * inventada, sin haberlo pedido.
+ */
+const listarFotos: ToolDef = {
+  name: "listar_fotos",
+  title: "Fotos y logo del lanzamiento",
+  description:
+    "El logo de la marca y las fotos de la biblioteca del lanzamiento, con su URL ya alojada. Úsalas en el diseño en vez de inventar una imagen o de sustituir el logo por texto.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" } },
+    required: ["lanzamiento"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const fotos = await listMediaForLaunch({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+    });
+
+    return {
+      logo: launch.brandLogoUrl ?? null,
+      fotos: fotos.map((f) => ({
+        url: f.url,
+        etiqueta: f.label,
+        de: f.source === "magnific" ? "generada" : "del cliente",
+        tipo: f.mimeType,
+        del_lanzamiento: f.launchId === launch.id,
+      })),
+      como_usarlas:
+        "Enlázalas por su URL absoluta en el HTML y NO las mandes en \"archivos\": una url absoluta se deja tal cual. Si necesitas una que no está, súbela con subir_foto (si tienes su url) o pídela con generar_foto.",
+      ...(launch.brandLogoUrl
+        ? {}
+        : {
+            aviso_logo:
+              "Este lanzamiento no tiene logo cargado. NO lo inventes ni lo escribas como texto con otra tipografía: pregunta y que lo suban en el panel (Marca → logo).",
+          }),
+    };
+  },
+};
+
+const subirFoto: ToolDef = {
+  name: "subir_foto",
+  title: "Traer una imagen a la biblioteca",
+  description:
+    "Descarga una imagen de una URL pública y la guarda en la biblioteca del lanzamiento, alojada por nosotros. Devuelve la URL definitiva, la que hay que poner en el diseño.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      url: { type: "string", description: "De dónde bajarla (http o https)" },
+      etiqueta: {
+        type: "string",
+        description: "Para qué es, para reconocerla en la biblioteca",
+      },
+    },
+    required: ["lanzamiento", "url"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    try {
+      const item = await storeMediaFromUrl({
+        organizationId: auth.organization.id,
+        launchId: launch.id,
+        url: String(args.url ?? ""),
+        label: typeof args.etiqueta === "string" ? args.etiqueta : null,
+      });
+      revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+      return {
+        guardada: true,
+        url: item.url,
+        aviso:
+          "Ya está alojada y aparece en la biblioteca del lanzamiento. Enlázala por esta url en el HTML y no la mandes en \"archivos\".",
+      };
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      throw new ToolError(
+        motivo.startsWith("archivo_sospechosamente_pequeno")
+          ? "Lo que hay en esa url no llega a un kilobyte: no es una imagen, es una descarga cortada o una página de error. Comprueba la url."
+          : `No se ha podido traer esa imagen (${motivo}). Tiene que ser una url pública http/https que devuelva una imagen.`,
+      );
+    }
+  },
+};
+
+const generarFoto: ToolDef = {
+  name: "generar_foto",
+  title: "Generar una foto con Magnific",
+  description:
+    "Crea una imagen a partir de una descripción, con la paleta y el mood del lanzamiento, y la guarda en su biblioteca. Devuelve la URL alojada. Es la forma de conseguir una imagen cuando no existe ninguna: nunca mandes imágenes en base64.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      descripcion: {
+        type: "string",
+        description:
+          "La escena, con detalle: quién sale, qué hace, dónde, con qué luz. Sin texto ni logotipos: eso se pone después encima.",
+      },
+      encuadre: {
+        type: "string",
+        enum: ["hero", "band", "card", "portrait", "story", "square"],
+        description:
+          "hero 16:9 para cabeceras · band 2:1 para fondos con texto encima · portrait 3:4 para una persona · story 9:16 · card 4:5 · square 1:1",
+      },
+    },
+    required: ["lanzamiento", "descripcion"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    if (!isImageGenConfigured()) {
+      throw new ToolError(
+        "Esta instalación no tiene Magnific configurada. Usa subir_foto con una url, o pide que suban la foto en el panel del lanzamiento.",
+      );
+    }
+
+    const descripcion = String(args.descripcion ?? "").trim();
+    if (descripcion.length < 12) {
+      throw new ToolError(
+        "Describe la escena con algo más de detalle: quién sale, qué hace, dónde y con qué luz.",
+      );
+    }
+
+    const encuadre = String(args.encuadre ?? "square");
+    const slot: ImageSlot = (
+      ["hero", "band", "card", "portrait", "story", "square"] as const
+    ).includes(encuadre as ImageSlot)
+      ? (encuadre as ImageSlot)
+      : "square";
+
+    const item = await generateMediaForLaunch({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      prompt: descripcion,
+      slot,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      generada: true,
+      url: item.url,
+      encuadre: slot,
+      aviso:
+        "Guardada en la biblioteca del lanzamiento. Enlázala por esta url en el HTML y no la mandes en \"archivos\". Tarda menos que rehacerla: si no encaja, cambia la descripción y pide otra.",
+    };
+  },
+};
+
 export const TOOLS: ToolDef[] = [
   listarLanzamientos,
   contextoLanzamiento,
@@ -1712,6 +1876,9 @@ export const TOOLS: ToolDef[] = [
   listarEmails,
   publicarEmail,
   borrarEmail,
+  listarFotos,
+  subirFoto,
+  generarFoto,
   contratoAnuncio,
   publicarAnuncio,
   metricasLanzamiento,
@@ -1721,6 +1888,17 @@ export const TOOLS: ToolDef[] = [
 
 /** Extensions we host for a designed page. No SVG: it can carry script, and these
  *  are served from our own origin, so an SVG would be same-origin XSS. */
+/** Las que son imagen: solo se aceptan por url, nunca escritas como texto. */
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "avif",
+  "gif",
+  "ico",
+]);
+
 const ALLOWED_EXTENSIONS = new Map<string, string>([
   ["css", "text/css"],
   ["js", "text/javascript"],
@@ -1775,11 +1953,32 @@ async function uploadFiles(
     // ESCRIBIR el fichero entero como texto: 3 MB de imagen son más de un millón
     // de tokens, así que la llamada no termina nunca — se queda "publicando" un
     // buen rato y no llega nada. Con la URL, quien descarga es el servidor.
+    //
+    // Y una imagen en base64 se rechaza en vez de aceptarse a medias. Pasó de
+    // verdad: llegaron 3.664 caracteres de los 27.404 de un logo, se decodificó
+    // sin protestar y el cliente se encontró su página publicada con la imagen
+    // rota. Un error aquí cuesta un minuto; una imagen corrupta en producción no
+    // se descubre hasta que la ve el cliente.
+    const esImagen = IMAGE_EXTENSIONS.has(ext);
+    if (esImagen && !from) {
+      throw new ToolError(
+        `"${name}" es una imagen y viene en "contenido". Las imágenes van por "url": mandarlas como texto se corta a mitad y se publica una imagen rota. Si no tienes una url, súbela con subir_foto o pídela con generar_foto y usa la url que te devuelvan.`,
+      );
+    }
+
     const buffer = from
       ? await downloadFile(from, name)
       : isBase64
         ? Buffer.from(content, "base64")
         : Buffer.from(content, "utf8");
+
+    // Red de seguridad para lo que sí llega por url: menos de un kilobyte no es un
+    // archivo, es una descarga cortada o una página de error guardada como imagen.
+    if (esImagen && buffer.byteLength < 1024) {
+      throw new ToolError(
+        `"${name}" ha llegado con ${buffer.byteLength} bytes: eso no es una imagen. Comprueba la url.`,
+      );
+    }
 
     if (buffer.byteLength > MAX_FILE_BYTES) {
       throw new ToolError(`"${name}" pesa más de 10 MB.`);

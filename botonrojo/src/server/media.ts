@@ -6,19 +6,9 @@ import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaItems, launches } from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
-import {
-  removeObject,
-  storage,
-  BUCKET,
-  ensureBucket,
-  publicUrlFor,
-} from "@/integrations/storage";
-import { createId } from "@/lib/ids";
-import {
-  generateImage,
-  isImageGenConfigured,
-  type ImageSlot,
-} from "@/integrations/image-gen";
+import { removeObject } from "@/integrations/storage";
+import { isImageGenConfigured, type ImageSlot } from "@/integrations/image-gen";
+import { generateMediaForLaunch } from "@/server/media-store";
 
 /**
  * Las fotos de un lanzamiento, o todas las de la cuenta si no se dice cuál.
@@ -96,15 +86,6 @@ export async function generateMediaItemAction(
   if (!organizationId) throw new Error("no_organization");
   if (!isImageGenConfigured()) throw new Error("magnific_not_configured");
 
-  const [launch] = await db
-    .select()
-    .from(launches)
-    .where(
-      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
-    )
-    .limit(1);
-  if (!launch) throw new Error("launch_not_found");
-
   const prompt = String(formData.get("prompt") ?? "").trim();
   if (prompt.length < 8) throw new Error("prompt_too_short");
 
@@ -115,41 +96,19 @@ export async function generateMediaItemAction(
     ? (slotPedido as ImageSlot)
     : "square";
 
-  // Con la paleta y el mood del lanzamiento: una foto en otros colores se nota
-  // pegada aunque esté bien hecha, y es el motivo por el que las generadas
-  // parecían de otra campaña.
-  const remoteUrl = await generateImage(prompt, {
-    slot,
-    palette: launch.brandPalette,
-    moodNotes: launch.brandMoodNotes,
-  });
-
-  const res = await fetch(remoteUrl);
-  if (!res.ok) throw new Error(`image_download_failed: ${res.status}`);
-  const mimeType = res.headers.get("content-type")?.split(";")[0] ?? "image/png";
-  const buf = Buffer.from(await res.arrayBuffer());
-
-  await ensureBucket();
-  const ext = mimeType.split("/")[1] ?? "png";
-  const storageKey = `media/${organizationId}/${new Date().toISOString().slice(0, 10)}/${createId(12)}.${ext}`;
-  await storage.putObject(BUCKET, storageKey, buf, buf.length, {
-    "Content-Type": mimeType,
-    "Cache-Control": "public, max-age=31536000, immutable",
-  });
-
-  await db.insert(mediaItems).values({
+  await generateMediaForLaunch({
     organizationId,
     launchId,
-    url: publicUrlFor(storageKey),
-    storageKey,
-    filename: `${prompt.slice(0, 40).replace(/[^a-z0-9áéíóúñ ]/gi, "")}.${ext}`,
-    mimeType,
-    label: prompt.slice(0, 120),
     prompt,
-    source: "magnific",
+    slot,
     uploadedBy: user.id,
   });
 
-  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  const [launch] = await db
+    .select({ slug: launches.slug })
+    .from(launches)
+    .where(eq(launches.id, launchId))
+    .limit(1);
+  if (launch) revalidatePath(`/admin/lanzamientos/${launch.slug}`);
   revalidatePath("/admin/anuncios");
 }
