@@ -1,18 +1,31 @@
 import { SubmitButton } from "./submit-button";
 import { Button } from "@/components/ui/button";
 
+type Opcion = { id: number; nombre: string };
+
+/** Los cuatro momentos que el lanzamiento etiqueta. */
+const CLAVES = [
+  { key: "registro", etiqueta: "Registro", para: "quien deja su email" },
+  { key: "comprador", etiqueta: "Comprador", para: "quien compra" },
+  { key: "evento", etiqueta: "Evento", para: "quien asiste al directo" },
+  { key: "abandono", etiqueta: "Carrito abandonado", para: "quien no terminó" },
+] as const;
+
 type Props = {
   launchId: string;
   launchSlug: string;
   configured: boolean;
   listId: number | null;
   tagIds: Record<string, number>;
+  /** Lo que ya existe en la cuenta de ActiveCampaign, para elegir. */
+  listasExistentes: Opcion[];
+  etiquetasExistentes: Opcion[];
+  linkAction: (launchId: string, formData: FormData) => Promise<void>;
   hasEmails: boolean;
   emailAssetId: string | null;
   hasTemplates: boolean;
   hasCampaigns: boolean;
   hasMilestones: boolean;
-  provisionAction: (launchId: string) => Promise<void>;
   pushEmailsAction: (launchId: string, assetId: string) => Promise<void>;
   scheduleCampaignsAction: (launchId: string) => Promise<void>;
 };
@@ -23,12 +36,14 @@ export function ActiveCampaignPanel({
   configured,
   listId,
   tagIds,
+  listasExistentes,
+  etiquetasExistentes,
+  linkAction,
   hasEmails,
   emailAssetId,
   hasTemplates,
   hasCampaigns,
   hasMilestones,
-  provisionAction,
   pushEmailsAction,
   scheduleCampaignsAction,
 }: Props) {
@@ -68,14 +83,82 @@ export function ActiveCampaignPanel({
         </div>
       </div>
 
-      {/* Step 1: Provision list + tags */}
-      <div className="flex flex-wrap items-center gap-3">
-        <form action={provisionAction.bind(null, launchId)}>
-          <SubmitButton variant={provisioned ? "outline" : "primary"} pendingLabel="Conectando…">
-            {provisioned ? "Re-sincronizar lista y tags" : "1. Crear lista y tags en AC"}
+      {/* Paso 1: elegir la lista y las etiquetas, o crearlas.
+
+          Antes esto era un botón que creaba siempre una lista y cuatro etiquetas
+          nuevas. Para quien empieza está bien; para quien ya tiene su cuenta
+          montada —su lista principal, sus etiquetas de siempre— era duplicarle la
+          estructura y partirle los contactos en dos sitios. */}
+      <form
+        action={linkAction.bind(null, launchId)}
+        className="space-y-4 rounded-lg border border-white/10 bg-black/30 p-4"
+      >
+        <div className="text-xs uppercase tracking-widest text-zinc-400">
+          1. Dónde van los contactos
+        </div>
+
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-widest text-zinc-500">
+            Lista
+          </span>
+          <select
+            name="listId"
+            defaultValue={listId ? String(listId) : "nueva"}
+            className="field-input mt-1 w-full px-3 py-2 text-sm text-white"
+          >
+            <option value="nueva">
+              ✦ Crear una nueva para este lanzamiento («Lanz: …»)
+            </option>
+            {listasExistentes.map((l) => (
+              <option key={l.id} value={String(l.id)}>
+                {l.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CLAVES.map((c) => (
+            <label key={c.key} className="block">
+              <span className="block text-[10px] uppercase tracking-widest text-zinc-500">
+                {c.etiqueta}{" "}
+                <span className="normal-case tracking-normal text-zinc-600">
+                  · {c.para}
+                </span>
+              </span>
+              <select
+                name={`tag_${c.key}`}
+                defaultValue={
+                  tagIds[c.key] ? String(tagIds[c.key]) : "nueva"
+                }
+                className="field-input mt-1 w-full px-3 py-2 text-sm text-white"
+              >
+                <option value="nueva">
+                  ✦ Crear «{launchSlug}-{c.key}»
+                </option>
+                <option value="">— sin etiqueta —</option>
+                {etiquetasExistentes.map((t) => (
+                  <option key={t.id} value={String(t.id)}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-xl text-xs text-zinc-500">
+            Lo que dejes en «crear» se crea al guardar; lo que elijas de la lista se
+            usa tal cual, sin tocar nada de tu cuenta.
+            {listasExistentes.length === 0 &&
+              " (Todavía no se han podido leer tus listas: comprueba las credenciales de ActiveCampaign.)"}
+          </p>
+          <SubmitButton pendingLabel="Conectando…">
+            {provisioned ? "Guardar la conexión" : "Conectar con ActiveCampaign"}
           </SubmitButton>
-        </form>
-      </div>
+        </div>
+      </form>
 
       {/* Step 2: Push email templates */}
       <div className="flex flex-wrap items-center gap-3">

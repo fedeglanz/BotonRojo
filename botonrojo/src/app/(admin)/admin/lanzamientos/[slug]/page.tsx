@@ -39,7 +39,8 @@ import {
   updateReferenceUrlAction,
   updateCartScheduleAction,
   updateContentDripScheduleAction,
-  provisionActiveCampaignAction,
+  fetchAcListsAndTagsAction,
+  linkActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
   scheduleAcCampaignsAction,
   updateEmailOffsetAction,
@@ -334,6 +335,15 @@ export default async function LaunchHubPage(props: {
   const acAutomations = acConfigured
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
     : [];
+  // Lo que ya existe en su ActiveCampaign, para poder elegirlo en vez de crear otro
+  // igual. Si la llamada falla, el panel enseña los desplegables vacíos y lo dice:
+  // mejor eso que esconder el paso entero por un error de red.
+  const acCatalogo = acConfigured
+    ? await fetchAcListsAndTagsAction(launch.id).catch(() => ({
+        listas: [],
+        etiquetas: [],
+      }))
+    : { listas: [], etiquetas: [] };
   const acLinkedAutomationIds =
     ((launch.assetsCache as Record<string, unknown>)
       ?.acLinkedAutomationIds as string[]) ?? [];
@@ -1122,7 +1132,9 @@ export default async function LaunchHubPage(props: {
                 (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
               )}
               hasMilestones={hasMilestones}
-              provisionAction={provisionActiveCampaignAction}
+              listasExistentes={acCatalogo.listas}
+              etiquetasExistentes={acCatalogo.etiquetas}
+              linkAction={linkActiveCampaignAction}
               pushEmailsAction={pushEmailsToActiveCampaignAction}
               scheduleCampaignsAction={scheduleAcCampaignsAction}
             />

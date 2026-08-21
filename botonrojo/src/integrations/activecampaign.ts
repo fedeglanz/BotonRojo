@@ -118,6 +118,40 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     });
   }
 
+  /**
+   * Todas las listas y todas las etiquetas de la cuenta, para poder elegir.
+   *
+   * Antes solo se podía crear: cada lanzamiento estrenaba lista y cuatro etiquetas,
+   * y quien ya tenía su ActiveCampaign montado —con su lista principal y sus
+   * etiquetas de siempre— acababa con estructura duplicada y los contactos
+   * repartidos entre dos sitios.
+   *
+   * Se pagina a mano porque la API devuelve 20 por defecto y una cuenta con años de
+   * uso tiene cientos de etiquetas: sin paginar, la que buscas no sale y parece que
+   * no existe.
+   */
+  async function listAllLists(): Promise<ACList[]> {
+    const out: ACList[] = [];
+    for (let offset = 0; offset < 1000; offset += 100) {
+      const res = await ac<{ lists: ACList[] }>(
+        `/lists?limit=100&offset=${offset}`,
+      );
+      out.push(...res.lists);
+      if (res.lists.length < 100) break;
+    }
+    return out;
+  }
+
+  async function listAllTags(): Promise<ACTag[]> {
+    const out: ACTag[] = [];
+    for (let offset = 0; offset < 2000; offset += 100) {
+      const res = await ac<{ tags: ACTag[] }>(`/tags?limit=100&offset=${offset}`);
+      out.push(...res.tags);
+      if (res.tags.length < 100) break;
+    }
+    return out;
+  }
+
   async function findListByName(name: string): Promise<ACList | null> {
     const res = await ac<{ lists: ACList[] }>(`/lists?filters[name]=${encodeURIComponent(name)}`);
     return res.lists.find((l) => l.name === name) ?? null;
@@ -362,6 +396,8 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     listAutomations,
     provisionLaunchInAc,
     syncLeadToAc,
+    listAllLists,
+    listAllTags,
   };
 }
 

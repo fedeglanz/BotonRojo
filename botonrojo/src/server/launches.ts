@@ -2757,6 +2757,13 @@ export async function deleteStripeProductAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
+/**
+ * El atajo de "créalo todo nuevo": una lista y las cuatro etiquetas del lanzamiento.
+ *
+ * El panel ya no lo usa —ahora cada hueco se elige en `linkActiveCampaignAction`,
+ * dejando "crear" donde haga falta— pero sigue aquí porque es lo que hace falta para
+ * montar un lanzamiento entero de una llamada, sin pantalla de por medio.
+ */
 export async function provisionActiveCampaignAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
@@ -2770,6 +2777,117 @@ export async function provisionActiveCampaignAction(launchId: string) {
     launchName: launch.name,
     publicUrl,
   });
+
+  await db
+    .update(launches)
+    .set({
+      activeCampaignListId: listId,
+      activeCampaignTagIds: tagIds,
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/** Las listas y las etiquetas que ya existen en la cuenta, para los desplegables. */
+export async function fetchAcListsAndTagsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) return { listas: [], etiquetas: [] };
+
+  await getOrgLaunch(launchId, organizationId);
+
+  const [listas, etiquetas] = await Promise.all([
+    ac.listAllLists().catch(() => []),
+    ac.listAllTags().catch(() => []),
+  ]);
+
+  return {
+    listas: listas.map((l) => ({ id: Number(l.id), nombre: l.name })),
+    etiquetas: etiquetas.map((t) => ({ id: Number(t.id), nombre: t.tag })),
+  };
+}
+
+/**
+ * Conectar el lanzamiento con ActiveCampaign eligiendo qué usar de lo que ya hay.
+ *
+ * El botón de antes creaba siempre lista y cuatro etiquetas nuevas. Para quien
+ * empieza está bien; para quien ya tiene su cuenta montada era duplicar su
+ * estructura y partir sus contactos en dos. Aquí cada hueco se elige: una lista o
+ * etiqueta existente, una nueva, o ninguna.
+ *
+ * Los ids llegan del formulario, así que se comprueba que existan de verdad en la
+ * cuenta antes de guardarlos: un id inventado se guardaría igual y el fallo saldría
+ * semanas después, cuando un registro no apareciese en ninguna lista.
+ */
+export async function linkActiveCampaignAction(
+  launchId: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) throw new Error("activecampaign_not_configured");
+
+  const launch = await getOrgLaunch(launchId, organizationId);
+  const publicUrl = `${env.APP_URL}/${launch.slug}`;
+
+  const listaPedida = String(formData.get("listId") ?? "").trim();
+  let listId: number | null = launch.activeCampaignListId;
+
+  if (listaPedida === "nueva") {
+    const list = await ac.findOrCreateList({
+      name: `Lanz: ${launch.name}`,
+      senderUrl: publicUrl,
+      senderReminder: `Te suscribiste en ${publicUrl}`,
+    });
+    listId = Number(list.id);
+  } else if (listaPedida) {
+    const existentes = await ac.listAllLists();
+    const elegida = existentes.find((l) => String(l.id) === listaPedida);
+    if (!elegida) {
+      throw new Error(
+        "Esa lista ya no está en ActiveCampaign. Vuelve a cargar la página y elige otra.",
+      );
+    }
+    listId = Number(elegida.id);
+  }
+
+  const CLAVES = [
+    { key: "registro", suffix: "-registro", description: "Registro / lead" },
+    { key: "comprador", suffix: "-comprador", description: "Compradores" },
+    { key: "evento", suffix: "-evento", description: "Asistente a evento" },
+    {
+      key: "abandono",
+      suffix: "-carrito-abandono",
+      description: "Carrito abandonado",
+    },
+  ] as const;
+
+  const etiquetasExistentes = await ac.listAllTags();
+  const tagIds: Record<string, number> = {};
+
+  for (const clave of CLAVES) {
+    const pedida = String(formData.get(`tag_${clave.key}`) ?? "").trim();
+    if (!pedida) continue; // sin etiqueta para este caso, a propósito
+
+    if (pedida === "nueva") {
+      const tag = await ac.findOrCreateTag(
+        `${launch.slug}${clave.suffix}`,
+        clave.description,
+      );
+      tagIds[clave.key] = Number(tag.id);
+      continue;
+    }
+
+    const elegida = etiquetasExistentes.find((t) => String(t.id) === pedida);
+    if (!elegida) {
+      throw new Error(
+        `La etiqueta elegida para "${clave.key}" ya no está en ActiveCampaign. Vuelve a cargar la página.`,
+      );
+    }
+    tagIds[clave.key] = Number(elegida.id);
+  }
 
   await db
     .update(launches)
