@@ -2,11 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count as sqlCount } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { launches, assets, products, organizations } from "@/db/schema";
+import {
+  launches,
+  assets,
+  products,
+  organizations,
+  trackingEvents,
+  orders,
+} from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { createSlug } from "@/lib/ids";
 import { env } from "@/lib/env";
@@ -614,21 +621,27 @@ export async function createLaunchAction(formData: FormData) {
       // una decisión de diseño. Sin ellos, Claude tiene que parar a mitad a
       // preguntar de qué va el lanzamiento — que es exactamente lo que pasó la
       // primera vez que se usó esto.
-      try {
-        await generateMarcoCopyAction(created.id);
-      } catch (err) {
+      //
+      // En segundo plano, como la identidad: ver el comentario de abajo.
+      void generateMarcoCopyAction(created.id).catch((err: unknown) => {
         console.error("marco de copy inicial (modo claude) falló", err);
-      }
+      });
     }
   } else if (created) {
     // Propose the visual identity straight away: it's the mandatory first step, so
     // landing on an empty one just means an extra click before anything can happen.
-    // Best-effort — a failed proposal must not lose the launch that was just created.
-    try {
-      await generateBrandKitAction(created.id);
-    } catch (err) {
+    //
+    // Pero NO se espera. Esta es una llamada a un modelo y tarda lo que tarda —
+    // medido en producción, 46 segundos—, y mientras no vuelva el formulario sigue
+    // en pantalla: pasó lo previsible, alguien volvió a pulsar el botón y se creó
+    // el lanzamiento dos veces. Creado el lanzamiento, la pantalla cambia ya; la
+    // propuesta aterriza sola en el panel unos segundos después.
+    //
+    // Sin await pero con catch: un fallo aquí no puede tumbar la creación de un
+    // lanzamiento que ya existe, y sin catch sería una promesa rechazada suelta.
+    void generateBrandKitAction(created.id).catch((err: unknown) => {
       console.error("initial brand kit proposal failed", err);
-    }
+    });
   }
 
   revalidatePath("/admin");
@@ -3967,4 +3980,113 @@ export async function discoverTelegramGroupsAction() {
 
   const { discoverGroups } = await import("@/integrations/telegram");
   return discoverGroups(orgBotToken);
+}
+
+/* ------------------------------------------------- archivar y borrar ------- */
+
+/**
+ * Qué hay hecho en un lanzamiento, para saber si se puede borrar.
+ *
+ * Un lanzamiento vacío es un error de hace dos minutos —un nombre mal escrito, uno
+ * duplicado por pulsar dos veces— y borrarlo no pierde nada. Uno con una visita ya
+ * registrada es historia: aunque el cliente no lo lanzara nunca, esos números son
+ * lo único que queda de lo que pasó. Ese se archiva, no se borra.
+ */
+async function launchFootprint(launchId: string) {
+  const [[paginas], [productos], [eventos], [pedidos]] = await Promise.all([
+    db
+      .select({ n: sqlCount() })
+      .from(assets)
+      .where(eq(assets.launchId, launchId)),
+    db
+      .select({ n: sqlCount() })
+      .from(products)
+      .where(eq(products.launchId, launchId)),
+    db
+      .select({ n: sqlCount() })
+      .from(trackingEvents)
+      .where(eq(trackingEvents.launchId, launchId)),
+    db.select({ n: sqlCount() }).from(orders).where(eq(orders.launchId, launchId)),
+  ]);
+
+  return {
+    paginas: Number(paginas?.n ?? 0),
+    productos: Number(productos?.n ?? 0),
+    eventos: Number(eventos?.n ?? 0),
+    pedidos: Number(pedidos?.n ?? 0),
+  };
+}
+
+export async function launchCanBeDeleted(launchId: string) {
+  const huella = await launchFootprint(launchId);
+  const total =
+    huella.paginas + huella.productos + huella.eventos + huella.pedidos;
+  return {
+    puede: total === 0,
+    huella,
+  };
+}
+
+/** Fuera de la galaxia, pero sin perder nada. Reversible. */
+export async function archiveLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  await db
+    .update(launches)
+    .set({ status: "archived", updatedAt: new Date() })
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    );
+
+  revalidatePath("/admin");
+  redirect("/admin");
+}
+
+export async function unarchiveLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  await db
+    .update(launches)
+    .set({ status: "draft", updatedAt: new Date() })
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    );
+
+  revalidatePath("/admin");
+}
+
+/**
+ * Borrar de verdad, y solo si no hay nada hecho.
+ *
+ * La comprobación se repite aquí aunque el botón ya no aparezca cuando hay algo: el
+ * botón es una cortesía y esto es la garantía. Entre que se pinta la pantalla y se
+ * pulsa pueden pasar cosas —una visita, una compra— y lo que decide tiene que ser
+ * el estado de ahora, no el de hace un rato.
+ */
+export async function deleteLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  const [launch] = await db
+    .select()
+    .from(launches)
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    )
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+
+  const { puede, huella } = await launchCanBeDeleted(launchId);
+  if (!puede) {
+    throw new Error(
+      `Este lanzamiento ya tiene cosas dentro (${huella.paginas} páginas, ${huella.productos} productos, ${huella.eventos} visitas o registros, ${huella.pedidos} pedidos). Archívalo en vez de borrarlo: se quita de la galaxia y no se pierde nada.`,
+    );
+  }
+
+  await db.delete(launches).where(eq(launches.id, launchId));
+
+  revalidatePath("/admin");
+  redirect("/admin");
 }

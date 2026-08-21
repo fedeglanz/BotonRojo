@@ -63,6 +63,9 @@ import {
   updateBrandKitAction,
   approveBrandKitAction,
   updateBrandLogoAction,
+  archiveLaunchAction,
+  deleteLaunchAction,
+  launchCanBeDeleted,
 } from "@/server/launches";
 import { resolvePages, pagePath } from "@/lib/launch-pages";
 import { ContentDripForm } from "@/components/admin/content-drip-form";
@@ -125,6 +128,7 @@ import {
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
 import { ProximosPasos, type Paso } from "@/components/admin/proximos-pasos";
+import { LaunchDangerZone } from "@/components/admin/launch-danger-zone";
 import { DesignedCampaigns } from "@/components/admin/designed-campaigns";
 import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { listLaunchTasks } from "@/server/launch-tasks";
@@ -342,6 +346,8 @@ export default async function LaunchHubPage(props: {
     ((launch.assetsCache as Record<string, unknown> | null)
       ?.claudeProjectUrl as string | undefined) ?? null;
   const claudeHref = claudeProjectUrl ?? CLAUDE_DESIGN_URL;
+
+  const borrado = await launchCanBeDeleted(launch.id);
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
@@ -1260,6 +1266,16 @@ export default async function LaunchHubPage(props: {
           </WizardStep>
         </>
       )}
+
+      {/* Al final de la página y en todas las secciones: es lo que se busca
+          bajando, y esconderlo en una sección concreta obliga a adivinar cuál. */}
+      <LaunchDangerZone
+        launchName={launch.name}
+        archiveAction={archiveLaunchAction.bind(null, launch.id)}
+        deleteAction={deleteLaunchAction.bind(null, launch.id)}
+        puedeBorrarse={borrado.puede}
+        huella={borrado.huella}
+      />
     </div>
   );
 }

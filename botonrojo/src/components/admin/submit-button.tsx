@@ -6,10 +6,18 @@ import type { ComponentProps } from "react";
 
 type Props = ComponentProps<typeof Button> & { pendingLabel?: string };
 
-export function SubmitButton({ children, pendingLabel, ...rest }: Props) {
+export function SubmitButton({
+  children,
+  pendingLabel,
+  disabled,
+  ...rest
+}: Props) {
   const { pending } = useFormStatus();
   return (
-    <Button {...rest} type="submit" disabled={pending}>
+    // El `disabled` que llega se respeta: antes lo pisaba el del envío, así que un
+    // botón que tenía que estar bloqueado hasta cumplirse algo —escribir el nombre
+    // para confirmar un borrado— salía pulsable.
+    <Button {...rest} type="submit" disabled={pending || disabled}>
       {pending && (
         <span
           aria-hidden
