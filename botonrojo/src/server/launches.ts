@@ -2794,18 +2794,28 @@ export async function provisionActiveCampaignAction(launchId: string) {
 export async function fetchAcListsAndTagsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
-  if (!ac) return { listas: [], etiquetas: [] };
+  if (!ac) return { ok: false, listas: [], etiquetas: [] };
 
   await getOrgLaunch(launchId, organizationId);
 
+  // Si la llamada falla hay que saberlo, y no confundir "no he podido preguntar" con
+  // "ya no existe": sin esa distinción, un corte de red haría que el panel diera por
+  // eliminadas las etiquetas de alguien.
   const [listas, etiquetas] = await Promise.all([
-    ac.listAllLists().catch(() => []),
-    ac.listAllTags().catch(() => []),
+    ac.listAllLists().then(
+      (r) => ({ ok: true, datos: r }),
+      () => ({ ok: false, datos: [] as Awaited<ReturnType<typeof ac.listAllLists>> }),
+    ),
+    ac.listAllTags().then(
+      (r) => ({ ok: true, datos: r }),
+      () => ({ ok: false, datos: [] as Awaited<ReturnType<typeof ac.listAllTags>> }),
+    ),
   ]);
 
   return {
-    listas: listas.map((l) => ({ id: Number(l.id), nombre: l.name })),
-    etiquetas: etiquetas.map((t) => ({ id: Number(t.id), nombre: t.tag })),
+    ok: listas.ok && etiquetas.ok,
+    listas: listas.datos.map((l) => ({ id: Number(l.id), nombre: l.name })),
+    etiquetas: etiquetas.datos.map((t) => ({ id: Number(t.id), nombre: t.tag })),
   };
 }
 

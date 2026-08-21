@@ -340,10 +340,11 @@ export default async function LaunchHubPage(props: {
   // mejor eso que esconder el paso entero por un error de red.
   const acCatalogo = acConfigured
     ? await fetchAcListsAndTagsAction(launch.id).catch(() => ({
+        ok: false,
         listas: [],
         etiquetas: [],
       }))
-    : { listas: [], etiquetas: [] };
+    : { ok: false, listas: [], etiquetas: [] };
   const acLinkedAutomationIds =
     ((launch.assetsCache as Record<string, unknown>)
       ?.acLinkedAutomationIds as string[]) ?? [];
@@ -1134,6 +1135,7 @@ export default async function LaunchHubPage(props: {
               hasMilestones={hasMilestones}
               listasExistentes={acCatalogo.listas}
               etiquetasExistentes={acCatalogo.etiquetas}
+              catalogoLeido={acCatalogo.ok}
               linkAction={linkActiveCampaignAction}
               pushEmailsAction={pushEmailsToActiveCampaignAction}
               scheduleCampaignsAction={scheduleAcCampaignsAction}
