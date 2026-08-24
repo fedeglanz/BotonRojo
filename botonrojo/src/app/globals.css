@@ -588,6 +588,60 @@ html, body {
   text-align: center;
 }
 
+/* ==========================================================================
+   Los campos del panel
+   --------------------------------------------------------------------------
+   Sobre un fondo negro, un campo con fondo negro y borde al 10 % desaparece: la
+   pantalla se lee como texto suelto y no se ve dónde se escribe. Aquí se les
+   pone un relleno algo más claro que el fondo y un borde que se vea, y el borde
+   se enciende al pasar por encima para que se note que aquello es tocable.
+
+   Va aquí y no campo por campo porque hay más de sesenta repartidos por veinte
+   formularios, cada uno con sus clases; una regla de elemento acotada al panel
+   los alcanza todos y no se escapa a las páginas públicas, que llevan su propia
+   identidad visual y no deben heredar nada de esta.
+
+   Fuera de `@layer` a propósito: así gana a las utilidades de Tailwind que hoy
+   traen los campos (`bg-black/40`, `border-white/10`) sin tener que quitarlas de
+   veinte ficheros.
+   ========================================================================== */
+.panel {
+  /* Para que los desplegables nativos y los selectores de fecha del navegador
+     salgan oscuros en vez de blancos. */
+  color-scheme: dark;
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]):hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.panel :is(input, select, textarea):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="range"]):not([type="color"]):focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: color-mix(in srgb, var(--color-red-bright) 65%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-red-bright) 16%, transparent);
+}
+
+.panel :is(input, select, textarea):disabled {
+  opacity: 0.55;
+}
+
+.panel ::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 /* Focus ring used on form inputs across the app */
 .field-input {
   background: rgba(255, 255, 255, 0.03);
@@ -1288,6 +1342,14 @@ a.fx-orbit__label:focus-visible {
 .galaxy-field {
   position: relative;
   isolation: isolate;
+  /* El campo de estrellas se sale un 10% por cada lado para que la deriva no
+     enseñe el borde, y eso empujaba la página: 72px de scroll horizontal en una
+     pantalla de 1280. Se recorta aquí, que es donde sobra, en vez de encoger el
+     fondo, que es lo que hace que la deriva funcione.
+
+     `clip` y no `hidden`: hidden convierte esto en un contenedor de scroll y
+     rompería cualquier `position: sticky` que caiga dentro. */
+  overflow: clip;
 }
 
 /* Estrellas: tres capas de puntos a distinto tamaño y opacidad, en vez de una
@@ -1330,6 +1392,77 @@ a.fx-orbit__label:focus-visible {
 @keyframes galaxy-drift {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-2%, -3%, 0); }
+}
+
+/* --- La galaxia de la portada -------------------------------------------- */
+
+.hero-galaxia {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Solo la primera pantalla: es donde se decide si sigues bajando. Más abajo la
+     página tiene que dejar leer, y un fondo en movimiento detrás de seis tarjetas
+     de texto es ruido. */
+  height: 100svh;
+  z-index: 0;
+  /* Los planetas se salen por los lados a propósito —así la escena parece más
+     grande que la ventana— y sin recortar eso serían barras de scroll. */
+  overflow: clip;
+  pointer-events: none;
+  /* Se apaga hacia abajo en vez de cortarse en seco: un borde recto delataría que
+     esto es una caja pegada encima. */
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+}
+
+/* El mesh rojo del tema tapaba los planetas: aquí se rebaja para que la galaxia
+   sea lo que se ve, sin quitarlo del resto de la página. */
+.hero-galaxia::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    75% 60% at 50% 40%,
+    rgba(4, 4, 6, 0.72),
+    transparent 75%
+  );
+  pointer-events: none;
+}
+
+.hero-galaxia__planeta {
+  position: absolute;
+  animation-name: hero-galaxia-flota;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  /* Cada uno gira sus lunas a su ritmo; con la misma duración los cuatro
+     sistemas laten a la vez y se ve el truco. */
+  --orbit-duration: 40s;
+}
+
+.hero-galaxia__planeta:nth-child(2) { --orbit-duration: 55s; }
+.hero-galaxia__planeta:nth-child(3) { --orbit-duration: 33s; }
+.hero-galaxia__planeta:nth-child(4) { --orbit-duration: 62s; }
+
+@keyframes hero-galaxia-flota {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(1.5vw, -3vh, 0); }
+}
+
+/* El contenido de la portada, por encima de la galaxia. */
+.hero-contenido {
+  position: relative;
+  z-index: 1;
+}
+
+/* En un móvil el titular ocupa casi toda la pantalla y los planetas se le meten
+   detrás de las letras. Se bajan de intensidad en vez de quitarlos: el fondo
+   sigue estando, pero el texto se lee, que es a lo que se viene. */
+@media (max-width: 640px) {
+  .hero-galaxia__planeta {
+    opacity: 0.42 !important;
+  }
 }
 
 /* --- El planeta ---------------------------------------------------------- */
@@ -1501,4 +1634,176 @@ a.fx-orbit__label:focus-visible {
 @keyframes planet-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   La espera al crear un lanzamiento
+
+   Crear tarda unos segundos y el único aviso era el botón hundido al final de un
+   formulario largo: si habías bajado la vista, la pantalla parecía muerta. Esto
+   la ocupa entera con el planeta del tipo que estás creando, que es el mismo que
+   verás luego en el panel.
+   ========================================================================== */
+
+.creando-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: 2rem;
+  /* `dvh` y no `vh`: en el móvil la barra del navegador se come el 100 vh y el
+     planeta quedaría cortado por abajo justo mientras se espera. */
+  height: 100dvh;
+  width: 100vw;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(240, 31, 54, 0.12),
+      transparent 55%
+    ),
+    rgba(3, 3, 4, 0.94);
+  backdrop-filter: blur(8px);
+  animation: creando-entrada 0.35s var(--ease-standard, ease-out);
+  /* En el panel las órbitas van a 26 s porque son fondo; aquí son lo único que
+     se mueve en toda la pantalla, y a esa velocidad parecerían paradas. */
+  --orbit-duration: 11s;
+}
+
+@keyframes creando-entrada {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   EL BOTÓN ROJO
+
+   El producto se llama así, y hasta ahora el botón de crear un lanzamiento era
+   uno más del formulario. Este es físico: tiene cuerpo, se hunde al pulsarlo y
+   suelta luz. Todo el gesto está en el hueco entre el borde superior y la base,
+   que es lo que se recorre al presionar — sin ese hueco no hay pulsación, solo
+   un color que cambia.
+   ========================================================================== */
+
+.boton-rojo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.15rem 3rem;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+
+  background:
+    radial-gradient(120% 120% at 50% 8%, #ff6b6b 0%, #f01f36 42%, #b40d22 100%);
+  /* La base oscura y la luz de arriba: es lo que da el volumen. La sombra larga
+     de abajo es el hueco por el que baja. */
+  box-shadow:
+    inset 0 2px 1px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.35),
+    0 7px 0 #7c0817,
+    0 10px 22px rgba(240, 31, 54, 0.45),
+    0 0 42px rgba(240, 31, 54, 0.28);
+  transform: translateY(0);
+  transition:
+    transform 80ms ease-out,
+    box-shadow 80ms ease-out,
+    filter 160ms ease-out;
+}
+
+/* Brillo de cristal en la mitad de arriba. */
+.boton-rojo::before {
+  content: "";
+  position: absolute;
+  inset: 3px 6px auto 6px;
+  height: 42%;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent);
+  pointer-events: none;
+}
+
+.boton-rojo:hover {
+  filter: brightness(1.06);
+}
+
+/* Al pulsar baja los 7px del hueco y la sombra desaparece con él: el botón toca
+   la base. Es la misma distancia en los dos sitios, si no, flota o se hunde de
+   más. */
+.boton-rojo:active {
+  transform: translateY(7px);
+  box-shadow:
+    inset 0 2px 1px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.5),
+    0 0 0 #7c0817,
+    0 2px 10px rgba(240, 31, 54, 0.35),
+    0 0 28px rgba(240, 31, 54, 0.35);
+}
+
+.boton-rojo:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+/* Enviando: se queda hundido y late, para que se vea que está trabajando y no
+   que se ha quedado colgado. */
+.boton-rojo[data-enviando="si"] {
+  transform: translateY(7px);
+  box-shadow:
+    inset 0 2px 1px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.5),
+    0 0 0 #7c0817,
+    0 0 30px rgba(240, 31, 54, 0.5);
+  animation: boton-rojo-latido 1.4s ease-in-out infinite;
+  cursor: progress;
+}
+
+.boton-rojo:disabled:not([data-enviando="si"]) {
+  filter: grayscale(0.7) brightness(0.7);
+  cursor: not-allowed;
+}
+
+@keyframes boton-rojo-latido {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
+/* El halo que respira alrededor cuando el botón está listo para pulsarse. */
+.boton-rojo-halo {
+  position: relative;
+  display: inline-block;
+}
+
+.boton-rojo-halo::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(240, 31, 54, 0.28), transparent 65%);
+  animation: boton-rojo-respira 3.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes boton-rojo-respira {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 0.9; transform: scale(1.04); }
 }

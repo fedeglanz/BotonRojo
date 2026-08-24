@@ -1,0 +1,63 @@
+#=========================================================================#
+# Botón Rojo · el dominio antiguo, redirigido al nuevo                    #
+#                                                                         #
+# La plataforma pasó de botonrojo.escuelanomadadigital.com a              #
+# botonrojo.estelarys.com. El nombre viejo sigue dado de alta a propósito: #
+# está escrito en enlaces, en el conector de Claude y en las páginas ya    #
+# publicadas, y sin él esas peticiones llegarían a la app como un dominio  #
+# de cliente desconocido — que contesta 404, no "esto se ha movido".       #
+#                                                                         #
+# El 301 conserva la ruta, así que /archivos/... y /admin/... siguen       #
+# llevando a donde llevaban.                                              #
+#=========================================================================#
+
+server {
+	listen      %ip%:%proxy_port%;
+	server_name %domain_idn% %alias_idn%;
+	access_log  /var/log/%web_system%/domains/%domain%.log combined;
+	error_log   /var/log/%web_system%/domains/%domain%.error.log error;
+
+	# La renovación del certificado tiene que seguir pasando por aquí: si se
+	# redirige también esto, Let's Encrypt no puede validar y el nombre viejo
+	# se queda sin certificado, con lo que el aviso del navegador tapa la
+	# redirección que venía a arreglar.
+	location ^~ /.well-known/acme-challenge/ {
+		root %home%/%user%/web/%domain%/public_html;
+		try_files $uri =404;
+	}
+
+	# La API NO se redirige, se sigue sirviendo.
+	#
+	# Aquí no llega gente con un navegador: llega el conector de Claude, el webhook
+	# de Stripe, el de Telegram. Ninguno de ellos reintenta un 301 —Stripe da la
+	# entrega por fallida y Claude lo cuenta como un error de permisos—, así que
+	# redirigir esto rompe integraciones que ya estaban configuradas con el nombre
+	# viejo, en sitios donde nadie va a ir a cambiarlo hoy.
+	location ^~ /api/ {
+		proxy_pass http://127.0.0.1:3020;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_read_timeout 300s;
+		client_max_body_size 50m;
+	}
+
+	# Y los archivos publicados, por si alguna página antigua sigue pidiéndolos
+	# por el nombre viejo: una imagen redirigida carga, pero da un salto de más
+	# en cada visita.
+	location /archivos/ {
+		proxy_pass http://127.0.0.1:9000/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_hide_header x-amz-id-2;
+		proxy_hide_header x-amz-request-id;
+	}
+
+	location / {
+		return 301 https://botonrojo.estelarys.com$request_uri;
+	}
+
+	include %home%/%user%/conf/web/%domain%/nginx.conf_*;
+}

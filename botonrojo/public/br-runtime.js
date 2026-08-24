@@ -136,9 +136,10 @@
           })
           .then(function (res) {
             if (res && res.error) throw new Error(res.error);
-            if (window.BotonRojo && window.BotonRojo.track) {
-              window.BotonRojo.track("lead", { email: email, name: name });
-            }
+            /* Sin `track("lead")` aquí: /api/lead ya escribe el evento, con la
+               atribución de afiliado, las utm y el consentimiento. Marcarlo otra
+               vez contaba cada registro dos veces, y las estadísticas del panel
+               enseñaban el doble de leads de los que había. */
             /* Orden deliberado: lo que pide el diseño manda sobre el valor por
                defecto de la plataforma. Si el diseñador dejó un bloque de "listo",
                es que quiere quedarse en la página; irse a /gracias se lo comería. */

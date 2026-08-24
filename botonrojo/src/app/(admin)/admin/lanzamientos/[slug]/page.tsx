@@ -40,7 +40,8 @@ import {
   updateReferenceUrlAction,
   updateCartScheduleAction,
   updateContentDripScheduleAction,
-  provisionActiveCampaignAction,
+  fetchAcListsAndTagsAction,
+  linkActiveCampaignAction,
   pushEmailsToActiveCampaignAction,
   scheduleAcCampaignsAction,
   updateEmailOffsetAction,
@@ -75,6 +76,9 @@ import {
   updateBrandKitAction,
   approveBrandKitAction,
   updateBrandLogoAction,
+  archiveLaunchAction,
+  deleteLaunchAction,
+  launchCanBeDeleted,
 } from "@/server/launches";
 import { resolvePages, pagePath } from "@/lib/launch-pages";
 import { ContentDripForm } from "@/components/admin/content-drip-form";
@@ -87,7 +91,14 @@ import {
   listAdImages,
   fixAdCopyLengthsAction,
 } from "@/server/ads";
-import { listMediaItems } from "@/server/media";
+import {
+  listMediaItems,
+  generateMediaItemAction,
+  deleteMediaItemAction,
+  updateMediaLabelAction,
+} from "@/server/media";
+import { MediaLibraryPanel } from "@/components/admin/media-library-panel";
+import { isImageGenConfigured } from "@/integrations/image-gen";
 
 import { WizardStep } from "@/components/admin/wizard-step";
 import { LaunchTabs, type LaunchTab } from "@/components/admin/launch-tabs";
@@ -121,13 +132,18 @@ import { env } from "@/lib/env";
 import { isCustomPageBody } from "@/lib/custom-page";
 import { hasActiveConnector } from "@/mcp/auth";
 import { ClaudeButton } from "@/components/admin/claude-button";
+import { ClaudeGoButton } from "@/components/admin/claude-go-button";
 import {
   CLAUDE_DESIGN_URL,
   claudeNewPageUrl,
   claudeQueuePrompt,
   claudeCampaignsPrompt,
+  claudeAdsPrompt,
 } from "@/lib/claude-link";
 import { ClaudeQueue } from "@/components/admin/claude-queue";
+import { ProximosPasos, type Paso } from "@/components/admin/proximos-pasos";
+import { LaunchDangerZone } from "@/components/admin/launch-danger-zone";
+import { DesignedCampaigns } from "@/components/admin/designed-campaigns";
 import { isCustomEmailBody, type CustomEmailBody } from "@/lib/custom-email";
 import { listLaunchTasks } from "@/server/launch-tasks";
 
@@ -211,7 +227,7 @@ export default async function LaunchHubPage(props: {
   const [product] = launchProducts;
 
   const [mediaItems, adImages] = await Promise.all([
-    listMediaItems(),
+    listMediaItems(launch.id),
     listAdImages(launch.id),
   ]);
 
@@ -309,6 +325,7 @@ export default async function LaunchHubPage(props: {
         timing: body.timing ?? null,
         approved: body.approved ?? null,
         sendType: body.sendType ?? null,
+        designUrl: body.designUrl ?? null,
       };
     });
 
@@ -328,50 +345,180 @@ export default async function LaunchHubPage(props: {
   const hasMilestones = launchMilestones.length > 0;
   const launchDomains = await listDomainsForLaunch(launch.id);
   const hasActiveDomain = launchDomains.some((d) => d.status === "active");
+  // Con uno conectado, las páginas se enseñan y se abren por él: es su dirección
+  // de verdad. El primero por fecha si hubiera varios — el panel de dominios ya
+  // deja ver y quitar los demás.
+  const domainHostname =
+    launchDomains.find((d) => d.status === "active")?.hostname ?? null;
   const acConfigured = await isActiveCampaignConfigured(organizationId);
   const pdcConfigured = await isPdcCheckoutConfigured(organizationId);
   const acAutomations = acConfigured
     ? await fetchAcAutomationsAction(launch.id).catch(() => [])
     : [];
+  // Lo que ya existe en su ActiveCampaign, para poder elegirlo en vez de crear otro
+  // igual. Si la llamada falla, el panel enseña los desplegables vacíos y lo dice:
+  // mejor eso que esconder el paso entero por un error de red.
+  const acCatalogo = acConfigured
+    ? await fetchAcListsAndTagsAction(launch.id).catch(() => ({
+        ok: false,
+        listas: [],
+        etiquetas: [],
+      }))
+    : { ok: false, listas: [], etiquetas: [] };
   const acLinkedAutomationIds =
     ((launch.assetsCache as Record<string, unknown>)
       ?.acLinkedAutomationIds as string[]) ?? [];
+
+  // El proyecto de Claude Design de este lanzamiento, si Claude lo mandó al
+  // guardar la identidad o al publicar. Con él, todos los botones que abren
+  // Claude llevan al proyecto donde está el trabajo en vez de a una pantalla en
+  // blanco donde hay que empezar otra vez.
+  const claudeProjectUrl =
+    ((launch.assetsCache as Record<string, unknown> | null)
+      ?.claudeProjectUrl as string | undefined) ?? null;
+  const claudeHref = claudeProjectUrl ?? CLAUDE_DESIGN_URL;
+
+  const borrado = await launchCanBeDeleted(launch.id);
 
   const basePath = `/admin/lanzamientos/${launch.slug}`;
   // Groups have to follow the order the steps appear in the page, so the
   // calendar sits with brand and copy (all three are launch groundwork) and
   // Telegram with the other integrations.
-  const done = {
-    marca: [brandKitApproved, hasMarco, hasMilestones].filter(Boolean).length,
-    paginas: hasLanding ? 1 : 0,
-    campana: [hasEmails, Boolean(adsAsset)].filter(Boolean).length,
-    conexiones: [hasProduct, hasAc, hasActiveDomain, hasTelegram, hasPdc].filter(
-      Boolean,
-    ).length,
+  // Los pasos de cada grupo, no un número escrito a mano: en una newsletter no hay
+  // calendario ni producto de pago, y esos dos pasos ni se enseñan. Contarlos de
+  // todas formas dejaba la barra pidiendo para siempre dos cosas que no existen —
+  // "2 de 3" sin un tercero al que ir.
+  const pasosPorGrupo = {
+    marca: esEvergreen
+      ? [brandKitApproved, hasMarco]
+      : [brandKitApproved, hasMarco, hasMilestones],
+    paginas: [hasLanding],
+    campana: [hasEmails, Boolean(adsAsset)],
+    conexiones: esEvergreen
+      ? [hasAc, hasActiveDomain, hasTelegram, hasPdc]
+      : [hasProduct, hasAc, hasActiveDomain, hasTelegram, hasPdc],
   };
+  const hechos = (grupo: boolean[]) => grupo.filter(Boolean).length;
+  const todos = Object.values(pasosPorGrupo).flat();
+
   const tabs: LaunchTab[] = [
     {
       id: "todo",
       label: "Todo",
-      done: done.marca + done.paginas + done.campana + done.conexiones,
-      total: 11,
+      done: hechos(todos),
+      total: todos.length,
     },
-    { id: "marca", label: "Marca, copy y fechas", done: done.marca, total: 3 },
+    {
+      id: "marca",
+      label: esEvergreen ? "Marca y copy" : "Marca, copy y fechas",
+      done: hechos(pasosPorGrupo.marca),
+      total: pasosPorGrupo.marca.length,
+    },
     {
       id: "paginas",
       label: "Páginas",
-      done: done.paginas,
-      total: 1,
+      done: hechos(pasosPorGrupo.paginas),
+      total: pasosPorGrupo.paginas.length,
       blocked: !hasMarco || !brandKitApproved,
     },
     {
       id: "campana",
       label: "Campaña",
-      done: done.campana,
-      total: 2,
+      done: hechos(pasosPorGrupo.campana),
+      total: pasosPorGrupo.campana.length,
       blocked: !hasMarco,
     },
-    { id: "conexiones", label: "Conexiones", done: done.conexiones, total: 5 },
+    {
+      id: "conexiones",
+      label: "Conexiones",
+      done: hechos(pasosPorGrupo.conexiones),
+      total: pasosPorGrupo.conexiones.length,
+    },
+  ];
+
+  // Qué toca ahora, en un lanzamiento normal. Los de Claude ya lo tienen resuelto
+  // por la cola de tareas, que dice lo mismo con más detalle.
+  const pasos: Paso[] = [
+    {
+      titulo: "Contar qué vendes",
+      queHacer:
+        "Escribe el brief: qué es, a quién le sirve y qué lo hace distinto. Con eso se escribe todo lo demás, así que cuanto más concreto, menos tendrás que corregir después.",
+      hecho: hasBrief,
+      href: `${basePath}?seccion=marca`,
+    },
+    {
+      titulo: "Aprobar la identidad visual",
+      queHacer:
+        "Genera colores y tipografías y aprueba la que te guste. Hasta que no hay una aprobada, las páginas no se pueden generar.",
+      hecho: brandKitApproved,
+      href: `${basePath}?seccion=marca`,
+    },
+    {
+      titulo: "Definir la promesa y el avatar",
+      queHacer:
+        "El marco de copy: a quién le hablas y qué le prometes. Es lo que la IA usa para escribir los titulares de todas las páginas y los correos.",
+      hecho: hasMarco,
+      href: `${basePath}?seccion=marca`,
+    },
+    ...(esEvergreen
+      ? []
+      : [
+          {
+            titulo: "Poner las fechas",
+            queHacer:
+              "Marca en el calendario cuándo abre y cierra el carrito. De ahí salen las cuentas atrás de las páginas y el envío de los correos.",
+            hecho: hasMilestones,
+            href: `${basePath}?seccion=marca`,
+          },
+        ]),
+    {
+      titulo: `Generar las ${pages.length} páginas`,
+      queHacer:
+        "Dale a generar y revisa el resultado. Cada página se puede retocar luego desde la propia página con el modo edición.",
+      hecho: hasLanding,
+      href: `${basePath}?seccion=paginas`,
+    },
+    {
+      titulo: "Escribir los correos",
+      queHacer:
+        "La secuencia de la campaña. Se genera entera y luego cambias lo que no te suene a ti.",
+      hecho: hasEmails,
+      href: `${basePath}?seccion=campana`,
+    },
+    ...(esEvergreen
+      ? []
+      : [
+          {
+            titulo: "Crear el producto de pago",
+            queHacer:
+              "El producto en Stripe con su precio y sus plazos, si los hay. Sin esto el botón de comprar no lleva a ninguna parte.",
+            hecho: hasProduct,
+            href: `${basePath}?seccion=conexiones`,
+          },
+        ]),
+    {
+      titulo: "Conectar ActiveCampaign",
+      queHacer:
+        "Elige la lista donde caen los registros. Sin lista, los correos no salen de aquí.",
+      hecho: hasAc,
+      href: `${basePath}?seccion=conexiones`,
+    },
+    {
+      titulo: "Usar tu propio dominio",
+      queHacer:
+        "Si quieres que las páginas se vean en tu dominio en vez de en el nuestro, añádelo y verifícalo.",
+      hecho: hasActiveDomain,
+      href: `${basePath}?seccion=conexiones`,
+      opcional: true,
+    },
+    {
+      titulo: "Avisos por Telegram",
+      queHacer:
+        "Para que te llegue al móvil cada venta y cada registro. No hace falta para lanzar.",
+      hecho: hasTelegram,
+      href: `${basePath}?seccion=conexiones`,
+      opcional: true,
+    },
   ];
 
   const requested = SECTIONS.find((s) => s === seccion);
@@ -411,32 +558,47 @@ export default async function LaunchHubPage(props: {
         </Link>
       </header>
 
-      {launch.designMode === "claude" && (
-        <ClaudeQueue
-          tasks={queue.map((task) => ({
-            id: task.id,
-            kind: task.kind,
-            pageKey: task.pageKey,
-            label: task.label,
-            status: task.status,
-            result: task.result,
-          }))}
-          hasConnector={connector}
-          queueHref={CLAUDE_DESIGN_URL}
-          queuePrompt={claudeQueuePrompt({
-            launchSlug: launch.slug,
-            launchName: launch.name,
-          })}
-          launchSlug={launch.slug}
-          missing={{
-            copy: !hasMarco,
-            // Con una de las dos basta para que la cuenta atrás tenga a qué contar.
-            dates: !launch.cartClosesAt && !launch.registrationClosesAt,
-          }}
-        />
-      )}
-
       <LaunchTabs tabs={tabs} active={active} basePath={basePath} />
+
+      {/* La cola de Claude, solo en "Todo" y en "Páginas". Antes salía en las cuatro
+          secciones y era lo primero de la pantalla en todas, así que pulsar cualquier
+          botón de arriba parecía llevar siempre al mismo sitio: lo que cambiaba
+          quedaba debajo del pliegue. */}
+      {launch.designMode === "claude" &&
+        (active === "todo" || active === "paginas") && (
+          <ClaudeQueue
+            tasks={queue.map((task) => ({
+              id: task.id,
+              kind: task.kind,
+              pageKey: task.pageKey,
+              label: task.label,
+              status: task.status,
+              result: task.result,
+            }))}
+            hasConnector={connector}
+            queueHref={claudeHref}
+            queuePrompt={claudeQueuePrompt({
+              launchSlug: launch.slug,
+              launchName: launch.name,
+            })}
+            launchSlug={launch.slug}
+            missing={{
+              copy: !hasMarco,
+              // Con una de las dos basta para que la cuenta atrás tenga a qué
+              // contar. En una newsletter, ninguna: es evergreen, no hay cuenta
+              // atrás y el campo donde se ponían ya no se enseña — pedirlas
+              // mandaba a un sitio que no existe.
+              dates:
+                !esEvergreen &&
+                !launch.cartClosesAt &&
+                !launch.registrationClosesAt,
+            }}
+          />
+        )}
+
+      {launch.designMode !== "claude" && active === "todo" && (
+        <ProximosPasos pasos={pasos} />
+      )}
 
       {(active === "todo" || active === "marca") && (
         <>
@@ -684,6 +846,8 @@ export default async function LaunchHubPage(props: {
               launchSlug={launch.slug}
               launchName={launch.name}
               appUrl={env.APP_URL.replace(/\/$/, "")}
+              domainHostname={domainHostname}
+              claudeHref={claudeHref}
               hasConnector={connector}
               generatedKeys={new Set(latestByPageKey.keys())}
               claudeKeys={
@@ -693,6 +857,13 @@ export default async function LaunchHubPage(props: {
                     .map(([pageKey]) => pageKey),
                 )
               }
+              designUrls={Object.fromEntries(
+                [...latestByPageKey.entries()].flatMap(([pageKey, asset]) =>
+                  isCustomPageBody(asset.body) && asset.body.designUrl
+                    ? [[pageKey, asset.body.designUrl]]
+                    : [],
+                ),
+              )}
               dripStartsAt={launch.contentDripStartsAt}
             />
 
@@ -724,12 +895,18 @@ export default async function LaunchHubPage(props: {
                 currentUrl={launch.referenceUrl}
                 saveAction={updateReferenceUrlAction}
               />
-              <CartScheduleForm
-                launchId={launch.id}
-                currentCartClosesAt={launch.cartClosesAt}
-                currentRegistrationClosesAt={launch.registrationClosesAt}
-                saveAction={updateCartScheduleAction}
-              />
+              {/* Nada de fechas de cierre en una newsletter: es evergreen, no hay
+                  carrito que cerrar ni registro que caduque, y un campo "Cierre del
+                  carrito" en un lanzamiento sin carrito hace dudar de si falta algo
+                  por configurar. */}
+              {!esEvergreen && (
+                <CartScheduleForm
+                  launchId={launch.id}
+                  currentCartClosesAt={launch.cartClosesAt}
+                  currentRegistrationClosesAt={launch.registrationClosesAt}
+                  saveAction={updateCartScheduleAction}
+                />
+              )}
               <LandingInstructionsForm
                 launchId={launch.id}
                 currentInstructions={launch.landingGeneralInstructions}
@@ -744,7 +921,38 @@ export default async function LaunchHubPage(props: {
         <>
           {active === "todo" && <GroupHeading>Campaña</GroupHeading>}
 
-          {/* Step 4 — Emails del lanzamiento (unificado: secuencia IA + diseñados) */}
+          {/* Campañas diseñadas en Claude. Van antes de la secuencia generada porque
+              en un lanzamiento de Claude son las de verdad; la secuencia se queda
+              debajo y sigue disponible para quien la quiera. */}
+          {launch.designMode === "claude" && (
+            <WizardStep
+              index={4}
+              title="Campañas en Claude Design"
+              subtitle="Emails diseñados con la identidad del lanzamiento. Tantos como quieras."
+              status={
+                !hasMarco
+                  ? "needs-prev"
+                  : designedCampaigns.length > 0
+                    ? "ready"
+                    : "empty"
+              }
+            >
+              <DesignedCampaigns
+                campaigns={designedCampaigns}
+                launchSlug={launch.slug}
+                hasConnector={connector}
+                acConfigured={acConfigured}
+                claudeUrl={claudeHref}
+                claudePrompt={claudeCampaignsPrompt({
+                  launchSlug: launch.slug,
+                  launchName: launch.name,
+                })}
+                pushAction={pushDesignedEmailToAcAction.bind(null, launch.id)}
+              />
+            </WizardStep>
+          )}
+
+          {/* Step — Emails del lanzamiento (secuencia IA + diseñados unificados) */}
           <WizardStep
             index={4}
             title="Emails del lanzamiento"
@@ -812,107 +1020,9 @@ export default async function LaunchHubPage(props: {
             )}
           </WizardStep>
 
-          {/* Step 5 — ActiveCampaign */}
+          {/* Step 5 — Anuncios */}
           <WizardStep
             index={5}
-            title="ActiveCampaign"
-            subtitle="Crea lista + tags, sube plantillas y programa campanas automaticamente."
-            status={!acConfigured ? "needs-prev" : hasAc ? "ready" : "empty"}
-          >
-            <ActiveCampaignPanel
-              launchId={launch.id}
-              launchSlug={launch.slug}
-              configured={acConfigured}
-              listId={launch.activeCampaignListId ?? null}
-              tagIds={
-                (launch.activeCampaignTagIds ?? {}) as Record<string, number>
-              }
-              hasEmails={hasEmails}
-              emailAssetId={emailAsset?.id ?? null}
-              hasTemplates={Boolean(
-                (launch.assetsCache as Record<string, unknown>)?.acTemplateIds,
-              )}
-              hasCampaigns={Boolean(
-                (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
-              )}
-              hasMilestones={hasMilestones}
-              provisionAction={provisionActiveCampaignAction}
-              pushEmailsAction={pushEmailsToActiveCampaignAction}
-              scheduleCampaignsAction={scheduleAcCampaignsAction}
-            />
-
-            {/* Campaign Calendar — merged from sequence + designed emails */}
-            {(hasEmails || designedCampaigns.some((c) => c.phase)) && hasMilestones && (() => {
-              // Phases covered by designed campaigns (these replace sequence emails)
-              const designedPhaseSet = new Set(
-                designedCampaigns.filter((c) => c.phase).map((c) => c.phase!),
-              );
-              const sequenceEmails = (
-                (emailAsset?.body as { emails: Array<{ subject: string; phase?: string; timing?: string; sendOffsetDays?: number; approved?: boolean }> })?.emails ?? []
-              ).filter((e) => !e.phase || !designedPhaseSet.has(e.phase))
-                .map((e) => ({ ...e, source: "sequence" as const }));
-              const designedEmails = designedCampaigns
-                .filter((c) => c.phase)
-                .map((c) => ({
-                  subject: c.subject,
-                  phase: c.phase!,
-                  sendOffsetDays: c.sendOffsetDays ?? 0,
-                  approved: c.approved ?? false,
-                  source: "designed" as const,
-                  assetId: c.id,
-                }));
-              const allEmails = [...sequenceEmails, ...designedEmails];
-              if (!allEmails.length) return null;
-              return (
-                <div className="mt-6 space-y-2">
-                  <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                    Calendario de envios
-                  </h3>
-                  <CampaignCalendar
-                    launchId={launch.id}
-                    emails={allEmails}
-                    milestones={launchMilestones.map((m) => ({
-                      phase: m.phase,
-                      label: m.label,
-                      startsAt: m.startsAt.toISOString(),
-                      endsAt: m.endsAt.toISOString(),
-                    }))}
-                    hasCampaigns={Boolean(
-                      (launch.assetsCache as Record<string, unknown>)
-                        ?.acCampaignIds,
-                    )}
-                    updateOffsetAction={updateEmailOffsetAction}
-                    updateDesignedOffsetAction={updateDesignedEmailPhaseAction}
-                  />
-                </div>
-              );
-            })()}
-
-            {/* AC Automations */}
-            {acConfigured && acAutomations.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                  Automatizaciones AC
-                </h3>
-                <AcAutomationsPanel
-                  launchId={launch.id}
-                  automations={acAutomations.map((a) => ({
-                    id: a.id,
-                    name: a.name,
-                    status: a.status,
-                    entered: a.entered,
-                  }))}
-                  linkedAutomationIds={acLinkedAutomationIds}
-                  linkAction={linkAcAutomationAction}
-                  unlinkAction={unlinkAcAutomationAction}
-                />
-              </div>
-            )}
-          </WizardStep>
-
-          {/* Step 6 — Anuncios */}
-          <WizardStep
-            index={6}
             title="Anuncios Meta + Google"
             subtitle="Copy con los límites de cada plataforma + estáticos compuestos sobre tus fotos."
             status={!hasMarco ? "needs-prev" : adsAsset ? "ready" : "empty"}
@@ -942,14 +1052,56 @@ export default async function LaunchHubPage(props: {
                 fixLengthsAction={fixAdCopyLengthsAction}
               />
 
-              {adsAsset && (
+              {/* Las fotos de este lanzamiento, aquí mismo. Antes esto mandaba a
+                  otra pantalla ("sube primero las fotos en Anuncios → Biblioteca")
+                  con la biblioteca de toda la cuenta: había que salir del
+                  lanzamiento, subir, volver y elegir entre las fotos de todos. */}
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-widest text-zinc-400">
+                  Fotos de este lanzamiento
+                </div>
+                <MediaLibraryPanel
+                  items={mediaItems}
+                  launchId={launch.id}
+                  deleteAction={deleteMediaItemAction}
+                  updateLabelAction={updateMediaLabelAction}
+                  generateAction={
+                    isImageGenConfigured() ? generateMediaItemAction : undefined
+                  }
+                />
+              </div>
+
+              {/* Los estáticos, a mano en Claude. La galería es la misma: quien
+                  los sube a Meta no distingue de dónde salió cada uno, y tener
+                  dos sitios distintos según quién lo diseñó sería inventarse una
+                  diferencia que al usarlos no existe. */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                <p className="max-w-2xl text-sm text-zinc-400">
+                  ¿Los quieres diseñados a mano en vez de compuestos con una
+                  plantilla? Claude los hace con la identidad del lanzamiento y
+                  aparecen en esta misma galería.
+                </p>
+                <ClaudeGoButton
+                  hasConnector={connector}
+                  label="Diseñar anuncios en Claude"
+                  href={claudeHref}
+                  prompt={claudeAdsPrompt({
+                    launchSlug: launch.slug,
+                    launchName: launch.name,
+                  })}
+                />
+              </div>
+
+              {/* Con copy generado o sin él: sin esto, un anuncio diseñado en
+                  Claude quedaba publicado y sin ningún sitio donde verse. */}
+              {(adsAsset || adImages.length > 0) && (
                 <div>
                   <div className="mb-2 text-xs uppercase tracking-widest text-zinc-400">
                     Componer estáticos con tus fotos
                   </div>
                   <AdStaticsGenerator
                     launchId={launch.id}
-                    concepts={(adsAsset.body as AdsBody).statics ?? []}
+                    concepts={(adsAsset?.body as AdsBody | undefined)?.statics ?? []}
                     mediaItems={mediaItems}
                     adImages={adImages}
                     generateAction={generateAdStaticsAction}
@@ -1001,9 +1153,100 @@ export default async function LaunchHubPage(props: {
             </WizardStep>
           )}
 
-          {/* Step 7 — Dominio propio */}
+          {/* Step 7 — ActiveCampaign */}
           <WizardStep
             index={7}
+            title="ActiveCampaign"
+            subtitle="Crea lista + tags, sube plantillas y programa campanas automaticamente."
+            status={!acConfigured ? "needs-prev" : hasAc ? "ready" : "empty"}
+          >
+            <ActiveCampaignPanel
+              launchId={launch.id}
+              launchSlug={launch.slug}
+              launchType={launch.type}
+              configured={acConfigured}
+              listId={launch.activeCampaignListId ?? null}
+              tagIds={
+                (launch.activeCampaignTagIds ?? {}) as Record<string, number>
+              }
+              hasEmails={hasEmails}
+              emailAssetId={emailAsset?.id ?? null}
+              hasTemplates={Boolean(
+                (launch.assetsCache as Record<string, unknown>)?.acTemplateIds,
+              )}
+              hasCampaigns={Boolean(
+                (launch.assetsCache as Record<string, unknown>)?.acCampaignIds,
+              )}
+              hasMilestones={hasMilestones}
+              listasExistentes={acCatalogo.listas}
+              etiquetasExistentes={acCatalogo.etiquetas}
+              catalogoLeido={acCatalogo.ok}
+              linkAction={linkActiveCampaignAction}
+              pushEmailsAction={pushEmailsToActiveCampaignAction}
+              scheduleCampaignsAction={scheduleAcCampaignsAction}
+            />
+
+            {/* Campaign Calendar */}
+            {hasEmails && hasMilestones && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Calendario de envios
+                </h3>
+                <CampaignCalendar
+                  launchId={launch.id}
+                  emails={
+                    (
+                      emailAsset?.body as {
+                        emails: Array<{
+                          subject: string;
+                          phase?: string;
+                          timing?: string;
+                          sendOffsetDays?: number;
+                          approved?: boolean;
+                        }>;
+                      }
+                    )?.emails ?? []
+                  }
+                  milestones={launchMilestones.map((m) => ({
+                    phase: m.phase,
+                    label: m.label,
+                    startsAt: m.startsAt.toISOString(),
+                    endsAt: m.endsAt.toISOString(),
+                  }))}
+                  hasCampaigns={Boolean(
+                    (launch.assetsCache as Record<string, unknown>)
+                      ?.acCampaignIds,
+                  )}
+                  updateOffsetAction={updateEmailOffsetAction}
+                />
+              </div>
+            )}
+
+            {/* AC Automations */}
+            {acConfigured && acAutomations.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  Automatizaciones AC
+                </h3>
+                <AcAutomationsPanel
+                  launchId={launch.id}
+                  automations={acAutomations.map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    status: a.status,
+                    entered: a.entered,
+                  }))}
+                  linkedAutomationIds={acLinkedAutomationIds}
+                  linkAction={linkAcAutomationAction}
+                  unlinkAction={unlinkAcAutomationAction}
+                />
+              </div>
+            )}
+          </WizardStep>
+
+          {/* Step 8 — Dominio propio */}
+          <WizardStep
+            index={8}
             title="Dominio propio"
             subtitle="Conecta el dominio o subdominio del cliente para servir esta landing directamente."
             status={hasActiveDomain ? "ready" : "empty"}
@@ -1112,6 +1355,16 @@ export default async function LaunchHubPage(props: {
           </WizardStep>
         </>
       )}
+
+      {/* Al final de la página y en todas las secciones: es lo que se busca
+          bajando, y esconderlo en una sección concreta obliga a adivinar cuál. */}
+      <LaunchDangerZone
+        launchName={launch.name}
+        archiveAction={archiveLaunchAction.bind(null, launch.id)}
+        deleteAction={deleteLaunchAction.bind(null, launch.id)}
+        puedeBorrarse={borrado.puede}
+        huella={borrado.huella}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 import { createLaunchAction } from "@/server/launches";
-import { SubmitButton } from "@/components/admin/submit-button";
+import { BotonRojo } from "@/components/admin/boton-rojo";
 import { LaunchPageOptionsFields } from "@/components/admin/launch-page-options-fields";
 import Link from "next/link";
 
@@ -135,14 +135,14 @@ export default async function NuevoLanzamientoPage(props: {
           </span>
         </label>
 
-        <div className="flex flex-col items-center gap-4 pt-6">
-          <SubmitButton
-            variant="ghost"
-            className="big-red-button w-full text-xl md:text-2xl"
-            pendingLabel="Creando lanzamiento…"
-          >
-            🚀 Crear lanzamiento
-          </SubmitButton>
+        <div className="flex flex-col items-center gap-4 pt-8">
+          <BotonRojo espera pendingLabel="Creando el lanzamiento…">
+            Crear lanzamiento
+          </BotonRojo>
+          <p className="max-w-md text-center text-xs text-zinc-500">
+            Al pulsarlo se crea el lanzamiento y se pone a trabajar: tarda un par de
+            minutos y luego te dice paso a paso qué hacer.
+          </p>
           <Link
             href="/admin"
             className="text-xs uppercase tracking-widest text-zinc-500 transition hover:text-white"

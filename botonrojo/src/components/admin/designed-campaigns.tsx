@@ -8,6 +8,8 @@ type Campaign = {
   preheader: string | null;
   publishedAt: string | null;
   acTemplateId: string | null;
+  /** El archivo en Claude Design del que salió, si Claude lo mandó al publicar. */
+  designUrl: string | null;
 };
 
 /**
@@ -91,6 +93,20 @@ export function DesignedCampaigns({
                     </SubmitButton>
                   </form>
                 )
+              )}
+
+              {/* El diseño del que salió. Un botón que abre el chat con la
+                  instrucción puesta sirve para hacer una nueva; para cambiar
+                  ESTA hay que volver al archivo donde está. */}
+              {campaign.designUrl && (
+                <a
+                  href={campaign.designUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/20"
+                >
+                  Abrir en Claude ↗
+                </a>
               )}
 
               <a

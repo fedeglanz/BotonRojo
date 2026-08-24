@@ -9,7 +9,6 @@ import { Reveal, RevealItem } from "@/components/public/reveal";
 import { BrandIcon } from "@/components/public/brand-icon";
 import { LeadForm } from "@/components/public/lead-form";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
-import { env } from "@/lib/env";
 import { captureLeadAction } from "@/server/checkout";
 import type { Launch } from "@/db/schema/launches";
 import { SectionShell } from "@/components/public/section-shell";
@@ -61,7 +60,6 @@ export function RegistroPage({
         <Script
           src="/track.js"
           data-launch={launch.slug}
-          data-api={env.APP_URL}
           strategy="afterInteractive"
         />
 

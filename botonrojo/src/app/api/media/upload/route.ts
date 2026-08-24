@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { mediaItems } from "@/db/schema";
+import { mediaItems, launches } from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { storage, BUCKET, ensureBucket, publicUrlFor } from "@/integrations/storage";
 import { createId } from "@/lib/ids";
@@ -30,6 +31,22 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file");
   const label = String(form.get("label") ?? "").trim() || null;
+  // La foto se sube a la biblioteca de un lanzamiento. Se comprueba que sea de esta
+  // organización antes de guardarla: el id viene del formulario, y sin comprobarlo
+  // se podrían colgar fotos en el lanzamiento de otro.
+  const launchId = String(form.get("launchId") ?? "").trim() || null;
+  if (launchId) {
+    const [launch] = await db
+      .select({ id: launches.id })
+      .from(launches)
+      .where(
+        and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+      )
+      .limit(1);
+    if (!launch) {
+      return NextResponse.json({ error: "launch_not_found" }, { status: 404 });
+    }
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "no_file" }, { status: 400 });
@@ -56,6 +73,7 @@ export async function POST(req: NextRequest) {
     .insert(mediaItems)
     .values({
       organizationId,
+      launchId,
       url: publicUrlFor(storageKey),
       storageKey,
       filename: file.name || "imagen",

@@ -77,7 +77,7 @@ mándalos en \`archivos\` al publicar. La plataforma los aloja y reescribe las r
 No hace falta que los pongas en línea ni que sepas la URL final. Una referencia
 relativa sin archivo hace que publicar falle: es mejor eso que una imagen rota.
 
-**Las imágenes van por \`url\`, nunca en base64.** Para mandar una foto en
+**Las imágenes van por \`url\`, nunca en base64. Se rechazan.** Para mandar una foto en
 \`contenido\` tendrías que escribirla entera como texto: una imagen de 3 MB son más
 de un millón de tokens, la llamada no termina y la publicación se queda colgada.
 Pon la url y la descarga el servidor:
@@ -105,6 +105,108 @@ También puedes publicar directamente sobre una página que no existe pasando
 Una página creada así se lleva desde aquí a partir de ese momento. Para cambiarla,
 pide su HTML con \`ver_pagina\`, retócalo y vuelve a publicar; el panel no la toca a
 propósito, porque regenerarla la sustituiría por una página del sistema.
+
+## Dirección de arte: que no parezca una plantilla
+
+Las páginas de este producto son la primera impresión de un lanzamiento, y una
+página correcta pero plana —titular centrado, tres tarjetas iguales, un botón— hace
+que el producto parezca barato aunque no lo sea. Trabájalas.
+
+**Un gesto protagonista por página.** Una idea visual que se recuerde y que solo
+podría ser de este lanzamiento: una forma que atraviesa la pantalla, un objeto que
+se monta al entrar, un fondo que reacciona. Uno, no cinco: cinco gestos compiten
+entre sí y no gana ninguno.
+
+**Animación SVG de verdad, en línea y sin librerías.** No un fundido genérico:
+
+- trazos que se dibujan solos — \`stroke-dasharray\` + \`stroke-dashoffset\`
+  animados: subrayados, flechas, círculos que rodean una palabra, líneas que
+  conectan pasos;
+- formas que se transforman, con \`<animate>\` sobre la \`d\` de un \`path\` o
+  interpolando \`clip-path\`;
+- degradados en movimiento dentro del propio SVG (\`<linearGradient>\` con
+  \`animateTransform\`, o animando \`--angulo\` con \`@property\`);
+- máscaras que revelan al hacer scroll;
+- ruido y grano con \`<feTurbulence>\` para que los degradados no se vean digitales.
+
+**Movimiento al entrar en pantalla**, con \`animation-timeline: view()\` o un
+\`IntersectionObserver\` de cuatro líneas. Regla dura: el estado FINAL es el visible.
+Si la animación no llega a ejecutarse, la página tiene que estar entera igualmente —
+un \`opacity: 0\` de partida sin red de seguridad es una página en blanco.
+
+**Profundidad, no un fondo de color.** Capas con desenfoque, degradados de malla,
+grano, luces que se salen del bloque, un poco de solape entre secciones. Que se note
+que hay planos.
+
+**Tipografía con contraste fuerte.** Titular de 4 a 6 veces el cuerpo, tracking
+negativo en los display grandes, 60–70 caracteres por línea en el texto largo. El
+contraste de tamaño es lo que hace que una página se lea de un vistazo.
+
+**Micro-interacciones.** Botones y tarjetas que responden al ratón con
+\`transform\` y sombra, 150–250 ms, \`ease-out\`. Y el botón principal, distinto de
+todo lo demás de la página.
+
+**Detalle hecho a mano.** Un subrayado dibujado, una marca sobre una palabra, iconos
+propios en SVG. Nada de emojis como iconografía y nada de imágenes de relleno: si
+falta una foto, resuélvelo con formas, degradados y tipografía.
+
+Tres cosas que no son negociables:
+
+1. **\`prefers-reduced-motion: reduce\`**: un bloque que deja todo quieto. No es
+   decoración, es que hay gente a la que el movimiento le marea.
+2. **Solo \`transform\` y \`opacity\`** en lo que se anima. Animar \`width\`,
+   \`height\`, \`top\` o \`left\` recalcula el diseño en cada fotograma y en un móvil
+   se ve a tirones.
+3. **El texto que hay que leer no se mueve.** Que aparezca, sí; que flote mientras
+   se lee, no.
+
+Y lo que delata una plantilla, por si sirve de lista de "no": todo centrado, tres
+tarjetas idénticas en fila, iconos de librería, un héroe con titular y botón y nada
+más, secciones separadas por líneas grises, sombras iguales en todo.
+
+## Para retocar, no republiques: parchea
+
+Publicar una página cuesta lo que cuesta escribirla. El HTML entero viaja como un
+solo argumento, y una página con su diseño son treinta mil caracteres: cambiar un
+titular reescribiéndola entera son varios minutos tecleando lo mismo que ya había.
+
+Para un retoque —un titular, un precio, un enlace, un párrafo— usa
+\`parchear_pagina\`: le pasas los trozos, "busca esto y pon esto otro". Doscientos
+caracteres en vez de treinta mil. Si no te acuerdas de cómo está escrito, pide
+\`ver_pagina\` primero y copia el texto tal cual.
+
+Cada búsqueda tiene que aparecer una sola vez en el documento. Si aparece dos, no se
+aplica nada: coge más contexto alrededor y repite.
+
+\`publicar_pagina\` es para la primera vez y para un rediseño de verdad.
+
+Y una cosa que ahorra tiempo en todas las publicaciones siguientes: pon el CSS en un
+archivo aparte (\`estilos.css\` en \`archivos\`) en vez de en un \`<style>\` dentro del
+HTML. El CSS es la mitad del peso de una página y casi nunca cambia; separado, no
+hay que volver a escribirlo cada vez.
+
+## El logo y las fotos del cliente
+
+Las imágenes reales del lanzamiento las tienes en \`listar_fotos\`: el logo de la
+marca y la biblioteca de fotos, cada una con su url ya alojada. Enlázalas por su url
+absoluta y no las mandes en \`archivos\`.
+
+**El logo no se sustituye nunca.** Ni por una versión tipográfica, ni por un icono
+parecido, ni por "algo que hace el mismo papel". Es la marca de otra persona y
+cambiarla sin que lo pidan es lo más grave que puede hacer un rediseño: pasó de
+verdad —un cliente se encontró el logo de su marca convertido en texto— y se
+descubrió por un mensaje suyo, no por un aviso. Si no tienes el logo o no puedes
+subirlo, **para y pregunta**.
+
+Lo mismo con las fotos: si el diseño necesita una imagen que no existe, hay dos
+caminos y ninguno es inventarse un sustituto:
+
+- \`subir_foto\` con su url, si la tienes en algún sitio público;
+- \`generar_foto\` con una descripción, y la hace Magnific con la paleta y el mood
+  del lanzamiento.
+
+Las dos devuelven la url definitiva. Y si lo que falta es la cara del cliente o su
+producto, eso no se genera: se pide.
 
 ## Lo que no debes hacer
 

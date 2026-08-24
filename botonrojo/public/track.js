@@ -14,6 +14,13 @@
  */
 (function () {
   var script = document.currentScript;
+  /* Sin `data-api`, el origen desde el que se ha servido el script — que es el
+     que está mirando el visitante. Nuestras propias páginas no lo ponen: fijado
+     a la URL de la app, una página servida en el dominio del cliente mandaba sus
+     eventos a otro dominio y el navegador los bloqueaba por CORS, así que el
+     lanzamiento funcionaba y no medía nada. El atributo sigue siendo necesario
+     para el script incrustado en una web de fuera, que sí tiene que decir a
+     dónde manda. */
   var apiBase = (script && script.dataset.api) || new URL(script.src).origin;
   var launchSlug = script && script.dataset.launch;
 

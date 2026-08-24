@@ -86,6 +86,35 @@ export type PageDef = {
  * `PageDef`. Semilla and PLF both always have registro + venta (+ their
  * gracias) — that pairing is never optional.
  */
+/**
+ * El `PageConfig` que sale del formulario de crear lanzamiento.
+ *
+ * Vive aquí y no dentro del server action porque lo leen dos sitios: el que crea
+ * el lanzamiento y la pantalla de espera, que dibuja una luna por página y tiene
+ * que enseñar exactamente las que se van a crear. Duplicado, cualquier campo
+ * nuevo saldría bien en un lado y mal en el otro.
+ */
+export function pageConfigFromFormData(formData: FormData): PageConfig {
+  const legalPages: LegalPageKey[] = [];
+  if (formData.get("legalPrivacidad")) legalPages.push("privacidad");
+  if (formData.get("legalTerminos")) legalPages.push("terminos");
+  if (formData.get("legalCookies")) legalPages.push("cookies");
+
+  const registroChannels = String(formData.get("registroChannels") ?? "")
+    .split("\n")
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  return {
+    registroChannels:
+      registroChannels.length > 0 ? registroChannels : undefined,
+    contentPageCount:
+      Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
+    includeAffiliateRegistro: formData.get("includeAffiliateRegistro") === "on",
+    legalPages,
+  };
+}
+
 export function resolvePages(
   type: LaunchType,
   config: PageConfig | null,
@@ -231,7 +260,7 @@ const RESERVED_PAGE_KEYS = new Set([
   "admin",
   "login",
   "archivos",
-  "_sites",
+  "sitios",
 ]);
 
 export function pageKeyFrom(
@@ -262,6 +291,41 @@ export function pageKeyFrom(
 /** `/slug` for the entry page, `/slug/pageKey` for every other page. */
 export function pagePath(slug: string, pageDef: PageDef): string {
   return pageDef.isEntry ? `/${slug}` : `/${slug}/${pageDef.pageKey}`;
+}
+
+/**
+ * La dirección pública de una página, la de verdad: la que hay que abrir, mandar
+ * o enseñarle a Claude.
+ *
+ * Con un dominio propio conectado no es la misma que `pagePath`. Ahí las páginas
+ * no llevan el slug —la de entrada es la raíz del dominio y las demás cuelgan de
+ * ella—, así que el panel enseñaba y abría la dirección de la plataforma cuando el
+ * lanzamiento ya vivía en el dominio del cliente. Se veía la página, sí, pero era
+ * la dirección equivocada: la que no se puede compartir, la que no lleva la marca
+ * de nadie y la que un día dejará de existir.
+ *
+ * Una función y no dos porque se usa en cuatro sitios —el índice, la pantalla de
+ * cada página, "editar encima" y el texto que se le pasa a Claude— y con cuatro
+ * copias basta con olvidar una para volver a enseñar la dirección de antes.
+ */
+export function publicPageUrl({
+  appUrl,
+  hostname,
+  slug,
+  page,
+}: {
+  /** La URL de la plataforma, sin barra final. */
+  appUrl: string;
+  /** El dominio propio activo del lanzamiento, si tiene uno. */
+  hostname: string | null;
+  slug: string;
+  page: PageDef;
+}): string {
+  const base = appUrl.replace(/\/$/, "");
+  if (!hostname) return `${base}${pagePath(slug, page)}`;
+  return page.isEntry
+    ? `https://${hostname}/`
+    : `https://${hostname}/${page.pageKey}`;
 }
 
 /**

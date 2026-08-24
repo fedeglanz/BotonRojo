@@ -40,10 +40,7 @@ export function DomainPanel({
 }: Props) {
   return (
     <div className="space-y-6">
-      <form
-        action={addAction}
-        className="flex flex-wrap items-end gap-3"
-      >
+      <form action={addAction} className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="launchId" value={launchId} />
         <input type="hidden" name="launchSlug" value={launchSlug} />
         <label className="flex-1 min-w-[220px]">
@@ -63,7 +60,8 @@ export function DomainPanel({
 
       {domains.length === 0 && (
         <p className="text-sm text-zinc-500">
-          Aún no hay ningún dominio conectado a este lanzamiento. La landing sigue disponible en{" "}
+          Aún no hay ningún dominio conectado a este lanzamiento. La landing
+          sigue disponible en{" "}
           <code className="text-[var(--color-red-bright)]">/{launchSlug}</code>.
         </p>
       )}
@@ -73,7 +71,9 @@ export function DomainPanel({
           <div key={d.id} className="glass p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="font-[family-name:var(--font-mono)] text-sm text-white">{d.hostname}</div>
+                <div className="font-[family-name:var(--font-mono)] text-sm text-white">
+                  {d.hostname}
+                </div>
                 <span
                   className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${STATUS_COLOR[d.status]}`}
                 >
@@ -100,33 +100,51 @@ export function DomainPanel({
 
             {d.status !== "active" && (
               <div className="mt-4 rounded-lg border border-white/10 bg-black/30 p-4 font-[family-name:var(--font-mono)] text-xs text-zinc-400">
-                {d.isApex ? (
-                  <>
-                    Añade un registro <span className="text-white">A</span> en tu proveedor DNS:
-                    <br />
-                    <span className="text-zinc-500">Nombre:</span> @ &nbsp;
+                {/* Las dos formas, no una según el tipo de dominio: al servidor le
+                    da igual cómo se resuelva el nombre, y hay proveedores que solo
+                    saben dar de alta un registro A y te piden la IP. Enseñar solo
+                    el CNAME en un subdominio obligaba a discutir con ellos. */}
+                Vale cualquiera de las dos, la que te deje tu proveedor:
+                <div className="mt-2">
+                  Registro <span className="text-white">A</span> —{" "}
+                  <span className="text-zinc-500">Nombre:</span>{" "}
+                  {d.isApex ? "@" : d.hostname.split(".")[0]} &nbsp;
+                  <span className="text-zinc-500">Valor:</span>{" "}
+                  <span className="text-[var(--color-red-bright)]">
+                    {serverIpv4 || "(configura SERVER_IPV4 en el servidor)"}
+                  </span>
+                </div>
+                {!d.isApex && (
+                  <div className="mt-1">
+                    Registro <span className="text-white">CNAME</span> —{" "}
+                    <span className="text-zinc-500">Nombre:</span>{" "}
+                    {d.hostname.split(".")[0]} &nbsp;
                     <span className="text-zinc-500">Valor:</span>{" "}
                     <span className="text-[var(--color-red-bright)]">
-                      {serverIpv4 || "(configura SERVER_IPV4 en el servidor)"}
+                      {appHostname}
                     </span>
-                  </>
-                ) : (
-                  <>
-                    Añade un registro <span className="text-white">CNAME</span> en tu proveedor DNS:
-                    <br />
-                    <span className="text-zinc-500">Nombre:</span> {d.hostname.split(".")[0]} &nbsp;
-                    <span className="text-zinc-500">Valor:</span>{" "}
-                    <span className="text-[var(--color-red-bright)]">{appHostname}</span>
-                  </>
+                  </div>
                 )}
-                {d.lastError && <div className="mt-2 text-red-300">{d.lastError}</div>}
+                <div className="mt-2 text-zinc-500">
+                  Después avísanos para dar de alta el certificado del dominio
+                  en el servidor: hasta entonces el nombre resuelve pero no
+                  carga por https.
+                </div>
+                {d.lastError && (
+                  <div className="mt-2 text-red-300">{d.lastError}</div>
+                )}
               </div>
             )}
 
             {d.status === "active" && (
               <p className="mt-3 text-sm text-emerald-300">
                 ✓ Sirviendo la landing en{" "}
-                <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="underline">
+                <a
+                  href={`https://${d.hostname}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
                   https://{d.hostname}
                 </a>
               </p>

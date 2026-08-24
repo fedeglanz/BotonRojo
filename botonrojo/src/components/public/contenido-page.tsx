@@ -10,7 +10,6 @@ import { PageBlocks } from "@/components/public/page-blocks";
 import { Reveal } from "@/components/public/reveal";
 import { Countdown } from "@/components/public/countdown";
 import { StickyActionBar } from "@/components/public/sticky-action-bar";
-import { env } from "@/lib/env";
 import type { Launch } from "@/db/schema/launches";
 import { SectionShell } from "@/components/public/section-shell";
 import { usableDivider } from "@/components/public/section-design";
@@ -89,7 +88,6 @@ export function ContenidoPage({
         <Script
           src="/track.js"
           data-launch={launch.slug}
-          data-api={env.APP_URL}
           strategy="afterInteractive"
         />
 

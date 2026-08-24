@@ -22,7 +22,12 @@ async function getOrgLaunchId(launchId: string, organizationId: string) {
   const [launch] = await db
     .select({ id: launches.id })
     .from(launches)
-    .where(and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)))
+    .where(
+      and(
+        eq(launches.id, launchId),
+        eq(launches.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   if (!launch) throw new Error("launch_not_found");
   return launch.id;
@@ -31,7 +36,11 @@ async function getOrgLaunchId(launchId: string, organizationId: string) {
 export async function listDomainsForLaunch(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   await getOrgLaunchId(launchId, organizationId);
-  return db.select().from(domains).where(eq(domains.launchId, launchId)).orderBy(domains.createdAt);
+  return db
+    .select()
+    .from(domains)
+    .where(eq(domains.launchId, launchId))
+    .orderBy(domains.createdAt);
 }
 
 const addSchema = z.object({
@@ -68,7 +77,9 @@ export async function removeDomainAction(formData: FormData) {
   const launchSlug = String(formData.get("launchSlug") ?? "");
   if (!id) throw new Error("missing_id");
 
-  await db.delete(domains).where(and(eq(domains.id, id), eq(domains.organizationId, organizationId)));
+  await db
+    .delete(domains)
+    .where(and(eq(domains.id, id), eq(domains.organizationId, organizationId)));
   revalidatePath(`/admin/lanzamientos/${launchSlug}`);
 }
 
@@ -94,18 +105,37 @@ export async function verifyDomainAction(formData: FormData) {
   let ok = false;
   let error: string | null = null;
 
+  /**
+   * Vale cualquiera de las dos: A a nuestra IP o CNAME a nuestro dominio.
+   *
+   * Antes se exigía A en los dominios raíz y CNAME en los subdominios, y eso no
+   * describe la realidad: al servidor le da igual cómo se haya resuelto el nombre, y
+   * hay proveedores —y departamentos de IT -- que solo saben dar de alta un registro A
+   * y te piden la IP. Rechazar una configuración que funciona es decirle a alguien que
+   * lo ha hecho mal cuando lo ha hecho bien.
+   */
   try {
-    if (domain.isApex) {
-      const addresses = await dns.resolve4(domain.hostname);
-      ok = env.SERVER_IPV4 !== "" && addresses.includes(env.SERVER_IPV4);
-      if (!ok) error = `El registro A no apunta a ${env.SERVER_IPV4 || "(configura SERVER_IPV4)"}.`;
-    } else {
-      const chain = await dns.resolveCname(domain.hostname).catch(() => [] as string[]);
-      ok = chain.some((target) => target.replace(/\.$/, "") === appHostname);
-      if (!ok) error = `El CNAME debe apuntar a ${appHostname}.`;
+    const [addresses, chain] = await Promise.all([
+      dns.resolve4(domain.hostname).catch(() => [] as string[]),
+      dns.resolveCname(domain.hostname).catch(() => [] as string[]),
+    ]);
+
+    const apuntaPorA =
+      env.SERVER_IPV4 !== "" && addresses.includes(env.SERVER_IPV4);
+    const apuntaPorCname = chain.some(
+      (target) => target.replace(/\.$/, "") === appHostname,
+    );
+    ok = apuntaPorA || apuntaPorCname;
+
+    if (!ok) {
+      error =
+        addresses.length || chain.length
+          ? `Ese nombre resuelve a ${[...addresses, ...chain].join(", ")}. Tiene que ser un registro A a ${env.SERVER_IPV4 || "(configura SERVER_IPV4)"} o un CNAME a ${appHostname}.`
+          : `Ese nombre todavía no resuelve a nada. Los DNS tardan un rato en propagarse; si acabas de crearlo, espera unos minutos.`;
     }
   } catch (err) {
-    error = err instanceof Error ? err.message : "No se pudo resolver el dominio.";
+    error =
+      err instanceof Error ? err.message : "No se pudo resolver el dominio.";
   }
 
   await db
@@ -146,4 +176,23 @@ export async function resolveLaunchByHostname(hostname: string) {
 
   if (!row || row.domain.status !== "active") return null;
   return row.launch;
+}
+
+/**
+ * El dominio propio activo de un lanzamiento, o null.
+ *
+ * Lo piden las páginas públicas para saber cuál es su dirección canónica: la del
+ * cliente si la tiene, y solo entonces la de la plataforma. Sin sesión, porque esto
+ * lo llama el renderizado público, no el panel.
+ */
+export async function activeHostnameFor(
+  launchId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ hostname: domains.hostname })
+    .from(domains)
+    .where(and(eq(domains.launchId, launchId), eq(domains.status, "active")))
+    .orderBy(domains.createdAt)
+    .limit(1);
+  return row?.hostname ?? null;
 }

@@ -1,5 +1,5 @@
 {
-  "id": "24ebf50f-db2b-4e40-93e3-c5f2bd8dafbd",
+  "id": "4f09296d-1387-479c-be79-c22317069cdc",
   "prevId": "a0cb607d-4289-4289-8738-2ca74e30f840",
   "version": "7",
   "dialect": "postgresql",
@@ -565,25 +565,6 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'{}'::jsonb"
-        },
-        "pdc_launch_id": {
-          "name": "pdc_launch_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pdc_product_id": {
-          "name": "pdc_product_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pdc_price_ids": {
-          "name": "pdc_price_ids",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'[]'::jsonb"
         },
         "telegram_chat_id": {
           "name": "telegram_chat_id",
@@ -2346,6 +2327,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "launch_id": {
+          "name": "launch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "url": {
           "name": "url",
           "type": "text",
@@ -2376,6 +2363,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'subida'"
+        },
         "uploaded_by": {
           "name": "uploaded_by",
           "type": "text",
@@ -2398,6 +2398,19 @@
           "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "media_items_launch_id_launches_id_fk": {
+          "name": "media_items_launch_id_launches_id_fk",
+          "tableFrom": "media_items",
+          "tableTo": "launches",
+          "columnsFrom": [
+            "launch_id"
           ],
           "columnsTo": [
             "id"
@@ -2836,8 +2849,7 @@
         "google_ads",
         "telegram",
         "notion",
-        "youtube",
-        "pdc_checkout"
+        "youtube"
       ]
     },
     "public.launch_task_kind": {

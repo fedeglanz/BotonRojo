@@ -17,7 +17,7 @@ const NAV = [
 export function AdminShell({ children, isSuperAdmin }: { children: React.ReactNode; isSuperAdmin?: boolean }) {
   const pathname = usePathname();
   return (
-    <div className="relative mx-auto flex min-h-screen w-full max-w-[2000px] gap-8 px-6 py-8 2xl:px-12">
+    <div className="panel relative mx-auto flex min-h-screen w-full max-w-[2000px] gap-8 px-6 py-8 2xl:px-12">
       <aside className="hidden w-60 shrink-0 md:block">
         <div className="glass sticky top-8 space-y-6 p-4">
           <Link href="/" className="flex items-center gap-3 px-2 pt-1">

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { BigRedButton } from "@/components/public/big-red-button";
 import { Scanlines } from "@/components/futuristic/scanlines";
+import { HeroGalaxy } from "@/components/public/hero-galaxy";
 
 export default function HomePage() {
   return (
     <main className="relative min-h-screen overflow-hidden">
       <Scanlines />
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+      <header className="hero-contenido mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
           <span className="pulse-dot" />
           <span className="font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-[0.2em]">
@@ -23,7 +24,11 @@ export default function HomePage() {
         </nav>
       </header>
 
-      <section className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pt-20 text-center md:pt-32">
+      {/* La galaxia va detrás de la cabecera y de la primera pantalla, no solo del
+          titular: cortada justo debajo del menú se vería el borde. */}
+      <HeroGalaxy />
+
+      <section className="hero-contenido relative mx-auto flex max-w-4xl flex-col items-center px-6 pt-20 text-center md:pt-32">
         <div className="glow-ring mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs uppercase tracking-widest text-zinc-300">
           <span className="pulse-dot" />
           Sistema de lanzamientos · v0.1

@@ -3,10 +3,11 @@ import { assets, launches } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { LaunchSelector } from "@/components/admin/launch-selector";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
+import { unarchiveLaunchAction } from "@/server/launches";
 import type { LaunchType } from "@/lib/launch-types";
 import { resolvePages } from "@/lib/launch-pages";
 import { isCustomPageBody } from "@/lib/custom-page";
-import type { MoonState } from "@/components/admin/planet";
+import type { MoonState } from "@/components/planet";
 
 export const dynamic = "force-dynamic";
 
@@ -51,20 +52,25 @@ export default async function AdminHomePage() {
     doneByLaunch.set(asset.launchId, forLaunch);
   }
 
-  const summaries = rows.map((l) => {
-    const pages = resolvePages(l.type as LaunchType, l.pageConfig);
-    const done = doneByLaunch.get(l.id);
-    return {
-      id: l.id,
-      slug: l.slug,
-      name: l.name,
-      type: l.type as LaunchType,
-      status: l.status,
-      palette: l.brandPalette,
-      moons: pages.map((page) => done?.get(page.pageKey) ?? "pendiente"),
-      pageCount: pages.length,
-    };
-  });
+  // Los archivados no salen en la galaxia: para eso se archivan. Se listan aparte,
+  // en una línea, con la puerta de vuelta.
+  const archivados = rows.filter((l) => l.status === "archived");
+  const summaries = rows
+    .filter((l) => l.status !== "archived")
+    .map((l) => {
+      const pages = resolvePages(l.type as LaunchType, l.pageConfig);
+      const done = doneByLaunch.get(l.id);
+      return {
+        id: l.id,
+        slug: l.slug,
+        name: l.name,
+        type: l.type as LaunchType,
+        status: l.status,
+        palette: l.brandPalette,
+        moons: pages.map((page) => done?.get(page.pageKey) ?? "pendiente"),
+        pageCount: pages.length,
+      };
+    });
 
   return (
     <div className="galaxy-field space-y-10 py-2">
@@ -80,6 +86,32 @@ export default async function AdminHomePage() {
       </div>
 
       <LaunchSelector launches={summaries} />
+
+      {archivados.length > 0 && (
+        <section className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+            Archivados · {archivados.length}
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            {archivados.map((l) => (
+              <li
+                key={l.id}
+                className="flex flex-wrap items-center justify-between gap-3 text-sm"
+              >
+                <span className="text-zinc-400">{l.name}</span>
+                <form action={unarchiveLaunchAction.bind(null, l.id)}>
+                  <button
+                    type="submit"
+                    className="text-[10px] uppercase tracking-widest text-zinc-500 underline-offset-4 transition hover:text-zinc-200 hover:underline"
+                  >
+                    Recuperar
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

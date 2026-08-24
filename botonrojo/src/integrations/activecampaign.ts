@@ -5,6 +5,7 @@
 // global/shared client, everything is built from that org's stored credentials.
 
 import { getDecryptedCredential } from "@/server/integrations";
+import { acTagsFor } from "@/lib/ac-tags";
 import type { ActiveCampaignCredentials } from "@/server/integrations";
 
 export class ActiveCampaignError extends Error {
@@ -138,6 +139,40 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
       method: "POST",
       body: JSON.stringify({ contactTag: { contact: contactId, tag: tagId } }),
     });
+  }
+
+  /**
+   * Todas las listas y todas las etiquetas de la cuenta, para poder elegir.
+   *
+   * Antes solo se podía crear: cada lanzamiento estrenaba lista y cuatro etiquetas,
+   * y quien ya tenía su ActiveCampaign montado —con su lista principal y sus
+   * etiquetas de siempre— acababa con estructura duplicada y los contactos
+   * repartidos entre dos sitios.
+   *
+   * Se pagina a mano porque la API devuelve 20 por defecto y una cuenta con años de
+   * uso tiene cientos de etiquetas: sin paginar, la que buscas no sale y parece que
+   * no existe.
+   */
+  async function listAllLists(): Promise<ACList[]> {
+    const out: ACList[] = [];
+    for (let offset = 0; offset < 1000; offset += 100) {
+      const res = await ac<{ lists: ACList[] }>(
+        `/lists?limit=100&offset=${offset}`,
+      );
+      out.push(...res.lists);
+      if (res.lists.length < 100) break;
+    }
+    return out;
+  }
+
+  async function listAllTags(): Promise<ACTag[]> {
+    const out: ACTag[] = [];
+    for (let offset = 0; offset < 2000; offset += 100) {
+      const res = await ac<{ tags: ACTag[] }>(`/tags?limit=100&offset=${offset}`);
+      out.push(...res.tags);
+      if (res.tags.length < 100) break;
+    }
+    return out;
   }
 
   async function findListByName(name: string): Promise<ACList | null> {
@@ -338,7 +373,8 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     launchSlug: string;
     launchName: string;
     publicUrl: string;
-    tagPrefix?: string;
+    /** Decide el juego de etiquetas: una newsletter no compra ni abandona carritos. */
+    launchType?: string;
   }) {
     const list = await findOrCreateList({
       name: `Lanz: ${input.launchName}`,
@@ -346,25 +382,15 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
       senderReminder: `Te suscribiste en ${input.publicUrl}`,
     });
 
-    // Tag base: optional prefix + slug, e.g. "prueba-mi-primera-inversion"
-    const tagBase = input.tagPrefix
-      ? `${input.tagPrefix}-${input.launchSlug}`
-      : input.launchSlug;
-
-    const tagSpecs = [
-      { key: "registro", suffix: "-registro", description: "Registro / lead" },
-      { key: "comprador", suffix: "-comprador", description: "Compradores" },
-      { key: "evento", suffix: "-evento", description: "Asistente a evento" },
-      { key: "abandono", suffix: "-carrito-abandono", description: "Carrito abandonado" },
-    ];
+    const tagSpecs = acTagsFor(input.launchType ?? "");
 
     const tagIds: Record<string, number> = {};
     for (const t of tagSpecs) {
-      const tag = await findOrCreateTag(`${tagBase}${t.suffix}`, t.description);
+      const tag = await findOrCreateTag(`${input.launchSlug}${t.suffix}`, t.description);
       tagIds[t.key] = Number(tag.id);
     }
 
-    return { listId: Number(list.id), tagIds, tagBase };
+    return { listId: Number(list.id), tagIds };
   }
 
   async function syncLeadToAc(input: {
@@ -374,7 +400,13 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     launchListId?: number | null;
     launchTagIds?: Record<string, number>;
     automationIds?: string[];
-    intent: "registro" | "comprador" | "evento";
+    /**
+     * Con qué clave de `activeCampaignTagIds` etiquetar. Es texto y no una lista
+     * cerrada porque el juego de etiquetas depende del tipo de lanzamiento: una
+     * newsletter etiqueta "suscrito" y "desuscrito", una venta "registro",
+     * "comprador", "evento" y "abandono". Quien llama lo resuelve con `altaTagKey`.
+     */
+    intent: string;
   }) {
     const [firstName, ...rest] = (input.name ?? "").split(" ");
     const contact = await createOrUpdateContact({
@@ -423,6 +455,8 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     getCampaignsWithStats,
     provisionLaunchInAc,
     syncLeadToAc,
+    listAllLists,
+    listAllTags,
   };
 }
 

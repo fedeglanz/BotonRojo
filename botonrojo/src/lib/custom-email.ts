@@ -43,6 +43,8 @@ export type CustomEmailBody = {
    * - "automation" = drip por persona, se dispara al entrar en la automatización
    */
   sendType?: "campaign" | "automation";
+  /** El archivo concreto en Claude Design del que salió esta campaña. */
+  designUrl?: string;
 };
 
 export function isCustomEmailBody(body: unknown): body is CustomEmailBody {

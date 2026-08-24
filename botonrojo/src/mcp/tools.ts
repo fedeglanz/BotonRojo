@@ -34,10 +34,24 @@ import {
   replaceTokens,
   rewriteAssetPaths,
   unresolvedReferences,
+  parseClaudeDesignUrl,
   type CustomPageAssets,
   type CustomPageBody,
 } from "@/lib/custom-page";
 import { startPageGeneration, readGenerationProgress } from "@/server/launches";
+import { publishDesignedAd } from "@/server/designed-ads";
+import {
+  listMediaForLaunch,
+  storeMediaFromUrl,
+  generateMediaForLaunch,
+} from "@/server/media-store";
+import { isImageGenConfigured, type ImageSlot } from "@/integrations/image-gen";
+import {
+  AD_FORMATS,
+  AD_FORMAT_LIST,
+  isAdFormatKey,
+  type AdFormatKey,
+} from "@/lib/ad-templates";
 import {
   listPendingTasks,
   listLaunchTasks,
@@ -473,6 +487,43 @@ const contratoPagina: ToolDef = {
   handler: async () => PAGE_CONTRACT,
 };
 
+/**
+ * El enlace del proyecto de Claude Design, para poder volver a él desde el panel.
+ *
+ * Sin esto, una página diseñada en Claude era un callejón: quedaba publicada y
+ * nadie sabía dónde estaba el diseño del que salió, así que "cambiar algo" era
+ * empezar un chat nuevo y volver a explicarlo todo. El enlace lo tiene Claude en
+ * la barra del navegador mientras diseña; se pide una vez y se guarda.
+ */
+const URL_CLAUDE_PARAM = {
+  type: "string" as const,
+  description:
+    "El enlace de este proyecto en Claude Design, tal cual sale en la barra del navegador (https://claude.ai/design/p/…). Se guarda para poder volver al diseño desde el panel. Mándalo siempre que lo tengas.",
+};
+
+/** Guarda el enlace del proyecto en el lanzamiento y devuelve el del archivo. */
+async function guardarUrlDeDiseno(
+  launch: { id: string; assetsCache: unknown },
+  raw: unknown,
+): Promise<string | undefined> {
+  const parsed = parseClaudeDesignUrl(
+    typeof raw === "string" ? raw : undefined,
+  );
+  if (!parsed) return undefined;
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  if (cache.claudeProjectUrl !== parsed.projectUrl) {
+    await db
+      .update(launches)
+      .set({
+        assetsCache: { ...cache, claudeProjectUrl: parsed.projectUrl },
+        updatedAt: new Date(),
+      })
+      .where(eq(launches.id, launch.id));
+  }
+  return parsed.fileUrl;
+}
+
 const publicarPagina: ToolDef = {
   name: "publicar_pagina",
   title: "Publicar una página diseñada",
@@ -499,6 +550,7 @@ const publicarPagina: ToolDef = {
           "Documento HTML completo, tal cual, sin inlinear los archivos",
       },
       titulo: { type: "string", description: "Título de la página (opcional)" },
+      url_claude: URL_CLAUDE_PARAM,
       archivos: {
         type: "array",
         description:
@@ -584,6 +636,8 @@ const publicarPagina: ToolDef = {
       .where(eq(mcpTokens.id, auth.tokenId))
       .limit(1);
 
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+
     const body: CustomPageBody = {
       format: "html",
       html,
@@ -591,6 +645,7 @@ const publicarPagina: ToolDef = {
       publishedAt: new Date().toISOString(),
       source: "claude-design",
       title: String(args.titulo ?? "") || pageDef.label,
+      ...(designUrl ? { designUrl } : {}),
     };
 
     await db.insert(assets).values({
@@ -636,6 +691,12 @@ const publicarPagina: ToolDef = {
           }
         : {}),
       archivos_alojados: Object.keys(files).length,
+      ...(designUrl
+        ? { diseno_enlazado: designUrl }
+        : {
+            falta:
+              "No me has mandado url_claude. Con él, en el panel aparece un botón que abre este diseño; sin él, cambiar algo obliga a empezar un chat nuevo.",
+          }),
       aviso:
         "La página ya está en vivo. La medición, el formulario, el pago y los afiliados están cableados por la plataforma.",
     };
@@ -901,6 +962,7 @@ const guardarIdentidad: ToolDef = {
         description:
           "En qué se ha pensado al elegirla: tono, referencias, qué se evita.",
       },
+      url_claude: URL_CLAUDE_PARAM,
     },
     required: ["lanzamiento", "paleta", "tipografias"],
     additionalProperties: false,
@@ -952,13 +1014,187 @@ const guardarIdentidad: ToolDef = {
       result: `${palette.primary} · ${display} / ${body}`,
     });
 
+    const urlProyecto = await guardarUrlDeDiseno(launch, args.url_claude);
+
     revalidatePath(`/admin/lanzamientos/${launch.slug}`);
     return {
       guardada: true,
       aprobada: true,
       estilo_ajustado: design,
+      proyecto_guardado: Boolean(urlProyecto),
       siguiente:
         "Ya puedes diseñar las páginas: mira trabajo_pendiente para ver cuáles quedan.",
+      ...(urlProyecto
+        ? {}
+        : {
+            falta:
+              "No me has mandado url_claude: mándamelo y desde el panel se podrá volver a este proyecto para cambiar cualquier cosa.",
+          }),
+    };
+  },
+};
+
+/**
+ * Cambiar trozos de una página ya publicada, sin reescribirla entera.
+ *
+ * Republicar una página cuesta lo que cuesta escribirla: el HTML entero viaja como
+ * un solo argumento, y una página con su diseño y su CSS son treinta mil caracteres.
+ * Cambiar un titular obligaba a volver a escribir los treinta mil — y eso son varios
+ * minutos de Claude tecleando lo mismo que ya había.
+ *
+ * Aquí van solo los trozos: buscar esto, poner esto otro. Doscientos caracteres en
+ * vez de treinta mil.
+ *
+ * Cada búsqueda tiene que aparecer EXACTAMENTE UNA VEZ. Si no aparece, o aparece
+ * dos, no se aplica nada y se dice cuál falló: un reemplazo a ciegas sobre la página
+ * en vivo de un cliente puede dejarla peor que antes, y "no he cambiado nada" es
+ * mejor que "he cambiado algo, no sé qué".
+ */
+const parchearPagina: ToolDef = {
+  name: "parchear_pagina",
+  title: "Cambiar trozos de una página publicada",
+  description:
+    "Aplica cambios puntuales al HTML que ya está publicado, buscando y sustituyendo texto exacto. Para retoques —un titular, un precio, un enlace— es lo que hay que usar: publicar_pagina obliga a reescribir el documento entero y tarda minutos. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      pagina: { type: "string", description: "Clave de la página" },
+      cambios: {
+        type: "array",
+        description:
+          "Los reemplazos, en orden. Cada búsqueda debe aparecer una sola vez en el HTML: si no estás seguro, pide antes ver_pagina y copia un trozo con suficiente contexto alrededor.",
+        items: {
+          type: "object",
+          properties: {
+            buscar: {
+              type: "string",
+              description: "El texto exacto que hay ahora, tal cual",
+            },
+            reemplazar: {
+              type: "string",
+              description: "Lo que va en su lugar. Vacío lo borra.",
+            },
+          },
+          required: ["buscar", "reemplazar"],
+          additionalProperties: false,
+        },
+      },
+      url_claude: URL_CLAUDE_PARAM,
+    },
+    required: ["lanzamiento", "pagina", "cambios"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const pageDef = requirePage(launch, args.pagina);
+
+    const [asset] = await db
+      .select()
+      .from(assets)
+      .where(
+        and(
+          eq(assets.launchId, launch.id),
+          eq(assets.kind, "landing"),
+          eq(assets.pageKey, pageDef.pageKey),
+        ),
+      )
+      .orderBy(desc(assets.createdAt))
+      .limit(1);
+
+    if (!asset || !isCustomPageBody(asset.body)) {
+      throw new ToolError(
+        "Esta página no tiene un HTML propio publicado, así que no hay nada que parchear. Publícala con publicar_pagina.",
+      );
+    }
+
+    const cambios = Array.isArray(args.cambios) ? args.cambios : [];
+    if (!cambios.length) throw new ToolError("No has mandado ningún cambio.");
+
+    // Se comprueban TODOS antes de aplicar ninguno: a medio camino la página
+    // quedaría con la mitad de los cambios puestos, que es el peor de los estados.
+    let html = asset.body.html;
+    const problemas: string[] = [];
+    for (const [i, cambio] of cambios.entries()) {
+      const buscar = String(
+        (cambio as { buscar?: unknown }).buscar ?? "",
+      );
+      if (!buscar) {
+        problemas.push(`El cambio ${i + 1} no trae texto que buscar.`);
+        continue;
+      }
+      const veces = html.split(buscar).length - 1;
+      if (veces === 0) {
+        problemas.push(
+          `El cambio ${i + 1} no aparece en la página: «${buscar.slice(0, 60)}…». Pide ver_pagina y copia el texto tal cual está.`,
+        );
+      } else if (veces > 1) {
+        problemas.push(
+          `El cambio ${i + 1} aparece ${veces} veces: «${buscar.slice(0, 60)}…». Coge más contexto alrededor para que sea único.`,
+        );
+      }
+    }
+    if (problemas.length) {
+      throw new ToolError(
+        `No se ha cambiado nada. ${problemas.join(" ")}`,
+      );
+    }
+
+    for (const cambio of cambios) {
+      const buscar = String((cambio as { buscar?: unknown }).buscar ?? "");
+      const reemplazar = String(
+        (cambio as { reemplazar?: unknown }).reemplazar ?? "",
+      );
+      html = html.replace(buscar, reemplazar);
+    }
+
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    // Una versión nueva, no una edición: la anterior sigue en el historial y se puede
+    // volver a ella si el parche no era lo que se pensaba.
+    const body: CustomPageBody = {
+      ...asset.body,
+      html,
+      publishedAt: new Date().toISOString(),
+      ...(designUrl ? { designUrl } : {}),
+    };
+
+    await db.insert(assets).values({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      kind: "landing",
+      pageKey: pageDef.pageKey,
+      title: asset.title,
+      body: body as unknown as Record<string, unknown>,
+      authorId: token?.createdById ?? null,
+      generatedByAi: "claude-design",
+    });
+
+    const path = pagePath(launch.slug, pageDef);
+    revalidatePath(path);
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    revalidatePath(
+      `/admin/lanzamientos/${launch.slug}/paginas/${pageDef.pageKey}`,
+    );
+
+    return {
+      parcheada: true,
+      cambios: cambios.length,
+      url: absoluteUrl(path),
+      aviso:
+        "Ya está en vivo. La versión anterior queda en el historial de la página, por si el cambio no era lo que parecía.",
     };
   },
 };
@@ -1257,6 +1493,7 @@ const publicarEmail: ToolDef = {
         description:
           "Días de offset respecto al inicio de la fase (0 = primer día). Opcional.",
       },
+      url_claude: URL_CLAUDE_PARAM,
     },
     required: ["lanzamiento", "nombre", "asunto", "html"],
     additionalProperties: false,
@@ -1314,6 +1551,7 @@ const publicarEmail: ToolDef = {
 
     const fase = typeof args.fase === "string" ? args.fase.trim() : undefined;
     const offsetDias = typeof args.offset_dias === "number" ? args.offset_dias : undefined;
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
 
     const body: CustomEmailBody = {
       format: "html",
@@ -1325,6 +1563,7 @@ const publicarEmail: ToolDef = {
       source: "claude-design",
       phase: fase || undefined,
       sendOffsetDays: offsetDias,
+      ...(designUrl ? { designUrl } : {}),
     };
 
     // Sustituye la que tenga el mismo nombre, en vez de acumular versiones: al
@@ -1364,6 +1603,12 @@ const publicarEmail: ToolDef = {
       publicada: true,
       nombre,
       sustituida: Boolean(previa),
+      ...(designUrl
+        ? { diseno_enlazado: designUrl }
+        : {
+            falta:
+              "No me has mandado url_claude. Con él, en el panel aparece un botón que abre este diseño; sin él, cambiar la campaña obliga a empezar un chat nuevo.",
+          }),
       aviso:
         "Guardada con los valores ya resueltos. Desde el panel se puede previsualizar y subir a ActiveCampaign como plantilla.",
     };
@@ -1477,6 +1722,322 @@ const metricasLanzamiento: ToolDef = {
   },
 };
 
+const contratoAnuncio: ToolDef = {
+  name: "contrato_anuncio",
+  title: "Qué tiene que cumplir un anuncio estático",
+  description:
+    "Los formatos disponibles con sus medidas exactas y las reglas del HTML de un anuncio. Léelo antes de diseñar el primero.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  handler: async () => ({
+    formatos: AD_FORMAT_LIST.map((f) => ({
+      formato: f.key,
+      nombre: f.label,
+      ancho: f.width,
+      alto: f.height,
+      canal: f.channel,
+    })),
+    reglas: [
+      "El HTML es un documento completo y se fotografía a las medidas exactas del formato: pon el body a ese ancho y alto exactos, sin márgenes, sin scroll y con overflow hidden.",
+      "Lo que se sale del recuadro no aparece: no hay scroll en una imagen. Comprueba que el titular entra a ese tamaño.",
+      "Deja aire en los bordes —un 6% por lado— porque Meta recorta las esquinas en algunos emplazamientos.",
+      "Nada de JavaScript ni de animaciones: es una foto fija. Lo que se anime saldrá congelado en un fotograma cualquiera.",
+      "Las tipografías, de Google Fonts por <link>, o el texto saldrá con la de por defecto.",
+      "Las imágenes van en \"archivos\" por url, como en las páginas; nunca en base64.",
+      "Sin {{tokens}}: un anuncio es una imagen y no hay nada que los sustituya después. Escribe los valores, que los tienes en contexto_lanzamiento → valores_listos.",
+    ],
+    aviso:
+      "Un anuncio no lleva medición: es una imagen que se sube a Meta o a Google. Lo que mide es el enlace de destino, que ya es la página del lanzamiento.",
+  }),
+};
+
+const publicarAnuncio: ToolDef = {
+  name: "publicar_anuncio",
+  title: "Publicar un anuncio estático diseñado",
+  description:
+    "Convierte un HTML en la imagen de un anuncio del tamaño exacto del formato y la guarda en la galería del lanzamiento, junto a los que genera Botón Rojo. Publicar con el mismo nombre y formato sustituye. Requiere plan pro.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string", description: "Slug del lanzamiento" },
+      nombre: {
+        type: "string",
+        description:
+          'Cómo se llama este anuncio: "Testimonio Marta", "Oferta cierre". El mismo nombre en el mismo formato lo sustituye.',
+      },
+      formato: {
+        type: "string",
+        enum: AD_FORMAT_LIST.map((f) => f.key),
+        description:
+          "El tamaño. Míralos en contrato_anuncio: el HTML tiene que estar diseñado a esas medidas exactas.",
+      },
+      html: {
+        type: "string",
+        description:
+          "Documento HTML completo del tamaño exacto del formato. Se fotografía tal cual.",
+      },
+      archivos: {
+        type: "array",
+        description:
+          'Las imágenes y css que el HTML referencia con rutas relativas. Para imágenes usa siempre "url": mandarlas en base64 no termina.',
+        items: {
+          type: "object",
+          properties: {
+            nombre: { type: "string" },
+            url: { type: "string" },
+            contenido: { type: "string" },
+            base64: { type: "boolean" },
+          },
+          required: ["nombre"],
+          additionalProperties: false,
+        },
+      },
+      url_claude: URL_CLAUDE_PARAM,
+    },
+    required: ["lanzamiento", "nombre", "formato", "html"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    if (!canPublishCustomPages(auth.organization)) {
+      throw new ToolError(
+        `El plan de esta cuenta (${auth.organization.plan}) no publica diseño propio. Los estáticos se pueden componer desde el panel con el generador de Botón Rojo.`,
+      );
+    }
+
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const nombre = String(args.nombre ?? "").trim();
+    const formato = String(args.formato ?? "");
+    const html = String(args.html ?? "");
+
+    if (!nombre) throw new ToolError("Falta el nombre del anuncio.");
+    if (!isAdFormatKey(formato)) {
+      throw new ToolError(
+        `Ese formato no existe. Los que hay: ${AD_FORMAT_LIST.map((f) => f.key).join(", ")}. Mira contrato_anuncio para sus medidas.`,
+      );
+    }
+    if (html.length < 100) {
+      throw new ToolError(
+        "Ese HTML está vacío o es demasiado corto para ser un anuncio.",
+      );
+    }
+
+    // Un {{token}} en una imagen se queda escrito para siempre: no hay nada que lo
+    // sustituya después, porque lo que se sube a Meta es el PNG.
+    const tokens = [...new Set(html.match(/\{\{\s*[a-z_]+\s*\}\}/gi) ?? [])];
+    if (tokens.length) {
+      throw new ToolError(
+        `El HTML lleva ${tokens.join(", ")} y esto es una imagen: saldrían impresos tal cual. Escribe los valores (contexto_lanzamiento → valores_listos).`,
+      );
+    }
+
+    const files = await uploadFiles(
+      auth,
+      launch.slug,
+      `anuncio-${formato}`,
+      args.archivos,
+    );
+    const missing = unresolvedReferences(html, files);
+    if (missing.length) {
+      throw new ToolError(
+        `Faltan archivos que el HTML referencia: ${missing.join(", ")}. Mándalos en "archivos" y vuelve a publicar.`,
+      );
+    }
+
+    const [token] = await db
+      .select()
+      .from(mcpTokens)
+      .where(eq(mcpTokens.id, auth.tokenId))
+      .limit(1);
+
+    const designUrl = await guardarUrlDeDiseno(launch, args.url_claude);
+    const format = AD_FORMATS[formato as AdFormatKey];
+
+    const resultado = await publishDesignedAd({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      authorId: token?.createdById ?? null,
+      name: nombre,
+      formatKey: formato as AdFormatKey,
+      html: rewriteAssetPaths(html, files),
+      files,
+      designUrl,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      publicado: true,
+      nombre,
+      formato: format.label,
+      medidas: `${resultado.width}×${resultado.height}`,
+      imagen: resultado.imageUrl,
+      ...(designUrl ? { diseno_enlazado: designUrl } : {}),
+      aviso:
+        "Ya está en la galería de anuncios del lanzamiento, con los que genera Botón Rojo. Desde ahí se descarga para subirlo a Meta o a Google.",
+    };
+  },
+};
+
+/* ------------------------------------------------------------------ fotos -- */
+
+/**
+ * Las imágenes de un lanzamiento: el logo, y la biblioteca de fotos.
+ *
+ * Existe porque sin ella un diseño no tenía de dónde sacar una imagen real. Lo que
+ * pasaba entonces es lo peor que puede pasar: en vez de preguntar, se improvisaba —
+ * un cliente se encontró el logo de su marca sustituido por una versión tipográfica
+ * inventada, sin haberlo pedido.
+ */
+const listarFotos: ToolDef = {
+  name: "listar_fotos",
+  title: "Fotos y logo del lanzamiento",
+  description:
+    "El logo de la marca y las fotos de la biblioteca del lanzamiento, con su URL ya alojada. Úsalas en el diseño en vez de inventar una imagen o de sustituir el logo por texto.",
+  inputSchema: {
+    type: "object",
+    properties: { lanzamiento: { type: "string" } },
+    required: ["lanzamiento"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    const fotos = await listMediaForLaunch({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+    });
+
+    return {
+      logo: launch.brandLogoUrl ?? null,
+      fotos: fotos.map((f) => ({
+        url: f.url,
+        etiqueta: f.label,
+        de: f.source === "magnific" ? "generada" : "del cliente",
+        tipo: f.mimeType,
+        del_lanzamiento: f.launchId === launch.id,
+      })),
+      como_usarlas:
+        "Enlázalas por su URL absoluta en el HTML y NO las mandes en \"archivos\": una url absoluta se deja tal cual. Si necesitas una que no está, súbela con subir_foto (si tienes su url) o pídela con generar_foto.",
+      ...(launch.brandLogoUrl
+        ? {}
+        : {
+            aviso_logo:
+              "Este lanzamiento no tiene logo cargado. NO lo inventes ni lo escribas como texto con otra tipografía: pregunta y que lo suban en el panel (Marca → logo).",
+          }),
+    };
+  },
+};
+
+const subirFoto: ToolDef = {
+  name: "subir_foto",
+  title: "Traer una imagen a la biblioteca",
+  description:
+    "Descarga una imagen de una URL pública y la guarda en la biblioteca del lanzamiento, alojada por nosotros. Devuelve la URL definitiva, la que hay que poner en el diseño.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      url: { type: "string", description: "De dónde bajarla (http o https)" },
+      etiqueta: {
+        type: "string",
+        description: "Para qué es, para reconocerla en la biblioteca",
+      },
+    },
+    required: ["lanzamiento", "url"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    try {
+      const item = await storeMediaFromUrl({
+        organizationId: auth.organization.id,
+        launchId: launch.id,
+        url: String(args.url ?? ""),
+        label: typeof args.etiqueta === "string" ? args.etiqueta : null,
+      });
+      revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+      return {
+        guardada: true,
+        url: item.url,
+        aviso:
+          "Ya está alojada y aparece en la biblioteca del lanzamiento. Enlázala por esta url en el HTML y no la mandes en \"archivos\".",
+      };
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      throw new ToolError(
+        motivo.startsWith("archivo_sospechosamente_pequeno")
+          ? "Lo que hay en esa url no llega a un kilobyte: no es una imagen, es una descarga cortada o una página de error. Comprueba la url."
+          : `No se ha podido traer esa imagen (${motivo}). Tiene que ser una url pública http/https que devuelva una imagen.`,
+      );
+    }
+  },
+};
+
+const generarFoto: ToolDef = {
+  name: "generar_foto",
+  title: "Generar una foto con Magnific",
+  description:
+    "Crea una imagen a partir de una descripción, con la paleta y el mood del lanzamiento, y la guarda en su biblioteca. Devuelve la URL alojada. Es la forma de conseguir una imagen cuando no existe ninguna: nunca mandes imágenes en base64.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      lanzamiento: { type: "string" },
+      descripcion: {
+        type: "string",
+        description:
+          "La escena, con detalle: quién sale, qué hace, dónde, con qué luz. Sin texto ni logotipos: eso se pone después encima.",
+      },
+      encuadre: {
+        type: "string",
+        enum: ["hero", "band", "card", "portrait", "story", "square"],
+        description:
+          "hero 16:9 para cabeceras · band 2:1 para fondos con texto encima · portrait 3:4 para una persona · story 9:16 · card 4:5 · square 1:1",
+      },
+    },
+    required: ["lanzamiento", "descripcion"],
+    additionalProperties: false,
+  },
+  handler: async (auth, args) => {
+    const launch = await requireLaunch(auth, args.lanzamiento);
+    if (!isImageGenConfigured()) {
+      throw new ToolError(
+        "Esta instalación no tiene Magnific configurada. Usa subir_foto con una url, o pide que suban la foto en el panel del lanzamiento.",
+      );
+    }
+
+    const descripcion = String(args.descripcion ?? "").trim();
+    if (descripcion.length < 12) {
+      throw new ToolError(
+        "Describe la escena con algo más de detalle: quién sale, qué hace, dónde y con qué luz.",
+      );
+    }
+
+    const encuadre = String(args.encuadre ?? "square");
+    const slot: ImageSlot = (
+      ["hero", "band", "card", "portrait", "story", "square"] as const
+    ).includes(encuadre as ImageSlot)
+      ? (encuadre as ImageSlot)
+      : "square";
+
+    const item = await generateMediaForLaunch({
+      organizationId: auth.organization.id,
+      launchId: launch.id,
+      prompt: descripcion,
+      slot,
+    });
+
+    revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+    return {
+      generada: true,
+      url: item.url,
+      encuadre: slot,
+      aviso:
+        "Guardada en la biblioteca del lanzamiento. Enlázala por esta url en el HTML y no la mandes en \"archivos\". Tarda menos que rehacerla: si no encaja, cambia la descripción y pide otra.",
+    };
+  },
+};
+
 export const TOOLS: ToolDef[] = [
   listarLanzamientos,
   contextoLanzamiento,
@@ -1485,6 +2046,7 @@ export const TOOLS: ToolDef[] = [
   guardarIdentidad,
   crearPagina,
   publicarPagina,
+  parchearPagina,
   verPagina,
   retirarPagina,
   borrarPagina,
@@ -1494,6 +2056,11 @@ export const TOOLS: ToolDef[] = [
   listarEmails,
   publicarEmail,
   borrarEmail,
+  listarFotos,
+  subirFoto,
+  generarFoto,
+  contratoAnuncio,
+  publicarAnuncio,
   metricasLanzamiento,
 ];
 
@@ -1501,6 +2068,17 @@ export const TOOLS: ToolDef[] = [
 
 /** Extensions we host for a designed page. No SVG: it can carry script, and these
  *  are served from our own origin, so an SVG would be same-origin XSS. */
+/** Las que son imagen: solo se aceptan por url, nunca escritas como texto. */
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "avif",
+  "gif",
+  "ico",
+]);
+
 const ALLOWED_EXTENSIONS = new Map<string, string>([
   ["css", "text/css"],
   ["js", "text/javascript"],
@@ -1555,11 +2133,32 @@ async function uploadFiles(
     // ESCRIBIR el fichero entero como texto: 3 MB de imagen son más de un millón
     // de tokens, así que la llamada no termina nunca — se queda "publicando" un
     // buen rato y no llega nada. Con la URL, quien descarga es el servidor.
+    //
+    // Y una imagen en base64 se rechaza en vez de aceptarse a medias. Pasó de
+    // verdad: llegaron 3.664 caracteres de los 27.404 de un logo, se decodificó
+    // sin protestar y el cliente se encontró su página publicada con la imagen
+    // rota. Un error aquí cuesta un minuto; una imagen corrupta en producción no
+    // se descubre hasta que la ve el cliente.
+    const esImagen = IMAGE_EXTENSIONS.has(ext);
+    if (esImagen && !from) {
+      throw new ToolError(
+        `"${name}" es una imagen y viene en "contenido". Las imágenes van por "url": mandarlas como texto se corta a mitad y se publica una imagen rota. Si no tienes una url, súbela con subir_foto o pídela con generar_foto y usa la url que te devuelvan.`,
+      );
+    }
+
     const buffer = from
       ? await downloadFile(from, name)
       : isBase64
         ? Buffer.from(content, "base64")
         : Buffer.from(content, "utf8");
+
+    // Red de seguridad para lo que sí llega por url: menos de un kilobyte no es un
+    // archivo, es una descarga cortada o una página de error guardada como imagen.
+    if (esImagen && buffer.byteLength < 1024) {
+      throw new ToolError(
+        `"${name}" ha llegado con ${buffer.byteLength} bytes: eso no es una imagen. Comprueba la url.`,
+      );
+    }
 
     if (buffer.byteLength > MAX_FILE_BYTES) {
       throw new ToolError(`"${name}" pesa más de 10 MB.`);

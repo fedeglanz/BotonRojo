@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { launches, trackingEvents } from "@/db/schema";
 import { getActiveCampaignClientForOrg } from "@/integrations/activecampaign";
 import { getClientIp } from "@/lib/tracking";
+import { bajaTagKey } from "@/lib/ac-tags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,23 @@ export async function POST(req: NextRequest) {
       await ac
         .unsubscribeFromList(email, listId)
         .catch((err) => console.error("baja en ActiveCampaign falló", err));
+
+      // Y se marca con la etiqueta de baja, si el lanzamiento la tiene. Quitar a
+      // alguien de una lista no deja rastro: mañana, mirando la cuenta, no hay forma
+      // de distinguir a quien se fue de quien nunca llegó — y en una newsletter esa
+      // es justo la diferencia que hay que poder ver.
+      const clave = bajaTagKey(launch.type);
+      const tagId = clave
+        ? (launch.activeCampaignTagIds as Record<string, number> | null)?.[clave]
+        : undefined;
+      if (tagId) {
+        await ac
+          .createOrUpdateContact({ email })
+          .then((contacto) => ac.applyTag(contacto.id, String(tagId)))
+          .catch((err) =>
+            console.error("etiqueta de baja en ActiveCampaign falló", err),
+          );
+      }
     }
   }
 

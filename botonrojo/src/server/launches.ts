@@ -2,11 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count as sqlCount } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { launches, assets, products, organizations } from "@/db/schema";
+import {
+  launches,
+  assets,
+  products,
+  organizations,
+  trackingEvents,
+  orders,
+} from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
 import { createSlug } from "@/lib/ids";
 import { env } from "@/lib/env";
@@ -105,9 +112,12 @@ import type {
   Launch,
 } from "@/db/schema/launches";
 import type { DesignReviewIssue } from "@/db/schema/assets";
+import type { PageSeo } from "@/db/schema/launches";
+import { acTagsFor, altaTagKey } from "@/lib/ac-tags";
 import {
   resolvePages,
   pagePath,
+  pageConfigFromFormData,
   type PageConfig,
   type PageDef,
   type LegalPageKey,
@@ -570,24 +580,7 @@ export async function createLaunchAction(formData: FormData) {
     .limit(1);
   if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-  const legalPages: LegalPageKey[] = [];
-  if (formData.get("legalPrivacidad")) legalPages.push("privacidad");
-  if (formData.get("legalTerminos")) legalPages.push("terminos");
-  if (formData.get("legalCookies")) legalPages.push("cookies");
-
-  const registroChannels = String(formData.get("registroChannels") ?? "")
-    .split("\n")
-    .map((c) => c.trim())
-    .filter(Boolean);
-
-  const pageConfig: PageConfig = {
-    registroChannels:
-      registroChannels.length > 0 ? registroChannels : undefined,
-    contentPageCount:
-      Number(formData.get("contentPageCount") ?? 4) === 3 ? 3 : 4,
-    includeAffiliateRegistro: formData.get("includeAffiliateRegistro") === "on",
-    legalPages,
-  };
+  const pageConfig: PageConfig = pageConfigFromFormData(formData);
 
   const contentDripRaw = String(
     formData.get("contentDripStartsAt") ?? "",
@@ -630,21 +623,27 @@ export async function createLaunchAction(formData: FormData) {
       // una decisión de diseño. Sin ellos, Claude tiene que parar a mitad a
       // preguntar de qué va el lanzamiento — que es exactamente lo que pasó la
       // primera vez que se usó esto.
-      try {
-        await generateMarcoCopyAction(created.id);
-      } catch (err) {
+      //
+      // En segundo plano, como la identidad: ver el comentario de abajo.
+      void generateMarcoCopyAction(created.id).catch((err: unknown) => {
         console.error("marco de copy inicial (modo claude) falló", err);
-      }
+      });
     }
   } else if (created) {
     // Propose the visual identity straight away: it's the mandatory first step, so
     // landing on an empty one just means an extra click before anything can happen.
-    // Best-effort — a failed proposal must not lose the launch that was just created.
-    try {
-      await generateBrandKitAction(created.id);
-    } catch (err) {
+    //
+    // Pero NO se espera. Esta es una llamada a un modelo y tarda lo que tarda —
+    // medido en producción, 46 segundos—, y mientras no vuelva el formulario sigue
+    // en pantalla: pasó lo previsible, alguien volvió a pulsar el botón y se creó
+    // el lanzamiento dos veces. Creado el lanzamiento, la pantalla cambia ya; la
+    // propuesta aterriza sola en el panel unos segundos después.
+    //
+    // Sin await pero con catch: un fallo aquí no puede tumbar la creación de un
+    // lanzamiento que ya existe, y sin catch sería una promesa rechazada suelta.
+    void generateBrandKitAction(created.id).catch((err: unknown) => {
       console.error("initial brand kit proposal failed", err);
-    }
+    });
   }
 
   revalidatePath("/admin");
@@ -2792,21 +2791,139 @@ export async function deleteStripeProductAction(
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }
 
-export async function provisionActiveCampaignAction(launchId: string, formData: FormData) {
+/**
+ * El atajo de "créalo todo nuevo": una lista y las cuatro etiquetas del lanzamiento.
+ *
+ * El panel ya no lo usa —ahora cada hueco se elige en `linkActiveCampaignAction`,
+ * dejando "crear" donde haga falta— pero sigue aquí porque es lo que hace falta para
+ * montar un lanzamiento entero de una llamada, sin pantalla de por medio.
+ */
+export async function provisionActiveCampaignAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
   if (!ac) throw new Error("activecampaign_not_configured");
 
   const launch = await getOrgLaunch(launchId, organizationId);
-  const tagPrefix = String(formData.get("tagPrefix") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "") || undefined;
 
   const publicUrl = `${env.APP_URL}/${launch.slug}`;
   const { listId, tagIds } = await ac.provisionLaunchInAc({
     launchSlug: launch.slug,
     launchName: launch.name,
     publicUrl,
-    tagPrefix,
+    launchType: launch.type,
   });
+
+  await db
+    .update(launches)
+    .set({
+      activeCampaignListId: listId,
+      activeCampaignTagIds: tagIds,
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
+/** Las listas y las etiquetas que ya existen en la cuenta, para los desplegables. */
+export async function fetchAcListsAndTagsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) return { ok: false, listas: [], etiquetas: [] };
+
+  await getOrgLaunch(launchId, organizationId);
+
+  // Si la llamada falla hay que saberlo, y no confundir "no he podido preguntar" con
+  // "ya no existe": sin esa distinción, un corte de red haría que el panel diera por
+  // eliminadas las etiquetas de alguien.
+  const [listas, etiquetas] = await Promise.all([
+    ac.listAllLists().then(
+      (r) => ({ ok: true, datos: r }),
+      () => ({ ok: false, datos: [] as Awaited<ReturnType<typeof ac.listAllLists>> }),
+    ),
+    ac.listAllTags().then(
+      (r) => ({ ok: true, datos: r }),
+      () => ({ ok: false, datos: [] as Awaited<ReturnType<typeof ac.listAllTags>> }),
+    ),
+  ]);
+
+  return {
+    ok: listas.ok && etiquetas.ok,
+    listas: listas.datos.map((l) => ({ id: Number(l.id), nombre: l.name })),
+    etiquetas: etiquetas.datos.map((t) => ({ id: Number(t.id), nombre: t.tag })),
+  };
+}
+
+/**
+ * Conectar el lanzamiento con ActiveCampaign eligiendo qué usar de lo que ya hay.
+ *
+ * El botón de antes creaba siempre lista y cuatro etiquetas nuevas. Para quien
+ * empieza está bien; para quien ya tiene su cuenta montada era duplicar su
+ * estructura y partir sus contactos en dos. Aquí cada hueco se elige: una lista o
+ * etiqueta existente, una nueva, o ninguna.
+ *
+ * Los ids llegan del formulario, así que se comprueba que existan de verdad en la
+ * cuenta antes de guardarlos: un id inventado se guardaría igual y el fallo saldría
+ * semanas después, cuando un registro no apareciese en ninguna lista.
+ */
+export async function linkActiveCampaignAction(
+  launchId: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const ac = await getActiveCampaignClientForOrg(organizationId);
+  if (!ac) throw new Error("activecampaign_not_configured");
+
+  const launch = await getOrgLaunch(launchId, organizationId);
+  const publicUrl = `${env.APP_URL}/${launch.slug}`;
+
+  const listaPedida = String(formData.get("listId") ?? "").trim();
+  let listId: number | null = launch.activeCampaignListId;
+
+  if (listaPedida === "nueva") {
+    const list = await ac.findOrCreateList({
+      name: `Lanz: ${launch.name}`,
+      senderUrl: publicUrl,
+      senderReminder: `Te suscribiste en ${publicUrl}`,
+    });
+    listId = Number(list.id);
+  } else if (listaPedida) {
+    const existentes = await ac.listAllLists();
+    const elegida = existentes.find((l) => String(l.id) === listaPedida);
+    if (!elegida) {
+      throw new Error(
+        "Esa lista ya no está en ActiveCampaign. Vuelve a cargar la página y elige otra.",
+      );
+    }
+    listId = Number(elegida.id);
+  }
+
+  const CLAVES = acTagsFor(launch.type);
+
+  const etiquetasExistentes = await ac.listAllTags();
+  const tagIds: Record<string, number> = {};
+
+  for (const clave of CLAVES) {
+    const pedida = String(formData.get(`tag_${clave.key}`) ?? "").trim();
+    if (!pedida) continue; // sin etiqueta para este caso, a propósito
+
+    if (pedida === "nueva") {
+      const tag = await ac.findOrCreateTag(
+        `${launch.slug}${clave.suffix}`,
+        clave.description,
+      );
+      tagIds[clave.key] = Number(tag.id);
+      continue;
+    }
+
+    const elegida = etiquetasExistentes.find((t) => String(t.id) === pedida);
+    if (!elegida) {
+      throw new Error(
+        `La etiqueta elegida para "${clave.label}" ya no está en ActiveCampaign. Vuelve a cargar la página.`,
+      );
+    }
+    tagIds[clave.key] = Number(elegida.id);
+  }
 
   await db
     .update(launches)
@@ -4315,4 +4432,171 @@ export async function fetchPdcAccountsAction(launchId: string) {
   ]);
 
   return { stripeAccounts, billingAccounts };
+}
+
+/* ------------------------------------------------- archivar y borrar ------- */
+
+/**
+ * Qué hay hecho en un lanzamiento, para saber si se puede borrar.
+ *
+ * Un lanzamiento vacío es un error de hace dos minutos —un nombre mal escrito, uno
+ * duplicado por pulsar dos veces— y borrarlo no pierde nada. Uno con una visita ya
+ * registrada es historia: aunque el cliente no lo lanzara nunca, esos números son
+ * lo único que queda de lo que pasó. Ese se archiva, no se borra.
+ */
+async function launchFootprint(launchId: string) {
+  const [[paginas], [productos], [eventos], [pedidos]] = await Promise.all([
+    db
+      .select({ n: sqlCount() })
+      .from(assets)
+      .where(eq(assets.launchId, launchId)),
+    db
+      .select({ n: sqlCount() })
+      .from(products)
+      .where(eq(products.launchId, launchId)),
+    db
+      .select({ n: sqlCount() })
+      .from(trackingEvents)
+      .where(eq(trackingEvents.launchId, launchId)),
+    db.select({ n: sqlCount() }).from(orders).where(eq(orders.launchId, launchId)),
+  ]);
+
+  return {
+    paginas: Number(paginas?.n ?? 0),
+    productos: Number(productos?.n ?? 0),
+    eventos: Number(eventos?.n ?? 0),
+    pedidos: Number(pedidos?.n ?? 0),
+  };
+}
+
+export async function launchCanBeDeleted(launchId: string) {
+  const huella = await launchFootprint(launchId);
+  const total =
+    huella.paginas + huella.productos + huella.eventos + huella.pedidos;
+  return {
+    puede: total === 0,
+    huella,
+  };
+}
+
+/** Fuera de la galaxia, pero sin perder nada. Reversible. */
+export async function archiveLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  await db
+    .update(launches)
+    .set({ status: "archived", updatedAt: new Date() })
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    );
+
+  revalidatePath("/admin");
+  redirect("/admin");
+}
+
+export async function unarchiveLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  await db
+    .update(launches)
+    .set({ status: "draft", updatedAt: new Date() })
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    );
+
+  revalidatePath("/admin");
+}
+
+/**
+ * Borrar de verdad, y solo si no hay nada hecho.
+ *
+ * La comprobación se repite aquí aunque el botón ya no aparezca cuando hay algo: el
+ * botón es una cortesía y esto es la garantía. Entre que se pinta la pantalla y se
+ * pulsa pueden pasar cosas —una visita, una compra— y lo que decide tiene que ser
+ * el estado de ahora, no el de hace un rato.
+ */
+export async function deleteLaunchAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  if (!organizationId) throw new Error("no_organization");
+
+  const [launch] = await db
+    .select()
+    .from(launches)
+    .where(
+      and(eq(launches.id, launchId), eq(launches.organizationId, organizationId)),
+    )
+    .limit(1);
+  if (!launch) throw new Error("launch_not_found");
+
+  const { puede, huella } = await launchCanBeDeleted(launchId);
+  if (!puede) {
+    throw new Error(
+      `Este lanzamiento ya tiene cosas dentro (${huella.paginas} páginas, ${huella.productos} productos, ${huella.eventos} visitas o registros, ${huella.pedidos} pedidos). Archívalo en vez de borrarlo: se quita de la galaxia y no se pierde nada.`,
+    );
+  }
+
+  await db.delete(launches).where(eq(launches.id, launchId));
+
+  revalidatePath("/admin");
+  redirect("/admin");
+}
+
+/* ------------------------------------------------------------------- seo --- */
+
+/**
+ * El SEO de una página: título, descripción, imagen de la tarjeta y si se indexa.
+ *
+ * Se guarda en el lanzamiento y por `pageKey`, no con el contenido de la página: el
+ * contenido se sustituye —se regenera desde el panel, se rediseña en Claude— y el
+ * título con el que la página sale en Google no tiene por qué irse con él.
+ */
+export async function updatePageSeoAction(
+  launchId: string,
+  pageKey: string,
+  formData: FormData,
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const texto = (campo: string, max: number) => {
+    const valor = String(formData.get(campo) ?? "").trim();
+    return valor ? valor.slice(0, max) : undefined;
+  };
+
+  const indexar = String(formData.get("index") ?? "");
+  const nuevo: PageSeo = {
+    // Los límites son los que de verdad se enseñan: Google corta el título sobre los
+    // 60 caracteres y la descripción sobre los 160. Guardar más es guardar algo que
+    // nadie va a leer, y encima esconde que está cortado.
+    title: texto("title", 70),
+    description: texto("description", 200),
+    imageUrl: texto("imageUrl", 500),
+    canonicalUrl: texto("canonicalUrl", 500),
+    ...(indexar === "si"
+      ? { index: true }
+      : indexar === "no"
+        ? { index: false }
+        : {}),
+  };
+
+  const actual = (launch.seo ?? {}) as Record<string, PageSeo>;
+  const limpio = Object.fromEntries(
+    Object.entries(nuevo).filter(([, v]) => v !== undefined),
+  ) as PageSeo;
+
+  const seo = { ...actual };
+  // Un ajuste vacío se borra en vez de guardarse como objeto vacío: así "sin nada
+  // configurado" es una sola cosa y no dos que se parecen.
+  if (Object.keys(limpio).length === 0) delete seo[pageKey];
+  else seo[pageKey] = limpio;
+
+  await db
+    .update(launches)
+    .set({ seo, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}/paginas/${pageKey}`);
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
 }

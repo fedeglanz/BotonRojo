@@ -16,7 +16,16 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, launches, users } from "@/db/schema";
 import { requireOrgAdmin } from "@/lib/auth-helpers";
-import { pagePath, resolvePages, contentUnlockDate } from "@/lib/launch-pages";
+import {
+  publicPageUrl,
+  resolvePages,
+  contentUnlockDate,
+} from "@/lib/launch-pages";
+import { listDomainsForLaunch } from "@/server/domains";
+import { SeoPanel } from "@/components/admin/seo-panel";
+import { updatePageSeoAction } from "@/server/launches";
+import { seoFor, shouldIndex } from "@/lib/page-seo";
+import { listMediaForLaunch } from "@/server/media-store";
 import { fieldsForKind } from "@/lib/page-fields";
 import { LAUNCH_TYPES, type LaunchType } from "@/lib/launch-types";
 
@@ -88,15 +97,41 @@ export default async function LaunchPageEditor(props: {
   const fromClaude = isCustomPageBody(asset?.body);
   // Un botón que abre Claude solo sirve si la cuenta tiene el conector conectado.
   const connector = await hasActiveConnector(launch.organizationId);
-  const publicUrl = pagePath(launch.slug, pageDef);
+  // La dirección pública de verdad: la del dominio propio si el lanzamiento tiene
+  // uno conectado, y solo entonces la de la plataforma.
+  const domainHostname =
+    (await listDomainsForLaunch(launch.id)).find((d) => d.status === "active")
+      ?.hostname ?? null;
+  // El diseño del que salió esta página, y el proyecto donde vive. Con ellos, el
+  // botón de Claude abre el trabajo que ya existe en vez de una pantalla en blanco.
+  const designUrl =
+    isCustomPageBody(asset?.body) && asset.body.designUrl
+      ? asset.body.designUrl
+      : null;
+  const claudeHref =
+    ((launch.assetsCache as Record<string, unknown> | null)
+      ?.claudeProjectUrl as string | undefined) ??
+    designUrl ??
+    CLAUDE_DESIGN_URL;
+
+  const fotosDelLanzamiento = await listMediaForLaunch({
+    organizationId: launch.organizationId,
+    launchId: launch.id,
+  }).catch(() => []);
+
+  const publicUrl = publicPageUrl({
+    appUrl: env.APP_URL,
+    hostname: domainHostname,
+    slug: launch.slug,
+    page: pageDef,
+  });
   const claudeLinkArgs = {
     launchSlug: launch.slug,
     launchName: launch.name,
     pageKey,
     pageLabel: pageDef.label,
-    publicUrl: `${env.APP_URL.replace(/\/$/, "")}${publicUrl}`,
+    publicUrl,
   };
-  const publicPath = pagePath(launch.slug, pageDef);
   const unlockDate = contentUnlockDate(launch.contentDripStartsAt, pageKey);
 
   // Version history is only kept for the sales page, which is the one edited
@@ -159,7 +194,7 @@ export default async function LaunchPageEditor(props: {
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
               <code className="text-[var(--color-red-bright)]">
-                {publicPath}
+                {publicUrl.replace(/^https?:\/\//, "")}
               </code>
               {" · "}
               {fromClaude
@@ -175,8 +210,19 @@ export default async function LaunchPageEditor(props: {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {designUrl && (
+              <a
+                href={designUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-300 transition hover:bg-emerald-400/20"
+              >
+                Abrir en Claude ↗
+              </a>
+            )}
+
             <a
-              href={publicPath}
+              href={publicUrl}
               target="_blank"
               rel="noreferrer"
               className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-[var(--color-red)]"
@@ -190,7 +236,7 @@ export default async function LaunchPageEditor(props: {
               <ClaudeGoButton
                 hasConnector={connector}
                 label={fromClaude ? "Cambiar en Claude" : "Diseñar en Claude"}
-                href={CLAUDE_DESIGN_URL}
+                href={claudeHref}
                 prompt={
                   fromClaude
                     ? claudeEditPagePrompt(claudeLinkArgs)
@@ -386,6 +432,30 @@ export default async function LaunchPageEditor(props: {
           refineAction={refinePageFieldAction}
         />
       )}
+
+      {/* El SEO va al final y en todas las páginas, también en las diseñadas en
+          Claude: es de la página, no de cómo se hizo. */}
+      <section className="mt-10 rounded-xl border border-white/10 bg-black/20 p-5">
+        <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+          SEO y cómo se comparte
+        </div>
+        <div className="mt-4">
+          <SeoPanel
+            pageLabel={pageDef.label}
+            publicUrl={publicUrl}
+            seo={seoFor(launch, pageKey)}
+            indexaPorDefecto={shouldIndex(
+              { ...launch, seo: null },
+              pageDef,
+            )}
+            fotos={fotosDelLanzamiento.map((f) => ({
+              url: f.url,
+              etiqueta: f.label,
+            }))}
+            saveAction={updatePageSeoAction.bind(null, launch.id, pageKey)}
+          />
+        </div>
+      </section>
     </div>
   );
 }
