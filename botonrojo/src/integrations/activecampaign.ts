@@ -247,10 +247,11 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     // *campaign*, not the template.  Including fromemail here causes AC to
     // return 500 if the address isn't verified in the account, and there's no
     // benefit: the campaign step already sets fromemail/fromname.
-    const payload: Record<string, string> = {
+    const payload: Record<string, string | number> = {
       name: input.name,
       subject: input.subject,
       content: input.html,  // AC API field is "content", not "html"
+      hidden: 0,            // Visible in template gallery/picker
     };
     // Only add from fields when the caller explicitly passes them (none do today).
     if (input.fromEmail) payload.fromemail = input.fromEmail;
