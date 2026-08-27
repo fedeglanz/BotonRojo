@@ -145,6 +145,10 @@
                es que quiere quedarse en la página; irse a /gracias se lo comería. */
             var next = form.getAttribute("data-br-next");
             var ok = document.querySelector('[data-br="lead-ok"]');
+            /* Si el diseño puso data-br-next="/gracias" sin query params, usamos
+               el leadNext de la plataforma que ya incluye ?lead=1&launch={slug}.
+               Así la página de gracias sabe de qué lanzamiento se trata. */
+            if (next === "/gracias") next = cfg.leadNext || next;
             if (!next && !ok) next = cfg.leadNext;
 
             if (next) {
