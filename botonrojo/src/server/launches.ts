@@ -3040,9 +3040,13 @@ export async function pushEmailsToActiveCampaignAction(
       const sizeKb = Math.round(htmlSize / 1024);
       console.error(`[pushEmails] Template ${i + 1} failed after retry (${sizeKb}KB):`, lastErr);
 
-      let reason = `ActiveCampaign rechazo la plantilla: ${msg.slice(0, 120)}`;
+      let reason = `ActiveCampaign rechazo la plantilla: ${msg.slice(0, 200)}`;
       if (msg.includes("500")) {
-        reason = `ActiveCampaign devolvio error 500 (HTML: ${sizeKb}KB). Puede ser contenido muy largo, caracteres especiales, o un problema temporal de AC. Intenta acortar el email.`;
+        reason = sizeKb > 500
+          ? `Error 500 de AC — HTML muy grande (${sizeKb}KB). Acorta el contenido.`
+          : `Error 500 de AC (HTML: ${sizeKb}KB, tamano OK). Posible causa: el email remitente no esta verificado en AC, o la cuenta de AC tiene un problema. Revisa en AC > Configuracion > Direcciones de correo que el remitente este verificado.`;
+      } else if (msg.includes("422") || msg.includes("400")) {
+        reason = `AC rechazo el contenido (${msg.slice(0, 150)}). Puede haber caracteres o formato invalido en el email.`;
       }
 
       errors.push({ index: i + 1, subject: email.subject.slice(0, 60), reason });

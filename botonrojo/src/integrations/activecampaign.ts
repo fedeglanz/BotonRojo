@@ -90,6 +90,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      console.error(`[AC] ${init.method ?? "GET"} ${path} → ${res.status}: ${body.slice(0, 500)}`);
       throw new ActiveCampaignError(res.status, body);
     }
     return (await res.json()) as T;
@@ -242,17 +243,23 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     fromName?: string;
     fromEmail?: string;
   }): Promise<ACTemplate> {
+    // Build the payload — only include from fields if we have them, AC uses
+    // the account default otherwise and rejects unverified senders with a 500.
+    const payload: Record<string, string> = {
+      name: input.name,
+      subject: input.subject,
+      html: input.html,
+    };
+    const fromEmail = input.fromEmail ?? creds.fromEmail;
+    const fromName = input.fromName ?? creds.fromName;
+    if (fromEmail) payload.fromemail = fromEmail;
+    if (fromName) payload.fromname = fromName;
+
+    console.log(`[AC] Creating template "${input.name.slice(0, 50)}" (HTML: ${Math.round(input.html.length / 1024)}KB, from: ${fromEmail || "default"})`);
+
     const res = await ac<{ template: ACTemplate }>("/templates", {
       method: "POST",
-      body: JSON.stringify({
-        template: {
-          name: input.name,
-          subject: input.subject,
-          fromemail: input.fromEmail ?? creds.fromEmail,
-          fromname: input.fromName ?? creds.fromName,
-          html: input.html,
-        },
-      }),
+      body: JSON.stringify({ template: payload }),
     });
     return res.template;
   }
