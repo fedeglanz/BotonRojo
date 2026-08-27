@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, desc, count as sqlCount } from "drizzle-orm";
+import { eq, ne, and, desc, count as sqlCount } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -2969,8 +2969,27 @@ export async function pushEmailsToActiveCampaignAction(
       ctaText?: string;
       ctaUrl?: string;
       approved?: boolean;
+      phase?: string;
     }>;
   };
+
+  // Find phases already covered by designed emails (they replace the IA ones)
+  const designedAssets = await db
+    .select()
+    .from(assets)
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.organizationId, organizationId),
+        eq(assets.kind, "email"),
+        ne(assets.id, assetId),
+      ),
+    );
+  const designedPhases = new Set(
+    designedAssets
+      .filter((a) => isCustomEmailBody(a.body) && a.body.phase)
+      .map((a) => (a.body as { phase: string }).phase),
+  );
 
   const brand: EmailBrandKit = {
     logoUrl: launch.brandLogoUrl,
@@ -2992,6 +3011,12 @@ export async function pushEmailsToActiveCampaignAction(
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     if (!email) continue;
+
+    // Skip IA emails whose phase is covered by a designed email
+    if (email.phase && designedPhases.has(email.phase)) {
+      console.log(`[pushEmails] Skipping IA email ${i + 1} "${email.subject.slice(0, 40)}" — replaced by designed email for phase "${email.phase}"`);
+      continue;
+    }
 
     const html = wrapEmailHtml(
       email.body,
