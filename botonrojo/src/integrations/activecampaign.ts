@@ -250,7 +250,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     const payload: Record<string, string> = {
       name: input.name,
       subject: input.subject,
-      html: input.html,
+      content: input.html,  // AC API field is "content", not "html"
     };
     // Only add from fields when the caller explicitly passes them (none do today).
     if (input.fromEmail) payload.fromemail = input.fromEmail;
