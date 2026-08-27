@@ -1,7 +1,17 @@
+"use client";
+
+import { useState } from "react";
 import { SubmitButton } from "./submit-button";
 import { Button } from "@/components/ui/button";
 
 import { acTagsFor } from "@/lib/ac-tags";
+
+type PushResult = {
+  ok: boolean;
+  created: number;
+  total: number;
+  errors: Array<{ index: number; subject: string; reason: string }>;
+};
 
 type Opcion = { id: number; nombre: string };
 
@@ -27,7 +37,7 @@ type Props = {
   hasTemplates: boolean;
   hasCampaigns: boolean;
   hasMilestones: boolean;
-  pushEmailsAction: (launchId: string, assetId: string) => Promise<void>;
+  pushEmailsAction: (launchId: string, assetId: string) => Promise<PushResult>;
   scheduleCampaignsAction: (launchId: string) => Promise<void>;
 };
 
@@ -83,6 +93,27 @@ export function ActiveCampaignPanel({
         }),
       ].filter((x): x is string => Boolean(x));
   const canSchedule = provisioned && hasTemplates && hasMilestones;
+  const [pushResult, setPushResult] = useState<PushResult | null>(null);
+  const [pushing, setPushing] = useState(false);
+
+  async function handlePushEmails() {
+    if (!emailAssetId) return;
+    setPushing(true);
+    setPushResult(null);
+    try {
+      const result = await pushEmailsAction(launchId, emailAssetId);
+      setPushResult(result);
+    } catch (err) {
+      setPushResult({
+        ok: false,
+        created: 0,
+        total: 0,
+        errors: [{ index: 0, subject: "", reason: err instanceof Error ? err.message : "Error desconocido" }],
+      });
+    } finally {
+      setPushing(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -255,22 +286,54 @@ export function ActiveCampaignPanel({
       </form>
 
       {/* Step 2: Push email templates */}
-      <div className="flex flex-wrap items-center gap-3">
-        {hasEmails && emailAssetId ? (
-          <form action={pushEmailsAction.bind(null, launchId, emailAssetId)}>
-            <SubmitButton
-              variant={hasTemplates ? "outline" : "primary"}
-              pendingLabel="Subiendo plantillas…"
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {hasEmails && emailAssetId ? (
+            <button
+              type="button"
+              onClick={handlePushEmails}
+              disabled={pushing}
+              className={`rounded-md px-4 py-2 text-xs font-semibold uppercase tracking-widest transition ${
+                hasTemplates
+                  ? "border border-white/10 text-zinc-300 hover:border-white/30 hover:text-white"
+                  : "bg-white text-black hover:bg-zinc-200"
+              } disabled:opacity-50`}
             >
-              {hasTemplates
-                ? "Re-subir plantillas de email"
-                : "2. Subir emails como plantillas AC"}
-            </SubmitButton>
-          </form>
-        ) : (
-          <Button variant="ghost" disabled>
-            2. Genera la secuencia de emails antes
-          </Button>
+              {pushing
+                ? "Subiendo plantillas..."
+                : hasTemplates
+                  ? "Re-subir plantillas de email"
+                  : "2. Subir emails como plantillas AC"}
+            </button>
+          ) : (
+            <Button variant="ghost" disabled>
+              2. Genera la secuencia de emails antes
+            </Button>
+          )}
+        </div>
+
+        {pushResult && pushResult.ok && (
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
+            {pushResult.created}/{pushResult.total} plantillas subidas correctamente a ActiveCampaign.
+          </div>
+        )}
+
+        {pushResult && !pushResult.ok && (
+          <div className="space-y-2 rounded-lg border border-red-400/30 bg-red-500/5 p-3 text-xs text-red-200">
+            <div className="font-semibold">
+              {pushResult.created > 0
+                ? `${pushResult.created}/${pushResult.total} subidas. Algunas fallaron:`
+                : "No se pudieron subir las plantillas:"}
+            </div>
+            {pushResult.errors.map((e, i) => (
+              <div key={i} className="ml-2 border-l border-red-400/20 pl-2">
+                {e.index > 0 && (
+                  <span className="font-medium">Email #{e.index}{e.subject ? ` "${e.subject}"` : ""}: </span>
+                )}
+                {e.reason}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

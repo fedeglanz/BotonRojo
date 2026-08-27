@@ -2940,10 +2940,15 @@ export async function linkActiveCampaignAction(
 export async function pushEmailsToActiveCampaignAction(
   launchId: string,
   assetId: string,
-) {
+): Promise<{
+  ok: boolean;
+  created: number;
+  total: number;
+  errors: Array<{ index: number; subject: string; reason: string }>;
+}> {
   const { organizationId } = await requireOrgAdmin();
   const ac = await getActiveCampaignClientForOrg(organizationId);
-  if (!ac) throw new Error("activecampaign_not_configured");
+  if (!ac) return { ok: false, created: 0, total: 0, errors: [{ index: 0, subject: "", reason: "ActiveCampaign no esta configurado" }] };
 
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -2954,7 +2959,7 @@ export async function pushEmailsToActiveCampaignAction(
       and(eq(assets.id, assetId), eq(assets.organizationId, organizationId)),
     )
     .limit(1);
-  if (!asset || asset.kind !== "email") throw new Error("asset_not_found");
+  if (!asset || asset.kind !== "email") return { ok: false, created: 0, total: 0, errors: [{ index: 0, subject: "", reason: "Asset de email no encontrado" }] };
 
   const sequence = asset.body as {
     emails: Array<{
@@ -2977,43 +2982,91 @@ export async function pushEmailsToActiveCampaignAction(
   // Only push approved emails (or all if none have the approved field yet — backwards compat)
   const hasApprovalField = sequence.emails.some((e) => "approved" in e);
   if (hasApprovalField && !sequence.emails.every((e) => e.approved)) {
-    throw new Error("not_all_emails_approved");
+    return { ok: false, created: 0, total: sequence.emails.length, errors: [{ index: 0, subject: "", reason: "Hay emails sin aprobar. Aproba todos antes de subir." }] };
   }
 
+  const AC_HTML_LIMIT = 900_000; // AC rejects templates near 1MB
   const templateIds: string[] = [];
+  const errors: Array<{ index: number; subject: string; reason: string }> = [];
+
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     if (!email) continue;
-    try {
-      const tpl = await ac.createEmailTemplate({
-        name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
-        subject: email.subject,
-        html: wrapEmailHtml(
-          email.body,
-          email.preheader ?? "",
-          email.ctaText,
-          email.ctaUrl,
-          brand,
-        ),
+
+    const html = wrapEmailHtml(
+      email.body,
+      email.preheader ?? "",
+      email.ctaText,
+      email.ctaUrl,
+      brand,
+    );
+    const htmlSize = new Blob([html]).size;
+
+    if (htmlSize > AC_HTML_LIMIT) {
+      const sizeKb = Math.round(htmlSize / 1024);
+      console.error(`[pushEmails] Email ${i + 1} too large: ${sizeKb}KB (limit ~900KB)`);
+      errors.push({
+        index: i + 1,
+        subject: email.subject.slice(0, 60),
+        reason: `HTML demasiado grande (${sizeKb}KB). Acorta el contenido del email o simplifica el formato.`,
       });
-      templateIds.push(tpl.id);
-    } catch (err) {
-      console.error(`[pushEmails] Error creating template ${i + 1}/${sequence.emails.length}:`, err);
-      throw new Error(
-        `Error al crear plantilla #${i + 1} ("${email.subject.slice(0, 40)}"): ${err instanceof Error ? err.message : String(err)}`,
-      );
+      templateIds.push(""); // placeholder to keep indices aligned
+      continue;
+    }
+
+    // Try up to 2 times (AC sometimes returns transient 500s)
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const tpl = await ac.createEmailTemplate({
+          name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
+          subject: email.subject,
+          html,
+        });
+        templateIds.push(tpl.id);
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 0) {
+          console.warn(`[pushEmails] Template ${i + 1} failed, retrying in 2s...`);
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+    }
+
+    if (lastErr) {
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      const sizeKb = Math.round(htmlSize / 1024);
+      console.error(`[pushEmails] Template ${i + 1} failed after retry (${sizeKb}KB):`, lastErr);
+
+      let reason = `ActiveCampaign rechazo la plantilla: ${msg.slice(0, 120)}`;
+      if (msg.includes("500")) {
+        reason = `ActiveCampaign devolvio error 500 (HTML: ${sizeKb}KB). Puede ser contenido muy largo, caracteres especiales, o un problema temporal de AC. Intenta acortar el email.`;
+      }
+
+      errors.push({ index: i + 1, subject: email.subject.slice(0, 60), reason });
+      templateIds.push(""); // placeholder
     }
   }
 
-  // Store template IDs in assetsCache for campaign creation
+  // Store whatever template IDs we got (filter out empty placeholders for campaign creation)
+  const validIds = templateIds.filter(Boolean);
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
-  cache.acTemplateIds = templateIds;
+  cache.acTemplateIds = validIds;
   await db
     .update(launches)
     .set({ assetsCache: cache, updatedAt: new Date() })
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+
+  return {
+    ok: errors.length === 0,
+    created: validIds.length,
+    total: sequence.emails.length,
+    errors,
+  };
 }
 
 /**
