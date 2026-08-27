@@ -243,19 +243,20 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     fromName?: string;
     fromEmail?: string;
   }): Promise<ACTemplate> {
-    // Build the payload — only include from fields if we have them, AC uses
-    // the account default otherwise and rejects unverified senders with a 500.
+    // Templates are content-only — the sender is set when creating the
+    // *campaign*, not the template.  Including fromemail here causes AC to
+    // return 500 if the address isn't verified in the account, and there's no
+    // benefit: the campaign step already sets fromemail/fromname.
     const payload: Record<string, string> = {
       name: input.name,
       subject: input.subject,
       html: input.html,
     };
-    const fromEmail = input.fromEmail ?? creds.fromEmail;
-    const fromName = input.fromName ?? creds.fromName;
-    if (fromEmail) payload.fromemail = fromEmail;
-    if (fromName) payload.fromname = fromName;
+    // Only add from fields when the caller explicitly passes them (none do today).
+    if (input.fromEmail) payload.fromemail = input.fromEmail;
+    if (input.fromName) payload.fromname = input.fromName;
 
-    console.log(`[AC] Creating template "${input.name.slice(0, 50)}" (HTML: ${Math.round(input.html.length / 1024)}KB, from: ${fromEmail || "default"})`);
+    console.log(`[AC] Creating template "${input.name.slice(0, 50)}" (HTML: ${Math.round(input.html.length / 1024)}KB)`);
 
     const res = await ac<{ template: ACTemplate }>("/templates", {
       method: "POST",
