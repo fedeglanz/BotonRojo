@@ -252,6 +252,7 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
       subject: input.subject,
       content: input.html,  // AC API field is "content", not "html"
       hidden: 0,            // Visible in template gallery/picker
+      ed_version: 2,        // "current" editor — makes templates appear in the design tool picker
     };
     // Only add from fields when the caller explicitly passes them (none do today).
     if (input.fromEmail) payload.fromemail = input.fromEmail;
