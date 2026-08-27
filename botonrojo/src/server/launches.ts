@@ -2952,6 +2952,7 @@ export async function pushEmailsToActiveCampaignAction(
 
   const launch = await getOrgLaunch(launchId, organizationId);
 
+  // Load the IA sequence asset
   const [asset] = await db
     .select()
     .from(assets)
@@ -2973,7 +2974,7 @@ export async function pushEmailsToActiveCampaignAction(
     }>;
   };
 
-  // Find phases already covered by designed emails (they replace the IA ones)
+  // Load designed emails for this launch
   const designedAssets = await db
     .select()
     .from(assets)
@@ -2985,9 +2986,12 @@ export async function pushEmailsToActiveCampaignAction(
         ne(assets.id, assetId),
       ),
     );
+  const designedEmails = designedAssets.filter(
+    (a) => isCustomEmailBody(a.body) && a.body.approved,
+  );
   const designedPhases = new Set(
-    designedAssets
-      .filter((a) => isCustomEmailBody(a.body) && a.body.phase)
+    designedEmails
+      .filter((a) => (a.body as { phase?: string }).phase)
       .map((a) => (a.body as { phase: string }).phase),
   );
 
@@ -2998,63 +3002,103 @@ export async function pushEmailsToActiveCampaignAction(
     launchName: launch.name,
   };
 
-  // Only push approved emails (or all if none have the approved field yet — backwards compat)
-  const hasApprovalField = sequence.emails.some((e) => "approved" in e);
-  if (hasApprovalField && !sequence.emails.every((e) => e.approved)) {
-    return { ok: false, created: 0, total: sequence.emails.length, errors: [{ index: 0, subject: "", reason: "Hay emails sin aprobar. Aproba todos antes de subir." }] };
-  }
+  // Build a unified list: IA emails (not replaced) + designed emails
+  type EmailToPush = {
+    index: number;
+    name: string;
+    subject: string;
+    html: string;
+    source: "ia" | "designed";
+    designedAssetId?: string;
+  };
+  const emailsToPush: EmailToPush[] = [];
 
-  const AC_HTML_LIMIT = 900_000; // AC rejects templates near 1MB
-  const templateIds: string[] = [];
-  const errors: Array<{ index: number; subject: string; reason: string }> = [];
-
+  // Add IA emails that aren't replaced by designed ones
   for (let i = 0; i < sequence.emails.length; i++) {
     const email = sequence.emails[i];
     if (!email) continue;
-
-    // Skip IA emails whose phase is covered by a designed email
     if (email.phase && designedPhases.has(email.phase)) {
-      console.log(`[pushEmails] Skipping IA email ${i + 1} "${email.subject.slice(0, 40)}" — replaced by designed email for phase "${email.phase}"`);
+      console.log(`[pushEmails] Skipping IA email ${i + 1} "${email.subject.slice(0, 40)}" — replaced by designed for phase "${email.phase}"`);
       continue;
     }
+    if (!email.approved && sequence.emails.some((e) => "approved" in e)) {
+      continue; // skip unapproved IA emails
+    }
+    emailsToPush.push({
+      index: i + 1,
+      name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
+      subject: email.subject,
+      html: wrapEmailHtml(email.body, email.preheader ?? "", email.ctaText, email.ctaUrl, brand),
+      source: "ia",
+    });
+  }
 
-    const html = wrapEmailHtml(
-      email.body,
-      email.preheader ?? "",
-      email.ctaText,
-      email.ctaUrl,
-      brand,
-    );
-    const htmlSize = new Blob([html]).size;
+  // Add designed emails
+  for (const da of designedEmails) {
+    const body = da.body as import("@/lib/custom-email").CustomEmailBody;
+    emailsToPush.push({
+      index: emailsToPush.length + 1,
+      name: `${launch.slug} · ${body.name}`.slice(0, 100),
+      subject: body.subject,
+      html: body.html,
+      source: "designed",
+      designedAssetId: da.id,
+    });
+  }
+
+  if (emailsToPush.length === 0) {
+    return { ok: false, created: 0, total: 0, errors: [{ index: 0, subject: "", reason: "No hay emails para subir." }] };
+  }
+
+  // Delete previous templates from AC to avoid duplicates
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const oldTemplateIds = (cache.acTemplateIds as string[] | undefined) ?? [];
+  for (const oldId of oldTemplateIds) {
+    try {
+      await ac.deleteEmailTemplate(oldId);
+    } catch {
+      // Template may have been deleted manually in AC — ignore
+    }
+  }
+
+  const AC_HTML_LIMIT = 900_000;
+  const templateIds: string[] = [];
+  const errors: Array<{ index: number; subject: string; reason: string }> = [];
+
+  for (const email of emailsToPush) {
+    const htmlSize = new Blob([email.html]).size;
 
     if (htmlSize > AC_HTML_LIMIT) {
       const sizeKb = Math.round(htmlSize / 1024);
-      console.error(`[pushEmails] Email ${i + 1} too large: ${sizeKb}KB (limit ~900KB)`);
-      errors.push({
-        index: i + 1,
-        subject: email.subject.slice(0, 60),
-        reason: `HTML demasiado grande (${sizeKb}KB). Acorta el contenido del email o simplifica el formato.`,
-      });
-      templateIds.push(""); // placeholder to keep indices aligned
+      errors.push({ index: email.index, subject: email.subject.slice(0, 60), reason: `HTML demasiado grande (${sizeKb}KB).` });
       continue;
     }
 
-    // Try up to 2 times (AC sometimes returns transient 500s)
     let lastErr: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const tpl = await ac.createEmailTemplate({
-          name: `${launch.slug} · ${String(i + 1).padStart(2, "0")} · ${email.subject.slice(0, 60)}`,
+          name: email.name,
           subject: email.subject,
-          html,
+          html: email.html,
         });
         templateIds.push(tpl.id);
+
+        // For designed emails, also store the template ID in the asset
+        if (email.source === "designed" && email.designedAssetId) {
+          const daBody = designedEmails.find((d) => d.id === email.designedAssetId)!.body as Record<string, unknown>;
+          await db
+            .update(assets)
+            .set({ body: { ...daBody, acTemplateId: tpl.id }, updatedAt: new Date() })
+            .where(eq(assets.id, email.designedAssetId));
+        }
+
         lastErr = null;
         break;
       } catch (err) {
         lastErr = err;
         if (attempt === 0) {
-          console.warn(`[pushEmails] Template ${i + 1} failed, retrying in 2s...`);
+          console.warn(`[pushEmails] Template "${email.name.slice(0, 40)}" failed, retrying in 2s...`);
           await new Promise((r) => setTimeout(r, 2000));
         }
       }
@@ -3063,26 +3107,21 @@ export async function pushEmailsToActiveCampaignAction(
     if (lastErr) {
       const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
       const sizeKb = Math.round(htmlSize / 1024);
-      console.error(`[pushEmails] Template ${i + 1} failed after retry (${sizeKb}KB):`, lastErr);
+      console.error(`[pushEmails] Template "${email.name.slice(0, 40)}" failed after retry (${sizeKb}KB):`, lastErr);
 
       let reason = `ActiveCampaign rechazo la plantilla: ${msg.slice(0, 200)}`;
       if (msg.includes("500")) {
-        reason = sizeKb > 500
-          ? `Error 500 de AC — HTML muy grande (${sizeKb}KB). Acorta el contenido.`
-          : `Error 500 de AC (HTML: ${sizeKb}KB, tamano OK). Posible causa: el email remitente no esta verificado en AC, o la cuenta de AC tiene un problema. Revisa en AC > Configuracion > Direcciones de correo que el remitente este verificado.`;
+        reason = `Error 500 de AC (HTML: ${sizeKb}KB). Revisa en AC > Configuracion > Direcciones de correo.`;
       } else if (msg.includes("422") || msg.includes("400")) {
-        reason = `AC rechazo el contenido (${msg.slice(0, 150)}). Puede haber caracteres o formato invalido en el email.`;
+        reason = `AC rechazo el contenido (${msg.slice(0, 150)}).`;
       }
 
-      errors.push({ index: i + 1, subject: email.subject.slice(0, 60), reason });
-      templateIds.push(""); // placeholder
+      errors.push({ index: email.index, subject: email.subject.slice(0, 60), reason });
     }
   }
 
-  // Store whatever template IDs we got (filter out empty placeholders for campaign creation)
-  const validIds = templateIds.filter(Boolean);
-  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
-  cache.acTemplateIds = validIds;
+  // Store all template IDs
+  cache.acTemplateIds = templateIds;
   await db
     .update(launches)
     .set({ assetsCache: cache, updatedAt: new Date() })
@@ -3092,8 +3131,8 @@ export async function pushEmailsToActiveCampaignAction(
 
   return {
     ok: errors.length === 0,
-    created: validIds.length,
-    total: sequence.emails.length,
+    created: templateIds.length,
+    total: emailsToPush.length,
     errors,
   };
 }

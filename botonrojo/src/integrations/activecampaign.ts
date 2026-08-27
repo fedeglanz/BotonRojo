@@ -267,6 +267,30 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     return res.template;
   }
 
+  async function updateEmailTemplate(
+    templateId: string,
+    input: { name?: string; subject?: string; html?: string },
+  ): Promise<ACTemplate> {
+    const payload: Record<string, string | number> = {};
+    if (input.name) payload.name = input.name;
+    if (input.subject) payload.subject = input.subject;
+    if (input.html) payload.content = input.html;
+    payload.hidden = 0;
+    payload.ed_version = 2;
+
+    console.log(`[AC] Updating template ${templateId} "${(input.name ?? "").slice(0, 50)}"`);
+    const res = await ac<{ template: ACTemplate }>(`/templates/${templateId}`, {
+      method: "PUT",
+      body: JSON.stringify({ template: payload }),
+    });
+    return res.template;
+  }
+
+  async function deleteEmailTemplate(templateId: string): Promise<void> {
+    console.log(`[AC] Deleting template ${templateId}`);
+    await ac(`/templates/${templateId}`, { method: "DELETE" });
+  }
+
   // ---- Campaigns (one-time email sends) ----
 
   /**
@@ -456,6 +480,8 @@ export function createActiveCampaignClient(creds: ActiveCampaignCredentials) {
     subscribeToList,
     unsubscribeFromList,
     createEmailTemplate,
+    updateEmailTemplate,
+    deleteEmailTemplate,
     createCampaign,
     findCampaignsByPrefix,
     deleteCampaign,
