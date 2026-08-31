@@ -4555,6 +4555,82 @@ export async function fetchPdcAccountsAction(launchId: string) {
   return { stripeAccounts, billingAccounts };
 }
 
+/**
+ * Inyecta los botones de compra PDC en la página de venta si no los tiene ya.
+ * Devuelve "ok" si se inyectó, "already" si ya existía, "no_page" si no hay página de venta.
+ */
+export async function injectPdcButtonInVentaAction(
+  launchId: string,
+): Promise<{ result: "ok" | "already" | "no_page"; message: string }> {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  // Get PDC checkout URLs from cache
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<{
+    id: number; tipo_pago: string; precio: number; num_cuotas: number | null;
+    checkout_url_stripe: string | null;
+  }>;
+  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe);
+  if (!activeUrls.length) throw new Error("No hay URLs de checkout PDC configuradas.");
+
+  // Find the latest published venta page
+  const ventaAssets = await db
+    .select()
+    .from(assets)
+    .where(
+      and(
+        eq(assets.launchId, launchId),
+        eq(assets.organizationId, organizationId),
+        eq(assets.kind, "landing"),
+        eq(assets.pageKey, "venta"),
+      ),
+    )
+    .orderBy(desc(assets.createdAt))
+    .limit(1);
+
+  const ventaAsset = ventaAssets[0];
+  const ventaBody = ventaAsset?.body as { html?: string } | undefined;
+  const html = ventaBody?.html;
+  if (!ventaAsset || typeof html !== "string") {
+    return { result: "no_page", message: "No hay una página de venta con diseño propio publicada." };
+  }
+
+  // Check if already has comprar-externo
+  if (html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'")) {
+    return { result: "already", message: "La página de venta ya tiene el botón de compra PDC." };
+  }
+
+  // Build the button HTML for each price
+  function pdcPriceLabel(u: typeof activeUrls[number]) {
+    if (u.tipo_pago === "cuotas" && u.num_cuotas) return `${u.precio}€ x ${u.num_cuotas} cuotas`;
+    if (u.tipo_pago === "recurrente") return `${u.precio}€/mes`;
+    return `${u.precio}€`;
+  }
+
+  const buttonsHtml = activeUrls
+    .map(
+      (u) =>
+        `<a href="${u.checkout_url_stripe}" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`,
+    )
+    .join("\n");
+
+  const injectionBlock = `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${buttonsHtml}\n</div>\n`;
+
+  // Inject before </body>
+  const newHtml = html.includes("</body>")
+    ? html.replace("</body>", `${injectionBlock}</body>`)
+    : html + injectionBlock;
+
+  await db
+    .update(assets)
+    .set({ body: { ...(ventaAsset.body as object), html: newHtml }, updatedAt: new Date() })
+    .where(eq(assets.id, ventaAsset.id));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  return { result: "ok", message: `Botón${activeUrls.length > 1 ? "es" : ""} de compra PDC inyectado${activeUrls.length > 1 ? "s" : ""} en la página de venta.` };
+}
+
 /* ------------------------------------------------- archivar y borrar ------- */
 
 /**

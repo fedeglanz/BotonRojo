@@ -70,6 +70,7 @@ import {
   createPdcPriceAction,
   fetchPdcProductAndPricesAction,
   fetchPdcAccountsAction,
+  injectPdcButtonInVentaAction,
   updateMilestoneAction,
   analyzeCalendarAction,
   generateBrandKitAction,
@@ -341,6 +342,17 @@ export default async function LaunchHubPage(props: {
   const hasProduct = Boolean(product);
   const hasAc = Boolean(launch.activeCampaignListId);
   const hasPdc = Boolean(launch.pdcLaunchId);
+
+  // Check if the venta page already has a PDC buy button injected
+  const ventaPageAsset = await db
+    .select({ body: assets.body })
+    .from(assets)
+    .where(and(eq(assets.launchId, launch.id), eq(assets.kind, "landing"), eq(assets.pageKey, "venta")))
+    .orderBy(desc(assets.createdAt))
+    .limit(1)
+    .then((r) => r[0]);
+  const ventaHtml = ventaPageAsset && isCustomPageBody(ventaPageAsset.body) ? ventaPageAsset.body.html : "";
+  const ventaHasPdcButton = ventaHtml.includes('data-br="comprar-externo"') || ventaHtml.includes("data-br='comprar-externo'");
   const hasTelegram = Boolean(launch.telegramChatId);
   const hasMilestones = launchMilestones.length > 0;
   const launchDomains = await listDomainsForLaunch(launch.id);
@@ -1353,6 +1365,8 @@ export default async function LaunchHubPage(props: {
               createPriceAction={createPdcPriceAction}
               fetchProductAction={fetchPdcProductAndPricesAction}
               fetchAccountsAction={fetchPdcAccountsAction}
+              injectPdcButtonAction={injectPdcButtonInVentaAction}
+              ventaHasPdcButton={ventaHasPdcButton}
             />
           </WizardStep>
         </>

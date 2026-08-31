@@ -51,6 +51,8 @@ type Props = {
     stripeAccounts: Array<{ id: number; nombre: string; es_principal: number }>;
     billingAccounts: Array<{ value: string; label: string }>;
   }>;
+  injectPdcButtonAction: (launchId: string) => Promise<{ result: "ok" | "already" | "no_page"; message: string }>;
+  ventaHasPdcButton: boolean;
 };
 
 function CopyButton({ text }: { text: string }) {
@@ -95,9 +97,13 @@ export function PdcCheckoutPanel({
   createPriceAction,
   fetchProductAction,
   fetchAccountsAction,
+  injectPdcButtonAction,
+  ventaHasPdcButton,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [injectResult, setInjectResult] = useState<string | null>(null);
+  const [hasPdcButton, setHasPdcButton] = useState(ventaHasPdcButton);
   const [campusLaunches, setCampusLaunches] = useState<PdcLaunch[] | null>(null);
   const [loadingLaunches, setLoadingLaunches] = useState(false);
   const [pdcProduct, setPdcProduct] = useState<PdcProduct | null>(null);
@@ -570,33 +576,62 @@ export function PdcCheckoutPanel({
       {pdcProductId && activePrices.length > 0 && (
         <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
           <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
-            Como conectar a la pagina de venta
+            Pagina de venta
           </div>
-          <div className="space-y-2 text-[11px] text-zinc-500">
-            <p>
-              Los botones de compra en tu pagina de venta pueden apuntar directamente a estas
-              URLs de checkout del campus. En tu diseno, usa el atributo{" "}
-              <code className="text-sky-400">data-br=&quot;comprar-externo&quot;</code> en el boton
-              con la URL del precio que corresponda:
-            </p>
-            {activePrices.filter((p) => p.checkout_url_stripe).map((p) => (
-              <div key={p.id} className="rounded bg-black/60 p-3 font-[family-name:var(--font-mono)] text-[10px]">
-                <span className="text-zinc-500">&lt;a</span>{" "}
-                <span className="text-amber-300">href</span>
-                <span className="text-zinc-500">=&quot;</span>
-                <span className="text-sky-300">{p.checkout_url_stripe}</span>
-                <span className="text-zinc-500">&quot;</span>{" "}
-                <span className="text-amber-300">data-br</span>
-                <span className="text-zinc-500">=&quot;</span>
-                <span className="text-emerald-300">comprar-externo</span>
-                <span className="text-zinc-500">&quot;&gt;</span>
-                <span className="text-white">{priceLabel(p)}</span>
-                <span className="text-zinc-500">&lt;/a&gt;</span>
+          <div className="space-y-3 text-[11px] text-zinc-500">
+            {hasPdcButton ? (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-emerald-300">
+                <span>✓</span>
+                <span>La pagina de venta ya tiene el boton de compra PDC conectado.</span>
               </div>
-            ))}
-            <p className="text-zinc-600">
-              El runtime de la pagina propagara automaticamente el codigo de afiliado (?ref=) a estas URLs.
-            </p>
+            ) : (
+              <>
+                <p>
+                  La pagina de venta aun no tiene el boton de compra PDC. Podes agregarlo automaticamente:
+                </p>
+                <button
+                  onClick={() => {
+                    startTransition(async () => {
+                      try {
+                        const res = await injectPdcButtonAction(launchId);
+                        if (res.result === "ok") setHasPdcButton(true);
+                        setInjectResult(res.message);
+                      } catch (err) {
+                        setInjectResult(err instanceof Error ? err.message : "Error al inyectar el boton.");
+                      }
+                    });
+                  }}
+                  disabled={isPending}
+                  className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-50"
+                >
+                  {isPending ? "Agregando…" : "Agregar boton de compra a la pagina de venta"}
+                </button>
+                {injectResult && (
+                  <p className="text-zinc-400">{injectResult}</p>
+                )}
+              </>
+            )}
+            <details className="text-zinc-600">
+              <summary className="cursor-pointer hover:text-zinc-400">Ver URLs de checkout</summary>
+              <div className="mt-2 space-y-2">
+                {activePrices.filter((p) => p.checkout_url_stripe).map((p) => (
+                  <div key={p.id} className="rounded bg-black/60 p-3 font-[family-name:var(--font-mono)] text-[10px]">
+                    <span className="text-zinc-500">&lt;a</span>{" "}
+                    <span className="text-amber-300">href</span>
+                    <span className="text-zinc-500">=&quot;</span>
+                    <span className="text-sky-300">{p.checkout_url_stripe}</span>
+                    <span className="text-zinc-500">&quot;</span>{" "}
+                    <span className="text-amber-300">data-br</span>
+                    <span className="text-zinc-500">=&quot;</span>
+                    <span className="text-emerald-300">comprar-externo</span>
+                    <span className="text-zinc-500">&quot;&gt;</span>
+                    <span className="text-white">{priceLabel(p)}</span>
+                    <span className="text-zinc-500">&lt;/a&gt;</span>
+                  </div>
+                ))}
+                <p>El runtime propagara automaticamente el codigo de afiliado (?ref=) a estas URLs.</p>
+              </div>
+            </details>
           </div>
         </div>
       )}
