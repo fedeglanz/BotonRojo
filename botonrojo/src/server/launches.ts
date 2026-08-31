@@ -4505,6 +4505,16 @@ export async function createPdcPriceAction(launchId: string, formData: FormData)
             num_cuotas: numCuotas ?? null,
             checkout_url_stripe: price.checkout_url_stripe ?? null,
             checkout_url_whop: price.checkout_url_whop ?? null,
+            // Internal checkout URL — served by Botón Rojo, embeds the campus form
+            checkout_url_interno: (() => {
+              try {
+                const u = new URL(price.checkout_url_stripe ?? "");
+                const checkoutId = u.searchParams.get("checkout_id");
+                return checkoutId ? `/${launch.slug}/checkout?checkout_id=${checkoutId}` : null;
+              } catch {
+                return null;
+              }
+            })(),
           },
         ],
       },
@@ -4571,7 +4581,7 @@ export async function injectPdcButtonInVentaAction(
     id: number; tipo_pago: string; precio: number; num_cuotas: number | null;
     checkout_url_stripe: string | null;
   }>;
-  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe);
+  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe || (u as { checkout_url_interno?: string | null }).checkout_url_interno);
   if (!activeUrls.length) throw new Error("No hay URLs de checkout PDC configuradas.");
 
   // Find the latest published venta page
@@ -4609,10 +4619,11 @@ export async function injectPdcButtonInVentaAction(
   }
 
   const buttonsHtml = activeUrls
-    .map(
-      (u) =>
-        `<a href="${u.checkout_url_stripe}" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`,
-    )
+    .map((u) => {
+      const extU = u as typeof u & { checkout_url_interno?: string | null };
+      const href = extU.checkout_url_interno ?? u.checkout_url_stripe ?? "";
+      return `<a href="${href}" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`;
+    })
     .join("\n");
 
   const injectionBlock = `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${buttonsHtml}\n</div>\n`;

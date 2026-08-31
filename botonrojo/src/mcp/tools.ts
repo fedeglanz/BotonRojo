@@ -441,12 +441,15 @@ const contextoLanzamiento: ToolDef = {
             tipo_pago: string;
             precio: number;
             checkout_url_stripe: string | null;
+            checkout_url_interno?: string | null;
           }>;
           if (!urls.length) return null;
           return urls
             .filter((u) => u.checkout_url_stripe)
             .map((u) => ({
-              url: u.checkout_url_stripe,
+              // url apunta a la página de checkout propia de Botón Rojo
+              // (/slug/checkout?checkout_id=X), no al endpoint del campus.
+              url: u.checkout_url_interno ?? u.checkout_url_stripe,
               tipo: u.tipo_pago,
               precio: u.precio,
             }));
