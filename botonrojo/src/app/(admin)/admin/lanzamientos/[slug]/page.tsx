@@ -1332,9 +1332,11 @@ export default async function LaunchHubPage(props: {
             status={
               !pdcConfigured
                 ? "needs-prev"
-                : hasPdc
+                : hasPdc && Boolean(launch.pdcProductId) && ((launch.pdcPriceIds as number[] | null)?.length ?? 0) > 0
                   ? "ready"
-                  : "empty"
+                  : hasPdc
+                    ? "pending"
+                    : "empty"
             }
           >
             <PdcCheckoutPanel

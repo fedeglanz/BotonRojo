@@ -23,6 +23,7 @@ página, a partir de estos atributos.
 | \`data-br="estado"\` | dentro del \`<form>\` | Recibe los mensajes ("Enviando…", errores) |
 | \`data-br="comprar"\` | en el \`<a>\` o \`<button>\` de compra | Abre el checkout de Stripe con el afiliado y las UTMs pegadas |
 | \`data-br-producto="slug"\` | junto a \`data-br="comprar"\` | Qué producto. Si el lanzamiento tiene uno solo, se puede omitir |
+| \`data-br="comprar-externo"\` | en el \`<a>\` de compra con \`href="URL_PDC"\` | Checkout externo del campus (PDC Checkout). El runtime propaga el \`?ref=\` del afiliado. Úsalo cuando \`contexto_lanzamiento\` devuelva \`checkout_campus\` con URLs |
 | \`data-br="cuenta-atras"\` | contenedor | Se rellena y va bajando cada segundo |
 | \`data-br-fecha="carrito"\` o \`"registro"\` | junto a la cuenta atrás | Qué fecha usa. Por defecto, el carrito |
 | \`data-br-unidad="dias\\|horas\\|minutos\\|segundos"\` | dentro de la cuenta atrás | Huecos por unidad, para maquetarla como quieras. Sin ellos se escribe en una línea |
@@ -163,6 +164,15 @@ Tres cosas que no son negociables:
 Y lo que delata una plantilla, por si sirve de lista de "no": todo centrado, tres
 tarjetas idénticas en fila, iconos de librería, un héroe con titular y botón y nada
 más, secciones separadas por líneas grises, sombras iguales en todo.
+
+## Botones de compra: no los pierdas al editar
+
+Si la página ya tiene un botón \`data-br="comprar-externo"\` con una URL de checkout
+del campus, **no lo toques al parchear ni al rediseñar** a menos que te lo pidan
+explícitamente. Esa URL la generó la plataforma y no la podés reconstruir.
+
+Si al editar una página de venta no ves el botón de compra, pedí \`ver_pagina\`
+primero para ver el HTML actual y reutilizarlo, no lo reescribas de cero.
 
 ## Para retocar, no republiques: parchea
 

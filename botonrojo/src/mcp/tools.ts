@@ -429,6 +429,28 @@ const contextoLanzamiento: ToolDef = {
           return page ? pagePath(launch.slug, page) : `/${launch.slug}`;
         })(),
         url_gracias: "/gracias",
+        /**
+         * URLs de checkout del campus (PDC Checkout). Solo presentes si el
+         * lanzamiento tiene PDC configurado y tiene precios creados.
+         * Si existen, úsalas en los botones de compra con data-br="comprar-externo".
+         */
+        checkout_campus: (() => {
+          const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+          const urls = (cache.pdcCheckoutUrls ?? []) as Array<{
+            id: number;
+            tipo_pago: string;
+            precio: number;
+            checkout_url_stripe: string | null;
+          }>;
+          if (!urls.length) return null;
+          return urls
+            .filter((u) => u.checkout_url_stripe)
+            .map((u) => ({
+              url: u.checkout_url_stripe,
+              tipo: u.tipo_pago,
+              precio: u.precio,
+            }));
+        })(),
       },
       precios: {
         pago_unico_centimos: launch.defaultPriceCents,
