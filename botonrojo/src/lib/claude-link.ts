@@ -120,27 +120,41 @@ En cada publicar_pagina / publicar_email / guardar_identidad, manda también url
 }
 
 /**
- * Diseñar campañas de email del lanzamiento, tantas como haga falta.
- *
- * Dice explícitamente que empiece preguntando cuántas y de qué: pedirle "diseña las
- * campañas" a secas acabaría en una secuencia inventada, y las campañas son lo más
- * caro de rehacer porque cada una lleva su copy.
+ * Genera la secuencia completa de emails del lanzamiento en Claude Design.
+ * Equivalente al botón "Generar secuencia IA" pero con diseño visual propio.
  */
 export function claudeCampaignsPrompt(input: {
   launchSlug: string;
   launchName: string;
+  launchType?: string;
 }): string {
-  return `Con el conector de Botón Rojo, diseña campañas de email para el lanzamiento ${input.launchSlug}.
+  const sequenceByType: Record<string, string> = {
+    venta_directa: "5 emails: presentación del producto, desarrollo del problema, solución + oferta, recordatorio de cierre, último aviso.",
+    semilla: "5 emails: presentación + dolor, solución, oferta de apertura, recordatorio, cierre urgente.",
+    plf: "14 emails: pre-pre, invitación PLC1, PLC2, PLC3, PLC4/oferta, apertura carrito, testimonios, FAQ, recordatorio mitad, 48h aviso, 24h aviso, últimas horas, cierre, post-cierre.",
+    evento_vivo: "5 emails: registro evento, recordatorio 24h antes, post-evento con oferta, recordatorio cierre, último aviso.",
+    newsletter: "5 emails: bienvenida, primer contenido de valor, caso de estudio, oferta, seguimiento.",
+    evergreen: "5 emails: captación, valor 1, valor 2, oferta, urgencia de cierre.",
+  };
+  const sequenceInstruction = input.launchType && sequenceByType[input.launchType]
+    ? `\nEste es un lanzamiento de tipo "${input.launchType}". La secuencia estándar es: ${sequenceByType[input.launchType]}`
+    : "";
 
-1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": la identidad visual (paleta, tipografías, logo), la promesa, el avatar y las fechas. Los correos tienen que parecer de la misma casa que las páginas.
-2. contrato_email: un email no es una página pequeña —CSS en línea, tablas, 600px, sin JavaScript— y ahí está todo lo que hay que cumplir.
-3. listar_emails, para ver las que ya existen y no repetir nombre sin querer.
-4. Cada campaña: la diseñas, me la enseñas, y la publicas con publicar_email dándole un nombre ("Bienvenida 1", "Carta del martes 3"), su asunto y su preencabezado.
-5. IMPORTANTE: al publicar, incluí el parámetro "fase" con la fase del lanzamiento a la que pertenece (captacion, calentamiento, apertura_carrito, venta, cierre_carrito, etc) y opcionalmente "offset_dias". Esto es clave para que el email aparezca en el calendario y se programe correctamente.
+  return `Con el conector de Botón Rojo, diseña la secuencia completa de emails para el lanzamiento "${input.launchSlug}".
 
-Pregúntame primero cuántas quiero y de qué va cada una. No te inventes una secuencia entera sin preguntar.
+1. contexto_lanzamiento con lanzamiento="${input.launchSlug}": identidad visual (paleta, tipografías, logo), promesa, avatar, fechas y fases del calendario. Los emails tienen que parecer de la misma casa que las páginas.
+2. contrato_email: CSS en línea, tablas, 600px, sin JavaScript — léelo antes de escribir HTML.
+3. listar_emails para ver los que ya existen y no duplicar.${sequenceInstruction}
 
-En cada publicar_pagina / publicar_email / guardar_identidad, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
+Genera TODOS los emails de la secuencia de una vez, sin preguntar cuántos. Diseña cada uno visualmente con la identidad del lanzamiento, y publícalo con publicar_email indicando:
+- nombre descriptivo ("Bienvenida", "Carta de apertura", "Último aviso")
+- asunto y preencabezado
+- fase: la fase exacta del lanzamiento (captacion, calentamiento, apertura_carrito, venta, cierre_carrito, etc.)
+- offset_dias: días desde el inicio de esa fase (0 = primer día, -1 = día anterior al cierre)
+
+Empieza directamente: lee el contexto y publica la secuencia completa. No preguntes cuántos ni de qué — la secuencia está definida por el tipo de lanzamiento.
+
+En cada publicar_email, manda también url_claude con el enlace de este proyecto de Claude Design —el de la barra del navegador, https://claude.ai/design/p/…—. Es lo que permite volver aquí desde el panel de Botón Rojo para cambiar algo, en vez de empezar un chat nuevo.`;
 }
 
 /**

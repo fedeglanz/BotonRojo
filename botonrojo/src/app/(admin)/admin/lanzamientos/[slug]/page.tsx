@@ -968,6 +968,7 @@ export default async function LaunchHubPage(props: {
                 claudePrompt={claudeCampaignsPrompt({
                   launchSlug: launch.slug,
                   launchName: launch.name,
+                  launchType: launch.type,
                 })}
                 pushAction={pushDesignedEmailToAcAction.bind(null, launch.id)}
               />
