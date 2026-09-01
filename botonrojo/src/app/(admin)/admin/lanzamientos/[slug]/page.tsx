@@ -946,34 +946,7 @@ export default async function LaunchHubPage(props: {
           {/* Campañas diseñadas en Claude. Van antes de la secuencia generada porque
               en un lanzamiento de Claude son las de verdad; la secuencia se queda
               debajo y sigue disponible para quien la quiera. */}
-          {launch.designMode === "claude" && (
-            <WizardStep
-              index={4}
-              title="Campañas en Claude Design"
-              subtitle="Emails diseñados con la identidad del lanzamiento. Tantos como quieras."
-              status={
-                !hasMarco
-                  ? "needs-prev"
-                  : designedCampaigns.length > 0
-                    ? "ready"
-                    : "empty"
-              }
-            >
-              <DesignedCampaigns
-                campaigns={designedCampaigns}
-                launchSlug={launch.slug}
-                hasConnector={connector}
-                acConfigured={acConfigured}
-                claudeUrl={claudeHref}
-                claudePrompt={claudeCampaignsPrompt({
-                  launchSlug: launch.slug,
-                  launchName: launch.name,
-                  launchType: launch.type,
-                })}
-                pushAction={pushDesignedEmailToAcAction.bind(null, launch.id)}
-              />
-            </WizardStep>
-          )}
+          {/* "Campañas en Claude Design" ocultado — UnifiedEmailList ya los incluye */}
 
           {/* Step — Emails del lanzamiento (secuencia IA + diseñados unificados) */}
           <WizardStep
