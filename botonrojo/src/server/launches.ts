@@ -4597,15 +4597,16 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
 }
 
 /**
- * Asigna un precio PDC a un conjunto de páginas de venta del lanzamiento.
- * pageKeys vacío = el precio aparece en todas las páginas (comportamiento default).
- * Guarda siempre en DB independientemente del estado de la página de venta.
+ * Asigna un precio PDC a una página y, si se asigna a "venta", actualiza
+ * automáticamente los hrefs de los botones diseñados en esa página.
+ * El cliente pasa checkoutUrlStripe para que no sea necesario sincronizar antes.
  */
 export async function assignPdcPriceToPageAction(
   launchId: string,
   priceId: number,
   pageKeys: string[],
-): Promise<{ updated: boolean }> {
+  checkoutUrlStripe?: string | null,
+): Promise<{ updated: boolean; buttonsUpdated?: string }> {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -4613,16 +4614,27 @@ export async function assignPdcPriceToPageAction(
   const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<Record<string, unknown>>;
 
   const priceExists = checkoutUrls.some((u) => Number(u.id) === Number(priceId));
-  const updated = priceExists
-    ? checkoutUrls.map((u) => Number(u.id) === Number(priceId) ? { ...u, pageKeys } : u)
-    : [...checkoutUrls, { id: priceId, pageKeys }];
+  const updatedUrls = priceExists
+    ? checkoutUrls.map((u) =>
+        Number(u.id) === Number(priceId)
+          ? { ...u, pageKeys, ...(checkoutUrlStripe !== undefined ? { checkout_url_stripe: checkoutUrlStripe } : {}) }
+          : u,
+      )
+    : [...checkoutUrls, { id: priceId, pageKeys, checkout_url_stripe: checkoutUrlStripe ?? null }];
 
   await db
     .update(launches)
-    .set({ assetsCache: { ...cache, pdcCheckoutUrls: updated }, updatedAt: new Date() })
+    .set({ assetsCache: { ...cache, pdcCheckoutUrls: updatedUrls }, updatedAt: new Date() })
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+
+  // Si se asignó a "venta" y hay URL, actualizar los hrefs de los botones diseñados
+  if (pageKeys.includes("venta") && checkoutUrlStripe) {
+    const res = await updateVentaPageButtonUrlsAction(launchId).catch(() => null);
+    return { updated: true, buttonsUpdated: res?.message };
+  }
+
   return { updated: true };
 }
 

@@ -62,7 +62,7 @@ type Props = {
     prices: PdcPrice[];
   }>;
   syncCheckoutUrlsAction: (launchId: string) => Promise<{ product: unknown; prices: SyncedPrice[] }>;
-  assignPriceToPageAction: (launchId: string, priceId: number, pageKeys: string[]) => Promise<{ updated: boolean }>;
+  assignPriceToPageAction: (launchId: string, priceId: number, pageKeys: string[], checkoutUrlStripe?: string | null) => Promise<{ updated: boolean; buttonsUpdated?: string }>;
   fetchAccountsAction: (launchId: string) => Promise<{
     stripeAccounts: Array<{ id: number; nombre: string; es_principal: number }>;
     billingAccounts: Array<{ value: string; label: string }>;
@@ -538,7 +538,10 @@ export function PdcCheckoutPanel({
                                   setPricePageKeys((prev) => ({ ...prev, [p.id]: next }));
                                   startTransition(async () => {
                                     try {
-                                      await assignPriceToPageAction(launchId, p.id, next);
+                                      const res = await assignPriceToPageAction(
+                                        launchId, p.id, next, p.checkout_url_stripe ?? null,
+                                      );
+                                      if (res.buttonsUpdated) setInjectResult(res.buttonsUpdated);
                                     } catch (err) {
                                       setError(err instanceof Error ? err.message : String(err));
                                       setPricePageKeys((prev) => ({ ...prev, [p.id]: current }));
