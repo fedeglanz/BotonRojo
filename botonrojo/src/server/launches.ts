@@ -4601,7 +4601,7 @@ export async function assignPdcPriceToPageAction(
   launchId: string,
   priceId: number,
   pageKeys: string[],
-) {
+): Promise<{ injected?: { result: string; message: string } }> {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
@@ -4618,6 +4618,15 @@ export async function assignPdcPriceToPageAction(
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+
+  // Auto-update venta page button hrefs when exactly one price is assigned to "venta"
+  const finalUrls = updated as Array<{ pageKeys?: string[] }>;
+  const ventaAssigned = finalUrls.filter((u) => (u.pageKeys ?? []).includes("venta"));
+  if (ventaAssigned.length === 1) {
+    const injected = await injectPdcButtonInVentaAction(launchId).catch(() => null);
+    return { injected: injected ?? undefined };
+  }
+  return {};
 }
 
 export async function fetchPdcAccountsAction(launchId: string) {
@@ -4701,10 +4710,8 @@ export async function injectPdcButtonInVentaAction(
   let newHtml: string;
   let verb = "inyectados";
 
-  if (hasDesignedButtons && !hasAutoInjected && urlsToUse.length === 1) {
-    // Designed buttons exist with a single assigned URL → update all their hrefs in-place
-    const newHref = urlsToUse[0].checkout_url_stripe ?? "";
-    newHtml = html.replace(/<a([^>]*)>/g, (match, attrs: string) => {
+  function updateDesignedHrefs(src: string, newHref: string) {
+    return src.replace(/<a([^>]*)>/g, (match, attrs: string) => {
       const hasDataBr = attrs.includes('data-br="comprar-externo"') || attrs.includes("data-br='comprar-externo'");
       if (!hasDataBr) return match;
       const updatedAttrs = attrs.includes("href=")
@@ -4712,9 +4719,23 @@ export async function injectPdcButtonInVentaAction(
         : ` href="${newHref}"${attrs}`;
       return `<a${updatedAttrs}>`;
     });
+  }
+
+  function removeAutoInjected(src: string) {
+    return src.replace(
+      /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
+      "",
+    );
+  }
+
+  if (hasDesignedButtons && urlsToUse.length === 1) {
+    // Designed buttons + single URL → update hrefs in-place, remove any stale auto-injected block
+    const newHref = urlsToUse[0].checkout_url_stripe ?? "";
+    newHtml = updateDesignedHrefs(html, newHref);
+    if (hasAutoInjected) newHtml = removeAutoInjected(newHtml);
     verb = "actualizados";
   } else if (hasAutoInjected) {
-    // Replace the previously auto-injected block
+    // Auto-injected block exists → replace it (designed buttons remain untouched)
     newHtml = html.replace(
       /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
       makeInjectionBlock(urlsToUse),
@@ -4727,7 +4748,7 @@ export async function injectPdcButtonInVentaAction(
       ? html.replace("</body>", `${block}</body>`)
       : html + block;
   } else {
-    // Designed buttons + multiple prices → ambiguous, can't auto-map
+    // Designed buttons + multiple prices + no auto-injected → ambiguous, can't auto-map
     return {
       result: "already" as const,
       message: "Hay múltiples precios y los botones ya están diseñados. Asigná un solo precio a 'venta' para actualizar automáticamente, o pedile a Claude Design que actualice las URLs.",
