@@ -72,7 +72,7 @@ import {
   syncPdcCheckoutUrlsAction,
   assignPdcPriceToPageAction,
   fetchPdcAccountsAction,
-  injectPdcButtonInVentaAction,
+  updateVentaPageButtonUrlsAction,
   updateMilestoneAction,
   analyzeCalendarAction,
   generateBrandKitAction,
@@ -353,9 +353,6 @@ export default async function LaunchHubPage(props: {
     .orderBy(desc(assets.createdAt))
     .limit(1)
     .then((r) => r[0]);
-  const ventaHtml = ventaPageAsset && isCustomPageBody(ventaPageAsset.body) ? ventaPageAsset.body.html : "";
-  const ventaHasPdcButton = ventaHtml.includes('data-br="comprar-externo"') || ventaHtml.includes("data-br='comprar-externo'");
-
   // Páginas de venta disponibles para asignar precios PDC
   const ventaPages = pages
     .filter((p) => p.kind === "venta")
@@ -1384,8 +1381,7 @@ export default async function LaunchHubPage(props: {
               syncCheckoutUrlsAction={syncPdcCheckoutUrlsAction}
               assignPriceToPageAction={assignPdcPriceToPageAction}
               fetchAccountsAction={fetchPdcAccountsAction}
-              injectPdcButtonAction={injectPdcButtonInVentaAction}
-              ventaHasPdcButton={ventaHasPdcButton}
+              updateButtonUrlsAction={updateVentaPageButtonUrlsAction}
             />
           </WizardStep>
         </>

@@ -4599,21 +4599,23 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
 /**
  * Asigna un precio PDC a un conjunto de páginas de venta del lanzamiento.
  * pageKeys vacío = el precio aparece en todas las páginas (comportamiento default).
+ * Guarda siempre en DB independientemente del estado de la página de venta.
  */
 export async function assignPdcPriceToPageAction(
   launchId: string,
   priceId: number,
   pageKeys: string[],
-): Promise<{ injected?: { result: string; message: string } }> {
+): Promise<{ updated: boolean }> {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
   const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<Record<string, unknown>>;
 
-  const updated = checkoutUrls.map((u) =>
-    Number(u.id) === Number(priceId) ? { ...u, pageKeys } : u,
-  );
+  const priceExists = checkoutUrls.some((u) => Number(u.id) === Number(priceId));
+  const updated = priceExists
+    ? checkoutUrls.map((u) => Number(u.id) === Number(priceId) ? { ...u, pageKeys } : u)
+    : [...checkoutUrls, { id: priceId, pageKeys }];
 
   await db
     .update(launches)
@@ -4621,15 +4623,7 @@ export async function assignPdcPriceToPageAction(
     .where(eq(launches.id, launchId));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
-
-  // Auto-update venta page button hrefs when exactly one price is assigned to "venta"
-  const finalUrls = updated as Array<{ pageKeys?: string[] }>;
-  const ventaAssigned = finalUrls.filter((u) => (u.pageKeys ?? []).includes("venta"));
-  if (ventaAssigned.length === 1) {
-    const injected = await injectPdcButtonInVentaAction(launchId).catch(() => null);
-    return { injected: injected ?? undefined };
-  }
-  return {};
+  return { updated: true };
 }
 
 export async function fetchPdcAccountsAction(launchId: string) {
@@ -4649,25 +4643,30 @@ export async function fetchPdcAccountsAction(launchId: string) {
 }
 
 /**
- * Inyecta los botones de compra PDC en la página de venta si no los tiene ya.
- * Devuelve "ok" si se inyectó, "already" si ya existía, "no_page" si no hay página de venta.
+ * Actualiza el href de los botones de compra (data-br="comprar-externo") en la página de venta
+ * con la URL del precio asignado a "venta".
+ * NUNCA inyecta botones nuevos — solo actualiza los botones ya diseñados.
  */
-export async function injectPdcButtonInVentaAction(
+export async function updateVentaPageButtonUrlsAction(
   launchId: string,
-): Promise<{ result: "ok" | "already" | "no_page"; message: string }> {
+): Promise<{ result: "ok" | "no_price" | "no_page" | "no_buttons"; message: string }> {
   const { organizationId } = await requireOrgAdmin();
   const launch = await getOrgLaunch(launchId, organizationId);
 
-  // Get PDC checkout URLs from cache
   const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
   const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<{
-    id: number; tipo_pago: string; precio: number; num_cuotas: number | null;
-    checkout_url_stripe: string | null;
+    id: number; checkout_url_stripe?: string | null; pageKeys?: string[];
   }>;
-  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe);
-  if (!activeUrls.length) throw new Error("No hay URLs de checkout PDC configuradas.");
 
-  // Find the latest published venta page
+  // Find the price explicitly assigned to "venta"
+  const assigned = checkoutUrls.find(
+    (u) => u.checkout_url_stripe && (u.pageKeys ?? []).includes("venta"),
+  );
+  if (!assigned) {
+    return { result: "no_price", message: "No hay ningún precio asignado a la página de venta. Asigná uno en el panel PDC." };
+  }
+
+  // Find the published venta page
   const ventaAssets = await db
     .select()
     .from(assets)
@@ -4683,80 +4682,32 @@ export async function injectPdcButtonInVentaAction(
     .limit(1);
 
   const ventaAsset = ventaAssets[0];
-  const ventaBody = ventaAsset?.body as { html?: string } | undefined;
-  const html = ventaBody?.html;
+  const html = (ventaAsset?.body as { html?: string } | undefined)?.html;
   if (!ventaAsset || typeof html !== "string") {
-    return { result: "no_page", message: "No hay una página de venta con diseño propio publicada." };
+    return { result: "no_page", message: "No hay una página de venta publicada todavía." };
   }
-
-  // Pick URLs: prefer those explicitly assigned to "venta", else all active
-  const extUrls = checkoutUrls as Array<typeof activeUrls[number] & { pageKeys?: string[]; activo?: number }>;
-  const ventaAssigned = extUrls.filter(
-    (u) => u.checkout_url_stripe && u.activo !== 0 && (u.pageKeys ?? []).includes("venta"),
-  );
-  const urlsToUse = ventaAssigned.length > 0 ? ventaAssigned : activeUrls;
 
   const hasDesignedButtons = html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'");
-  const hasAutoInjected = html.includes('id="pdc-checkout-buttons"');
-
-  function makeInjectionBlock(urls: typeof activeUrls) {
-    const btns = urls.map((u) => {
-      const href = u.checkout_url_stripe ?? "";
-      const label = u.tipo_pago === "cuotas" && u.num_cuotas
-        ? `${u.precio}€ x ${u.num_cuotas} cuotas`
-        : u.tipo_pago === "recurrente" ? `${u.precio}€/mes` : `${u.precio}€`;
-      return `<a href="${href}" target="_blank" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${label}</a>`;
-    }).join("\n");
-    return `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${btns}\n</div>\n`;
+  if (!hasDesignedButtons) {
+    return { result: "no_buttons", message: "La página de venta no tiene botones de compra diseñados (data-br=\"comprar-externo\")." };
   }
 
-  let newHtml: string;
-  let verb = "inyectados";
+  // Remove any stale auto-injected block (legacy)
+  let newHtml = html.replace(
+    /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/g,
+    "",
+  );
 
-  function updateDesignedHrefs(src: string, newHref: string) {
-    return src.replace(/<a([^>]*)>/g, (match, attrs: string) => {
-      const hasDataBr = attrs.includes('data-br="comprar-externo"') || attrs.includes("data-br='comprar-externo'");
-      if (!hasDataBr) return match;
-      const updatedAttrs = attrs.includes("href=")
-        ? attrs.replace(/href="[^"]*"|href='[^']*'/, `href="${newHref}"`)
-        : ` href="${newHref}"${attrs}`;
-      return `<a${updatedAttrs}>`;
-    });
-  }
-
-  function removeAutoInjected(src: string) {
-    return src.replace(
-      /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
-      "",
-    );
-  }
-
-  if (hasDesignedButtons && urlsToUse.length === 1) {
-    // Designed buttons + single URL → update hrefs in-place, remove any stale auto-injected block
-    const newHref = urlsToUse[0].checkout_url_stripe ?? "";
-    newHtml = updateDesignedHrefs(html, newHref);
-    if (hasAutoInjected) newHtml = removeAutoInjected(newHtml);
-    verb = "actualizados";
-  } else if (hasAutoInjected) {
-    // Auto-injected block exists → replace it (designed buttons remain untouched)
-    newHtml = html.replace(
-      /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
-      makeInjectionBlock(urlsToUse),
-    );
-    verb = "actualizados";
-  } else if (!hasDesignedButtons) {
-    // No buttons at all → inject a new block
-    const block = makeInjectionBlock(urlsToUse);
-    newHtml = html.includes("</body>")
-      ? html.replace("</body>", `${block}</body>`)
-      : html + block;
-  } else {
-    // Designed buttons + multiple prices + no auto-injected → ambiguous, can't auto-map
-    return {
-      result: "already" as const,
-      message: "Hay múltiples precios y los botones ya están diseñados. Asigná un solo precio a 'venta' para actualizar automáticamente, o pedile a Claude Design que actualice las URLs.",
-    };
-  }
+  // Update hrefs of all designed buy buttons
+  const newHref = assigned.checkout_url_stripe!;
+  newHtml = newHtml.replace(/<a([^>]*)>/g, (match, attrs: string) => {
+    const hasDataBr = attrs.includes('data-br="comprar-externo"') || attrs.includes("data-br='comprar-externo'");
+    if (!hasDataBr) return match;
+    const updatedAttrs = attrs.includes("href=")
+      ? attrs.replace(/href="[^"]*"|href='[^']*'/, `href="${newHref}"`)
+      : ` href="${newHref}"${attrs}`;
+    return `<a${updatedAttrs}>`;
+  });
 
   await db
     .update(assets)
@@ -4764,7 +4715,7 @@ export async function injectPdcButtonInVentaAction(
     .where(eq(assets.id, ventaAsset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
-  return { result: "ok" as const, message: `Botones de compra PDC ${verb} en la página de venta.` };
+  return { result: "ok", message: `Botones de compra actualizados con la URL de checkout.` };
 }
 
 /* ------------------------------------------------- archivar y borrar ------- */

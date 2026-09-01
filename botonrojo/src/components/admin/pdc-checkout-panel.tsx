@@ -62,13 +62,12 @@ type Props = {
     prices: PdcPrice[];
   }>;
   syncCheckoutUrlsAction: (launchId: string) => Promise<{ product: unknown; prices: SyncedPrice[] }>;
-  assignPriceToPageAction: (launchId: string, priceId: number, pageKeys: string[]) => Promise<{ injected?: { result: string; message: string } }>;
+  assignPriceToPageAction: (launchId: string, priceId: number, pageKeys: string[]) => Promise<{ updated: boolean }>;
   fetchAccountsAction: (launchId: string) => Promise<{
     stripeAccounts: Array<{ id: number; nombre: string; es_principal: number }>;
     billingAccounts: Array<{ value: string; label: string }>;
   }>;
-  injectPdcButtonAction: (launchId: string) => Promise<{ result: "ok" | "already" | "no_page"; message: string }>;
-  ventaHasPdcButton: boolean;
+  updateButtonUrlsAction: (launchId: string) => Promise<{ result: "ok" | "no_price" | "no_page" | "no_buttons"; message: string }>;
 };
 
 function CopyButton({ text }: { text: string }) {
@@ -117,13 +116,11 @@ export function PdcCheckoutPanel({
   syncCheckoutUrlsAction,
   assignPriceToPageAction,
   fetchAccountsAction,
-  injectPdcButtonAction,
-  ventaHasPdcButton,
+  updateButtonUrlsAction,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [injectResult, setInjectResult] = useState<string | null>(null);
-  const [hasPdcButton, setHasPdcButton] = useState(ventaHasPdcButton);
   const [pricePageKeys, setPricePageKeys] = useState<Record<number, string[]>>(initialPricePageKeys);
   const [campusLaunches, setCampusLaunches] = useState<PdcLaunch[] | null>(null);
   const [loadingLaunches, setLoadingLaunches] = useState(false);
@@ -541,14 +538,9 @@ export function PdcCheckoutPanel({
                                   setPricePageKeys((prev) => ({ ...prev, [p.id]: next }));
                                   startTransition(async () => {
                                     try {
-                                      const res = await assignPriceToPageAction(launchId, p.id, next);
-                                      if (res.injected) {
-                                        setInjectResult(res.injected.message);
-                                        if (res.injected.result === "ok") setHasPdcButton(true);
-                                      }
+                                      await assignPriceToPageAction(launchId, p.id, next);
                                     } catch (err) {
                                       setError(err instanceof Error ? err.message : String(err));
-                                      // Revert on error
                                       setPricePageKeys((prev) => ({ ...prev, [p.id]: current }));
                                     }
                                   });
@@ -707,25 +699,27 @@ export function PdcCheckoutPanel({
                 onClick={() => {
                   startTransition(async () => {
                     try {
-                      const res = await injectPdcButtonAction(launchId);
-                      if (res.result === "ok") setHasPdcButton(true);
+                      const res = await updateButtonUrlsAction(launchId);
                       setInjectResult(res.message);
                     } catch (err) {
-                      setInjectResult(err instanceof Error ? err.message : "Error al inyectar el boton.");
+                      setInjectResult(err instanceof Error ? err.message : "Error al actualizar los botones.");
                     }
                   });
                 }}
                 disabled={isPending}
                 className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-50"
               >
-                {isPending ? "Procesando…" : hasPdcButton ? "Actualizar botones de compra" : "Agregar botones de compra"}
+                {isPending ? "Procesando…" : "Actualizar hrefs en página de venta"}
               </button>
-              {hasPdcButton && (
-                <div className="flex items-center gap-2 text-xs text-emerald-400">
-                  <span>✓</span>
-                  <span>La pagina de venta tiene botones PDC</span>
-                </div>
-              )}
+              {(() => {
+                const assigned = Object.entries(pricePageKeys).find(([, keys]) => keys.includes("venta"));
+                return assigned ? (
+                  <div className="flex items-center gap-2 text-xs text-emerald-400">
+                    <span>✓</span>
+                    <span>Precio #{assigned[0]} asignado a venta</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
             {injectResult && (
               <p className="text-xs text-zinc-400">{injectResult}</p>
