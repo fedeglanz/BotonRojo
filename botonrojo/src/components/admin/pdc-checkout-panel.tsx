@@ -515,8 +515,8 @@ export function PdcCheckoutPanel({
                       </div>
                     </div>
 
-                    {/* Page assignment — only shown when there are 2+ venta pages (A/B test) */}
-                    {p.activo === 1 && ventaPages.length > 1 && (
+                    {/* Page assignment: show when 2+ prices (choose which goes where) OR 2+ venta pages (A/B) */}
+                    {p.activo === 1 && (ventaPages.length > 1 || activePrices.length > 1) && (
                       <div className="space-y-1">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600">
                           Páginas de venta
@@ -694,37 +694,33 @@ export function PdcCheckoutPanel({
             Pagina de venta
           </div>
           <div className="space-y-3 text-[11px] text-zinc-500">
-            {hasPdcButton ? (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-emerald-300">
-                <span>✓</span>
-                <span>La pagina de venta ya tiene el boton de compra PDC conectado.</span>
-              </div>
-            ) : (
-              <>
-                <p>
-                  La pagina de venta aun no tiene el boton de compra PDC. Podes agregarlo automaticamente:
-                </p>
-                <button
-                  onClick={() => {
-                    startTransition(async () => {
-                      try {
-                        const res = await injectPdcButtonAction(launchId);
-                        if (res.result === "ok") setHasPdcButton(true);
-                        setInjectResult(res.message);
-                      } catch (err) {
-                        setInjectResult(err instanceof Error ? err.message : "Error al inyectar el boton.");
-                      }
-                    });
-                  }}
-                  disabled={isPending}
-                  className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-50"
-                >
-                  {isPending ? "Agregando…" : "Agregar boton de compra a la pagina de venta"}
-                </button>
-                {injectResult && (
-                  <p className="text-zinc-400">{injectResult}</p>
-                )}
-              </>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => {
+                  startTransition(async () => {
+                    try {
+                      const res = await injectPdcButtonAction(launchId);
+                      if (res.result === "ok") setHasPdcButton(true);
+                      setInjectResult(res.message);
+                    } catch (err) {
+                      setInjectResult(err instanceof Error ? err.message : "Error al inyectar el boton.");
+                    }
+                  });
+                }}
+                disabled={isPending}
+                className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-50"
+              >
+                {isPending ? "Procesando…" : hasPdcButton ? "Actualizar botones de compra" : "Agregar botones de compra"}
+              </button>
+              {hasPdcButton && (
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <span>✓</span>
+                  <span>La pagina de venta tiene botones PDC</span>
+                </div>
+              )}
+            </div>
+            {injectResult && (
+              <p className="text-xs text-zinc-400">{injectResult}</p>
             )}
             <details className="text-zinc-600">
               <summary className="cursor-pointer hover:text-zinc-400">Ver URLs de checkout</summary>

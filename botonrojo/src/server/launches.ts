@@ -4677,12 +4677,7 @@ export async function injectPdcButtonInVentaAction(
     return { result: "no_page", message: "No hay una página de venta con diseño propio publicada." };
   }
 
-  // Check if already has comprar-externo
-  if (html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'")) {
-    return { result: "already", message: "La página de venta ya tiene el botón de compra PDC." };
-  }
-
-  // Build the button HTML for each price
+  // Build the button HTML for each active price
   function pdcPriceLabel(u: typeof activeUrls[number]) {
     if (u.tipo_pago === "cuotas" && u.num_cuotas) return `${u.precio}€ x ${u.num_cuotas} cuotas`;
     if (u.tipo_pago === "recurrente") return `${u.precio}€/mes`;
@@ -4698,10 +4693,24 @@ export async function injectPdcButtonInVentaAction(
 
   const injectionBlock = `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${buttonsHtml}\n</div>\n`;
 
-  // Inject before </body>
-  const newHtml = html.includes("</body>")
-    ? html.replace("</body>", `${injectionBlock}</body>`)
-    : html + injectionBlock;
+  // If there's a previously auto-injected block, replace it with the updated one
+  const hasAutoInjected = html.includes('id="pdc-checkout-buttons"');
+  let newHtml: string;
+  if (hasAutoInjected) {
+    // Replace from the comment to the closing </div> of the injected block
+    newHtml = html.replace(
+      /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
+      injectionBlock,
+    );
+  } else if (html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'")) {
+    // Has manually placed buttons — don't overwrite
+    return { result: "already", message: "La página de venta ya tiene botones de compra. Editá el HTML para actualizarlos." };
+  } else {
+    // No buttons yet — inject before </body>
+    newHtml = html.includes("</body>")
+      ? html.replace("</body>", `${injectionBlock}</body>`)
+      : html + injectionBlock;
+  }
 
   await db
     .update(assets)
@@ -4709,7 +4718,8 @@ export async function injectPdcButtonInVentaAction(
     .where(eq(assets.id, ventaAsset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
-  return { result: "ok", message: `Botón${activeUrls.length > 1 ? "es" : ""} de compra PDC inyectado${activeUrls.length > 1 ? "s" : ""} en la página de venta.` };
+  const verb = hasAutoInjected ? "actualizados" : "inyectados";
+  return { result: "ok", message: `Botón${activeUrls.length > 1 ? "es" : ""} de compra PDC ${verb} en la página de venta.` };
 }
 
 /* ------------------------------------------------- archivar y borrar ------- */
