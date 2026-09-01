@@ -376,9 +376,7 @@ export default async function LaunchHubPage(props: {
     launchDomains.find((d) => d.status === "active")?.hostname ?? null;
   const acConfigured = await isActiveCampaignConfigured(organizationId);
   const pdcConfigured = await isPdcCheckoutConfigured(organizationId);
-  const acAutomations = acConfigured
-    ? await fetchAcAutomationsAction(launch.id).catch(() => [])
-    : [];
+  // acAutomations oculto por ahora
   // Lo que ya existe en su ActiveCampaign, para poder elegirlo en vez de crear otro
   // igual. Si la llamada falla, el panel enseña los desplegables vacíos y lo dice:
   // mejor eso que esconder el paso entero por un error de red.
@@ -1246,26 +1244,7 @@ export default async function LaunchHubPage(props: {
               </div>
             )}
 
-            {/* AC Automations */}
-            {acConfigured && acAutomations.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                  Automatizaciones AC
-                </h3>
-                <AcAutomationsPanel
-                  launchId={launch.id}
-                  automations={acAutomations.map((a) => ({
-                    id: a.id,
-                    name: a.name,
-                    status: a.status,
-                    entered: a.entered,
-                  }))}
-                  linkedAutomationIds={acLinkedAutomationIds}
-                  linkAction={linkAcAutomationAction}
-                  unlinkAction={unlinkAcAutomationAction}
-                />
-              </div>
-            )}
+            {/* AC Automations — oculto por ahora */}
           </WizardStep>
 
           {/* Step 8 — Dominio propio */}
