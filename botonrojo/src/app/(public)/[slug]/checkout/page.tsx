@@ -24,18 +24,18 @@ export default async function PdcCheckoutPage({ params, searchParams }: Props) {
     .where(eq(launches.slug, slug))
     .limit(1);
 
-  if (!launch) notFound();
+  if (!launch) return <pre>❌ launch not found: {slug}</pre>;
 
   const creds = await getPdcCheckoutCredentials(launch.organizationId);
-  if (!creds) notFound();
+  if (!creds) return <pre>❌ no PDC credentials for org: {launch.organizationId}</pre>;
 
   const siteUrl = creds.siteUrl.replace(/\/$/, "");
-  const checkoutRes = await fetch(
-    `${siteUrl}/wp-json/stripe/v1/checkout-button?checkout_id=${checkout_id}`,
-    { cache: "no-store" },
-  ).catch(() => null);
+  const campusUrl = `${siteUrl}/wp-json/stripe/v1/checkout-button?checkout_id=${checkout_id}`;
+  const checkoutRes = await fetch(campusUrl, { cache: "no-store" }).catch(() => null);
 
-  if (!checkoutRes?.ok) notFound();
+  if (!checkoutRes?.ok) {
+    return <pre>❌ campus fetch failed: {campusUrl} → {checkoutRes?.status ?? "network error"}</pre>;
+  }
 
   const { html, css, js } = (await checkoutRes.json()) as {
     html: string;
