@@ -4570,21 +4570,15 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
 
   const currentCache = (launch.assetsCache ?? {}) as Record<string, unknown>;
 
-  const pdcCheckoutUrls = prices.map((p) => {
-    const checkoutId = p.checkout_url_stripe
-      ? (() => { try { return new URL(p.checkout_url_stripe!).searchParams.get("checkout_id"); } catch { return null; } })()
-      : String(p.id);
-    return {
-      id: p.id,
-      tipo_pago: p.tipo_pago,
-      precio: p.precio,
-      num_cuotas: p.num_cuotas ?? null,
-      activo: p.activo,
-      checkout_url_stripe: p.checkout_url_stripe ?? null,
-      checkout_url_whop: p.checkout_url_whop ?? null,
-      checkout_url_interno: checkoutId ? `/${launch.slug}/checkout?checkout_id=${checkoutId}` : null,
-    };
-  });
+  const pdcCheckoutUrls = prices.map((p) => ({
+    id: p.id,
+    tipo_pago: p.tipo_pago,
+    precio: p.precio,
+    num_cuotas: p.num_cuotas ?? null,
+    activo: p.activo,
+    checkout_url_stripe: p.checkout_url_stripe ?? null,
+    checkout_url_whop: p.checkout_url_whop ?? null,
+  }));
 
   await db
     .update(launches)
@@ -4631,7 +4625,7 @@ export async function injectPdcButtonInVentaAction(
     id: number; tipo_pago: string; precio: number; num_cuotas: number | null;
     checkout_url_stripe: string | null;
   }>;
-  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe || (u as { checkout_url_interno?: string | null }).checkout_url_interno);
+  const activeUrls = checkoutUrls.filter((u) => u.checkout_url_stripe);
   if (!activeUrls.length) throw new Error("No hay URLs de checkout PDC configuradas.");
 
   // Find the latest published venta page
@@ -4670,9 +4664,8 @@ export async function injectPdcButtonInVentaAction(
 
   const buttonsHtml = activeUrls
     .map((u) => {
-      const extU = u as typeof u & { checkout_url_interno?: string | null };
-      const href = extU.checkout_url_interno ?? u.checkout_url_stripe ?? "";
-      return `<a href="${href}" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`;
+      const href = u.checkout_url_stripe ?? "";
+      return `<a href="${href}" target="_blank" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`;
     })
     .join("\n");
 

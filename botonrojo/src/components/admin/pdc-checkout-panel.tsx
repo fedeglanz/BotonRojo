@@ -39,7 +39,6 @@ type SyncedPrice = {
   activo: number;
   checkout_url_stripe: string | null;
   checkout_url_whop: string | null;
-  checkout_url_interno: string | null;
 };
 
 type Props = {
@@ -275,7 +274,6 @@ export function PdcCheckoutPanel({
     setError(null);
     try {
       const { prices } = await syncCheckoutUrlsAction(launchId);
-      // Update local state from synced data — cast to compatible shape
       setPdcPrices(
         prices.map((p) => ({
           id: p.id,
