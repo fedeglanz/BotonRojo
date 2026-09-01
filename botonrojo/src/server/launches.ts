@@ -4549,6 +4549,56 @@ export async function fetchPdcProductAndPricesAction(launchId: string) {
   return { product, prices };
 }
 
+/**
+ * Sincroniza el cache pdcCheckoutUrls del lanzamiento con los datos actuales del campus.
+ * Actualiza precios, estado activo/inactivo, y rellena checkout_url_interno para precios viejos.
+ */
+export async function syncPdcCheckoutUrlsAction(launchId: string) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  if (!launch.pdcProductId) throw new Error("No hay producto PDC conectado.");
+
+  const { getPdcCheckoutClientForOrg } = await import("@/integrations/pdc-checkout");
+  const pdc = await getPdcCheckoutClientForOrg(organizationId);
+  if (!pdc) throw new Error("pdc_checkout_not_configured");
+
+  const [product, prices] = await Promise.all([
+    pdc.getProduct(launch.pdcProductId),
+    pdc.listPrices(launch.pdcProductId),
+  ]);
+
+  const currentCache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+
+  const pdcCheckoutUrls = prices.map((p) => {
+    const checkoutId = p.checkout_url_stripe
+      ? (() => { try { return new URL(p.checkout_url_stripe!).searchParams.get("checkout_id"); } catch { return null; } })()
+      : String(p.id);
+    return {
+      id: p.id,
+      tipo_pago: p.tipo_pago,
+      precio: p.precio,
+      num_cuotas: p.num_cuotas ?? null,
+      activo: p.activo,
+      checkout_url_stripe: p.checkout_url_stripe ?? null,
+      checkout_url_whop: p.checkout_url_whop ?? null,
+      checkout_url_interno: checkoutId ? `/${launch.slug}/checkout?checkout_id=${checkoutId}` : null,
+    };
+  });
+
+  await db
+    .update(launches)
+    .set({
+      pdcPriceIds: prices.map((p) => p.id),
+      assetsCache: { ...currentCache, pdcCheckoutUrls },
+      updatedAt: new Date(),
+    })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+  return { product, prices: pdcCheckoutUrls };
+}
+
 export async function fetchPdcAccountsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   await getOrgLaunch(launchId, organizationId);

@@ -69,6 +69,7 @@ import {
   createPdcProductAction,
   createPdcPriceAction,
   fetchPdcProductAndPricesAction,
+  syncPdcCheckoutUrlsAction,
   fetchPdcAccountsAction,
   injectPdcButtonInVentaAction,
   updateMilestoneAction,
@@ -1364,6 +1365,7 @@ export default async function LaunchHubPage(props: {
               createProductAction={createPdcProductAction}
               createPriceAction={createPdcPriceAction}
               fetchProductAction={fetchPdcProductAndPricesAction}
+              syncCheckoutUrlsAction={syncPdcCheckoutUrlsAction}
               fetchAccountsAction={fetchPdcAccountsAction}
               injectPdcButtonAction={injectPdcButtonInVentaAction}
               ventaHasPdcButton={ventaHasPdcButton}

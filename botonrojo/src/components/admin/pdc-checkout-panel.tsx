@@ -31,6 +31,17 @@ type PdcPrice = {
   checkout_url_whop: string | null;
 };
 
+type SyncedPrice = {
+  id: number;
+  tipo_pago: string;
+  precio: number;
+  num_cuotas: number | null;
+  activo: number;
+  checkout_url_stripe: string | null;
+  checkout_url_whop: string | null;
+  checkout_url_interno: string | null;
+};
+
 type Props = {
   launchId: string;
   configured: boolean;
@@ -47,6 +58,7 @@ type Props = {
     product: PdcProduct | null;
     prices: PdcPrice[];
   }>;
+  syncCheckoutUrlsAction: (launchId: string) => Promise<{ product: unknown; prices: SyncedPrice[] }>;
   fetchAccountsAction: (launchId: string) => Promise<{
     stripeAccounts: Array<{ id: number; nombre: string; es_principal: number }>;
     billingAccounts: Array<{ value: string; label: string }>;
@@ -96,6 +108,7 @@ export function PdcCheckoutPanel({
   createProductAction,
   createPriceAction,
   fetchProductAction,
+  syncCheckoutUrlsAction,
   fetchAccountsAction,
   injectPdcButtonAction,
   ventaHasPdcButton,
@@ -256,6 +269,29 @@ export function PdcCheckoutPanel({
         )}
       </div>
     );
+  }
+
+  async function syncFromCampus() {
+    setError(null);
+    try {
+      const { prices } = await syncCheckoutUrlsAction(launchId);
+      // Update local state from synced data — cast to compatible shape
+      setPdcPrices(
+        prices.map((p) => ({
+          id: p.id,
+          tipo_pago: p.tipo_pago,
+          precio: p.precio,
+          moneda: "EUR",
+          num_cuotas: p.num_cuotas,
+          activo: p.activo,
+          stripe_price_id: null,
+          checkout_url_stripe: p.checkout_url_stripe,
+          checkout_url_whop: p.checkout_url_whop,
+        })),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   // ---- Linked ----
@@ -427,65 +463,84 @@ export function PdcCheckoutPanel({
             )}
           </div>
 
-          {/* Prices with checkout URLs */}
-          {activePrices.length > 0 && (
+          {/* All prices */}
+          {pdcPrices.filter((p) => !p.checkout_url_stripe?.includes("checkout_padre")).length > 0 && (
             <div className="space-y-3">
-              <div className="text-[10px] uppercase tracking-widest text-zinc-500">
-                Precios y URLs de checkout
-              </div>
-              {activePrices.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-lg border border-white/5 bg-black/30 p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-white">
-                      {priceLabel(p)}
-                    </span>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
-                        p.stripe_price_id
-                          ? "border-emerald-500/40 text-emerald-300"
-                          : "border-amber-500/40 text-amber-300"
-                      }`}
-                    >
-                      {p.stripe_price_id ? "Stripe OK" : "Pendiente"}
-                    </span>
-                  </div>
-
-                  {p.checkout_url_stripe && (
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-widest text-zinc-600">
-                        URL Stripe
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-sky-300">
-                          {p.checkout_url_stripe}
-                        </code>
-                        <CopyButton text={p.checkout_url_stripe} />
-                      </div>
-                    </div>
-                  )}
-
-                  {p.checkout_url_whop && (
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-widest text-zinc-600">
-                        URL Whop
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-purple-300">
-                          {p.checkout_url_whop}
-                        </code>
-                        <CopyButton text={p.checkout_url_whop} />
-                      </div>
-                    </div>
-                  )}
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  Precios
                 </div>
-              ))}
+                <div className="text-[10px] text-zinc-600">
+                  {activePrices.length} activo{activePrices.length !== 1 ? "s" : ""} de{" "}
+                  {pdcPrices.filter((p) => !p.checkout_url_stripe?.includes("checkout_padre")).length}
+                </div>
+              </div>
+              {pdcPrices
+                .filter((p) => !p.checkout_url_stripe?.includes("checkout_padre"))
+                .map((p) => (
+                  <div
+                    key={p.id}
+                    className={`rounded-lg border p-4 space-y-3 ${
+                      p.activo === 1
+                        ? "border-white/5 bg-black/30"
+                        : "border-white/[0.03] bg-black/10 opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm font-medium ${p.activo === 1 ? "text-white" : "text-zinc-500"}`}>
+                        {priceLabel(p)}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
+                            p.activo === 1
+                              ? "border-emerald-500/40 text-emerald-300"
+                              : "border-red-500/30 text-red-400"
+                          }`}
+                        >
+                          {p.activo === 1 ? "Activo" : "Inactivo"}
+                        </span>
+                        {p.stripe_price_id && (
+                          <span className="rounded-full border border-emerald-500/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-emerald-300">
+                            Stripe OK
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {p.activo === 1 && p.checkout_url_stripe && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                          URL Stripe
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-sky-300">
+                            {p.checkout_url_stripe}
+                          </code>
+                          <CopyButton text={p.checkout_url_stripe} />
+                        </div>
+                      </div>
+                    )}
+
+                    {p.activo === 1 && p.checkout_url_whop && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                          URL Whop
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-purple-300">
+                            {p.checkout_url_whop}
+                          </code>
+                          <CopyButton text={p.checkout_url_whop} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
 
-          {/* Add price */}
+          {/* Add price + sync */}
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -494,8 +549,12 @@ export function PdcCheckoutPanel({
             >
               Agregar precio
             </Button>
-            <Button variant="outline" onClick={loadProductData} disabled={isPending}>
-              Actualizar datos
+            <Button
+              variant="outline"
+              onClick={() => startTransition(syncFromCampus)}
+              disabled={isPending}
+            >
+              {isPending ? "Sincronizando…" : "Sincronizar desde campus"}
             </Button>
           </div>
 
