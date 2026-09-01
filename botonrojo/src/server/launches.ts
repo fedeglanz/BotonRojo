@@ -4569,6 +4569,8 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
   ]);
 
   const currentCache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const existingUrls = (currentCache.pdcCheckoutUrls ?? []) as Array<{ id: number; pageKeys?: string[] }>;
+  const existingPageKeys = Object.fromEntries(existingUrls.map((u) => [u.id, u.pageKeys ?? []]));
 
   const pdcCheckoutUrls = prices.map((p) => ({
     id: p.id,
@@ -4578,6 +4580,7 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
     activo: p.activo,
     checkout_url_stripe: p.checkout_url_stripe ?? null,
     checkout_url_whop: p.checkout_url_whop ?? null,
+    pageKeys: existingPageKeys[p.id] ?? [],
   }));
 
   await db
@@ -4609,7 +4612,7 @@ export async function assignPdcPriceToPageAction(
   const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<Record<string, unknown>>;
 
   const updated = checkoutUrls.map((u) =>
-    u.id === priceId ? { ...u, pageKeys } : u,
+    Number(u.id) === Number(priceId) ? { ...u, pageKeys } : u,
   );
 
   await db

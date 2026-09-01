@@ -296,6 +296,10 @@ export function PdcCheckoutPanel({
           checkout_url_whop: p.checkout_url_whop,
         })),
       );
+      // Preserve pageKeys assignments after sync (server now preserves them in DB too)
+      setPricePageKeys(
+        Object.fromEntries(prices.map((p) => [p.id, (p as { pageKeys?: string[] }).pageKeys ?? []])),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
