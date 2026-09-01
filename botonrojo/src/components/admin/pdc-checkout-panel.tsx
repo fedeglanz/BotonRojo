@@ -548,7 +548,7 @@ export function PdcCheckoutPanel({
                                 className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest transition ${
                                   assigned
                                     ? "border-sky-500/60 bg-sky-500/15 text-sky-300"
-                                    : "border-white/10 text-zinc-500 hover:border-white/30 hover:text-white"
+                                    : "border-zinc-600 bg-zinc-800/60 text-zinc-300 hover:border-zinc-400 hover:text-white"
                                 }`}
                               >
                                 {assigned ? "✓ " : ""}{vp.label}
