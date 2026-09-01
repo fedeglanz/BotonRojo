@@ -4677,39 +4677,61 @@ export async function injectPdcButtonInVentaAction(
     return { result: "no_page", message: "No hay una página de venta con diseño propio publicada." };
   }
 
-  // Build the button HTML for each active price
-  function pdcPriceLabel(u: typeof activeUrls[number]) {
-    if (u.tipo_pago === "cuotas" && u.num_cuotas) return `${u.precio}€ x ${u.num_cuotas} cuotas`;
-    if (u.tipo_pago === "recurrente") return `${u.precio}€/mes`;
-    return `${u.precio}€`;
+  // Pick URLs: prefer those explicitly assigned to "venta", else all active
+  const extUrls = checkoutUrls as Array<typeof activeUrls[number] & { pageKeys?: string[]; activo?: number }>;
+  const ventaAssigned = extUrls.filter(
+    (u) => u.checkout_url_stripe && u.activo !== 0 && (u.pageKeys ?? []).includes("venta"),
+  );
+  const urlsToUse = ventaAssigned.length > 0 ? ventaAssigned : activeUrls;
+
+  const hasDesignedButtons = html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'");
+  const hasAutoInjected = html.includes('id="pdc-checkout-buttons"');
+
+  function makeInjectionBlock(urls: typeof activeUrls) {
+    const btns = urls.map((u) => {
+      const href = u.checkout_url_stripe ?? "";
+      const label = u.tipo_pago === "cuotas" && u.num_cuotas
+        ? `${u.precio}€ x ${u.num_cuotas} cuotas`
+        : u.tipo_pago === "recurrente" ? `${u.precio}€/mes` : `${u.precio}€`;
+      return `<a href="${href}" target="_blank" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${label}</a>`;
+    }).join("\n");
+    return `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${btns}\n</div>\n`;
   }
 
-  const buttonsHtml = activeUrls
-    .map((u) => {
-      const href = u.checkout_url_stripe ?? "";
-      return `<a href="${href}" target="_blank" data-br="comprar-externo" style="display:inline-block;background:var(--color-primary,#e63946);color:#fff;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;">${pdcPriceLabel(u)}</a>`;
-    })
-    .join("\n");
-
-  const injectionBlock = `\n<!-- PDC Checkout buttons (auto-injected) -->\n<div id="pdc-checkout-buttons" style="text-align:center;padding:32px 16px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">\n${buttonsHtml}\n</div>\n`;
-
-  // If there's a previously auto-injected block, replace it with the updated one
-  const hasAutoInjected = html.includes('id="pdc-checkout-buttons"');
   let newHtml: string;
-  if (hasAutoInjected) {
-    // Replace from the comment to the closing </div> of the injected block
+  let verb = "inyectados";
+
+  if (hasDesignedButtons && !hasAutoInjected && urlsToUse.length === 1) {
+    // Designed buttons exist with a single assigned URL → update all their hrefs in-place
+    const newHref = urlsToUse[0].checkout_url_stripe ?? "";
+    newHtml = html.replace(/<a([^>]*)>/g, (match, attrs: string) => {
+      const hasDataBr = attrs.includes('data-br="comprar-externo"') || attrs.includes("data-br='comprar-externo'");
+      if (!hasDataBr) return match;
+      const updatedAttrs = attrs.includes("href=")
+        ? attrs.replace(/href="[^"]*"|href='[^']*'/, `href="${newHref}"`)
+        : ` href="${newHref}"${attrs}`;
+      return `<a${updatedAttrs}>`;
+    });
+    verb = "actualizados";
+  } else if (hasAutoInjected) {
+    // Replace the previously auto-injected block
     newHtml = html.replace(
       /\n?<!-- PDC Checkout buttons \(auto-injected\) -->\n<div id="pdc-checkout-buttons"[\s\S]*?<\/div>\n?/,
-      injectionBlock,
+      makeInjectionBlock(urlsToUse),
     );
-  } else if (html.includes('data-br="comprar-externo"') || html.includes("data-br='comprar-externo'")) {
-    // Has manually placed buttons — don't overwrite
-    return { result: "already", message: "La página de venta ya tiene botones de compra. Editá el HTML para actualizarlos." };
-  } else {
-    // No buttons yet — inject before </body>
+    verb = "actualizados";
+  } else if (!hasDesignedButtons) {
+    // No buttons at all → inject a new block
+    const block = makeInjectionBlock(urlsToUse);
     newHtml = html.includes("</body>")
-      ? html.replace("</body>", `${injectionBlock}</body>`)
-      : html + injectionBlock;
+      ? html.replace("</body>", `${block}</body>`)
+      : html + block;
+  } else {
+    // Designed buttons + multiple prices → ambiguous, can't auto-map
+    return {
+      result: "already" as const,
+      message: "Hay múltiples precios y los botones ya están diseñados. Asigná un solo precio a 'venta' para actualizar automáticamente, o pedile a Claude Design que actualice las URLs.",
+    };
   }
 
   await db
@@ -4718,8 +4740,7 @@ export async function injectPdcButtonInVentaAction(
     .where(eq(assets.id, ventaAsset.id));
 
   revalidatePath(`/admin/lanzamientos/${launch.slug}`);
-  const verb = hasAutoInjected ? "actualizados" : "inyectados";
-  return { result: "ok", message: `Botón${activeUrls.length > 1 ? "es" : ""} de compra PDC ${verb} en la página de venta.` };
+  return { result: "ok" as const, message: `Botones de compra PDC ${verb} en la página de venta.` };
 }
 
 /* ------------------------------------------------- archivar y borrar ------- */
