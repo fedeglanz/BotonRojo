@@ -515,8 +515,8 @@ export function PdcCheckoutPanel({
                       </div>
                     </div>
 
-                    {/* Page assignment — only shown if there are venta pages to choose from */}
-                    {p.activo === 1 && ventaPages.length > 0 && (
+                    {/* Page assignment — only shown when there are 2+ venta pages (A/B test) */}
+                    {p.activo === 1 && ventaPages.length > 1 && (
                       <div className="space-y-1">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600">
                           Páginas de venta
