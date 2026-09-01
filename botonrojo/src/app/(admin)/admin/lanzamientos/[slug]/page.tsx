@@ -70,6 +70,7 @@ import {
   createPdcPriceAction,
   fetchPdcProductAndPricesAction,
   syncPdcCheckoutUrlsAction,
+  assignPdcPriceToPageAction,
   fetchPdcAccountsAction,
   injectPdcButtonInVentaAction,
   updateMilestoneAction,
@@ -354,6 +355,19 @@ export default async function LaunchHubPage(props: {
     .then((r) => r[0]);
   const ventaHtml = ventaPageAsset && isCustomPageBody(ventaPageAsset.body) ? ventaPageAsset.body.html : "";
   const ventaHasPdcButton = ventaHtml.includes('data-br="comprar-externo"') || ventaHtml.includes("data-br='comprar-externo'");
+
+  // Páginas de venta disponibles para asignar precios PDC
+  const ventaPages = pages
+    .filter((p) => p.kind === "venta")
+    .map((p) => ({ pageKey: p.pageKey, label: p.label }));
+  // Asignaciones precio → páginas, leído del cache
+  const pdcCheckoutUrlsCache = ((launch.assetsCache as Record<string, unknown> | null)?.pdcCheckoutUrls ?? []) as Array<{
+    id: number; pageKeys?: string[];
+  }>;
+  const pricePageKeys: Record<number, string[]> = Object.fromEntries(
+    pdcCheckoutUrlsCache.map((u) => [u.id, u.pageKeys ?? []]),
+  );
+
   const hasTelegram = Boolean(launch.telegramChatId);
   const hasMilestones = launchMilestones.length > 0;
   const launchDomains = await listDomainsForLaunch(launch.id);
@@ -1364,8 +1378,11 @@ export default async function LaunchHubPage(props: {
               disconnectLaunchAction={disconnectPdcLaunchAction}
               createProductAction={createPdcProductAction}
               createPriceAction={createPdcPriceAction}
+              ventaPages={ventaPages}
+              pricePageKeys={pricePageKeys}
               fetchProductAction={fetchPdcProductAndPricesAction}
               syncCheckoutUrlsAction={syncPdcCheckoutUrlsAction}
+              assignPriceToPageAction={assignPdcPriceToPageAction}
               fetchAccountsAction={fetchPdcAccountsAction}
               injectPdcButtonAction={injectPdcButtonInVentaAction}
               ventaHasPdcButton={ventaHasPdcButton}

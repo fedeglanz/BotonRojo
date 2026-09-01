@@ -47,6 +47,10 @@ type Props = {
   pdcLaunchId: number | null;
   pdcProductId: number | null;
   pdcPriceIds: number[];
+  /** Páginas de venta disponibles para asignar precios (pageKey → label) */
+  ventaPages: Array<{ pageKey: string; label: string }>;
+  /** pageKeys asignados a cada precio en el cache */
+  pricePageKeys: Record<number, string[]>;
   listLaunchesAction: (launchId: string) => Promise<PdcLaunch[]>;
   connectLaunchAction: (launchId: string, pdcLaunchId: number) => Promise<void>;
   createLaunchAction: (launchId: string) => Promise<PdcLaunch>;
@@ -58,6 +62,7 @@ type Props = {
     prices: PdcPrice[];
   }>;
   syncCheckoutUrlsAction: (launchId: string) => Promise<{ product: unknown; prices: SyncedPrice[] }>;
+  assignPriceToPageAction: (launchId: string, priceId: number, pageKeys: string[]) => Promise<void>;
   fetchAccountsAction: (launchId: string) => Promise<{
     stripeAccounts: Array<{ id: number; nombre: string; es_principal: number }>;
     billingAccounts: Array<{ value: string; label: string }>;
@@ -100,6 +105,8 @@ export function PdcCheckoutPanel({
   pdcLaunchId,
   pdcProductId,
   pdcPriceIds,
+  ventaPages,
+  pricePageKeys: initialPricePageKeys,
   listLaunchesAction,
   connectLaunchAction,
   createLaunchAction,
@@ -108,6 +115,7 @@ export function PdcCheckoutPanel({
   createPriceAction,
   fetchProductAction,
   syncCheckoutUrlsAction,
+  assignPriceToPageAction,
   fetchAccountsAction,
   injectPdcButtonAction,
   ventaHasPdcButton,
@@ -116,6 +124,7 @@ export function PdcCheckoutPanel({
   const [isPending, startTransition] = useTransition();
   const [injectResult, setInjectResult] = useState<string | null>(null);
   const [hasPdcButton, setHasPdcButton] = useState(ventaHasPdcButton);
+  const [pricePageKeys, setPricePageKeys] = useState<Record<number, string[]>>(initialPricePageKeys);
   const [campusLaunches, setCampusLaunches] = useState<PdcLaunch[] | null>(null);
   const [loadingLaunches, setLoadingLaunches] = useState(false);
   const [pdcProduct, setPdcProduct] = useState<PdcProduct | null>(null);
@@ -506,10 +515,59 @@ export function PdcCheckoutPanel({
                       </div>
                     </div>
 
+                    {/* Page assignment — only shown if there are venta pages to choose from */}
+                    {p.activo === 1 && ventaPages.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                          Páginas de venta
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {ventaPages.map((vp) => {
+                            const assigned = (pricePageKeys[p.id] ?? []).includes(vp.pageKey);
+                            return (
+                              <button
+                                key={vp.pageKey}
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => {
+                                  const current = pricePageKeys[p.id] ?? [];
+                                  const next = assigned
+                                    ? current.filter((k) => k !== vp.pageKey)
+                                    : [...current, vp.pageKey];
+                                  setPricePageKeys((prev) => ({ ...prev, [p.id]: next }));
+                                  startTransition(async () => {
+                                    try {
+                                      await assignPriceToPageAction(launchId, p.id, next);
+                                    } catch (err) {
+                                      setError(err instanceof Error ? err.message : String(err));
+                                      // Revert on error
+                                      setPricePageKeys((prev) => ({ ...prev, [p.id]: current }));
+                                    }
+                                  });
+                                }}
+                                className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest transition ${
+                                  assigned
+                                    ? "border-sky-500/60 bg-sky-500/15 text-sky-300"
+                                    : "border-white/10 text-zinc-500 hover:border-white/30 hover:text-white"
+                                }`}
+                              >
+                                {assigned ? "✓ " : ""}{vp.label}
+                              </button>
+                            );
+                          })}
+                          {ventaPages.length > 0 && (pricePageKeys[p.id] ?? []).length === 0 && (
+                            <span className="text-[10px] text-zinc-600 self-center">
+                              Sin asignar — aparece en todas las páginas
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {p.activo === 1 && p.checkout_url_stripe && (
                       <div className="space-y-1">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600">
-                          URL Stripe
+                          URL de checkout
                         </div>
                         <div className="flex items-center gap-2">
                           <code className="min-w-0 flex-1 truncate rounded bg-black/60 px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-sky-300">

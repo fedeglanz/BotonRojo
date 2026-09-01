@@ -4593,6 +4593,33 @@ export async function syncPdcCheckoutUrlsAction(launchId: string) {
   return { product, prices: pdcCheckoutUrls };
 }
 
+/**
+ * Asigna un precio PDC a un conjunto de páginas de venta del lanzamiento.
+ * pageKeys vacío = el precio aparece en todas las páginas (comportamiento default).
+ */
+export async function assignPdcPriceToPageAction(
+  launchId: string,
+  priceId: number,
+  pageKeys: string[],
+) {
+  const { organizationId } = await requireOrgAdmin();
+  const launch = await getOrgLaunch(launchId, organizationId);
+
+  const cache = (launch.assetsCache ?? {}) as Record<string, unknown>;
+  const checkoutUrls = (cache.pdcCheckoutUrls ?? []) as Array<Record<string, unknown>>;
+
+  const updated = checkoutUrls.map((u) =>
+    u.id === priceId ? { ...u, pageKeys } : u,
+  );
+
+  await db
+    .update(launches)
+    .set({ assetsCache: { ...cache, pdcCheckoutUrls: updated }, updatedAt: new Date() })
+    .where(eq(launches.id, launchId));
+
+  revalidatePath(`/admin/lanzamientos/${launch.slug}`);
+}
+
 export async function fetchPdcAccountsAction(launchId: string) {
   const { organizationId } = await requireOrgAdmin();
   await getOrgLaunch(launchId, organizationId);

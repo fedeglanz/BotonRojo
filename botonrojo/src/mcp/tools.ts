@@ -432,8 +432,14 @@ const contextoLanzamiento: ToolDef = {
         /**
          * URLs de checkout del campus (PDC Checkout). Solo presentes si el
          * lanzamiento tiene PDC configurado y tiene precios activos creados.
-         * Úsalas en los botones de compra así:
-         *   <a href="{url}" target="_blank" data-br="comprar-externo">Comprar</a>
+         *
+         * Cada precio puede estar asignado a páginas específicas (pageKeys).
+         * Cuando diseñes una página de venta, usá SOLO los precios cuyo
+         * pageKeys incluye la página actual — o los que tienen pageKeys vacío
+         * (sin asignación = se muestran en todas las páginas).
+         *
+         * Botón de compra:
+         *   <a href="{href}" target="_blank" data-br="comprar-externo">Comprar</a>
          * El runtime propagará automáticamente el código de afiliado (?ref=).
          */
         checkout_campus: (() => {
@@ -442,8 +448,10 @@ const contextoLanzamiento: ToolDef = {
             id: number;
             tipo_pago: string;
             precio: number;
+            num_cuotas?: number | null;
             activo?: number;
             checkout_url_stripe: string | null;
+            pageKeys?: string[];
           }>;
           if (!urls.length) return null;
           const active = urls.filter((u) => u.checkout_url_stripe && u.activo !== 0);
@@ -452,6 +460,8 @@ const contextoLanzamiento: ToolDef = {
             href: u.checkout_url_stripe,
             tipo: u.tipo_pago,
             precio: u.precio,
+            num_cuotas: u.num_cuotas ?? null,
+            pageKeys: u.pageKeys ?? [], // [] = sin asignación, va en todas las páginas
           }));
         })(),
       },
