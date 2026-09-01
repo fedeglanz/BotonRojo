@@ -25,7 +25,7 @@ export default async function PdcCheckoutCustomDomainPage({ params, searchParams
   const siteUrl = creds.siteUrl.replace(/\/$/, "");
   const checkoutRes = await fetch(
     `${siteUrl}/wp-json/stripe/v1/checkout-button?checkout_id=${checkout_id}`,
-    { cache: "no-store" },
+    { cache: "no-store", headers: { "X-API-Key": creds.apiKey } },
   ).catch(() => null);
 
   if (!checkoutRes?.ok) notFound();

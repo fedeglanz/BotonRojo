@@ -31,7 +31,10 @@ export default async function PdcCheckoutPage({ params, searchParams }: Props) {
 
   const siteUrl = creds.siteUrl.replace(/\/$/, "");
   const campusUrl = `${siteUrl}/wp-json/stripe/v1/checkout-button?checkout_id=${checkout_id}`;
-  const checkoutRes = await fetch(campusUrl, { cache: "no-store" }).catch(() => null);
+  const checkoutRes = await fetch(campusUrl, {
+    cache: "no-store",
+    headers: { "X-API-Key": creds.apiKey },
+  }).catch(() => null);
 
   if (!checkoutRes?.ok) {
     return <pre>❌ campus fetch failed: {campusUrl} → {checkoutRes?.status ?? "network error"}</pre>;
